@@ -75,3 +75,14 @@ function showToast(msg, type = 'info', ms = 4000) {
 export const showError   = (msg, ms) => showToast(msg,   'error',   ms);
 export const showSuccess = (msg, ms) => showToast(msg,   'success', ms);
 export const showInfo    = (msg, ms) => showToast(msg,   'info',    ms);
+
+/**
+ * Devuelve 'green' | 'yellow' | 'red' según los umbrales definidos
+ * en constants.js (SCORE_THRESHOLDS). null/undefined → null (sin dato).
+ */
+export function scoreColor(value, thresholds) {
+  if (value === null || value === undefined || Number.isNaN(value)) return null;
+  if (value >= thresholds.green)  return 'green';
+  if (value >= thresholds.yellow) return 'yellow';
+  return 'red';
+}
