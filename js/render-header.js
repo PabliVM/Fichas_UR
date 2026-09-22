@@ -16,6 +16,7 @@ export function renderHeader() {
     </div>
     <div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;overflow:hidden;">
       <span class="header-app-name">${safeText(state.appName)}</span>
+      <span class="header-app-subtitle">Real Madrid · Cantera</span>
     </div>
     <div class="header-actions" style="display:flex;align-items:center;gap:8px;">
       <select class="select" id="sel-season">
