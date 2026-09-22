@@ -17,7 +17,6 @@
 }
 
 .ficha-grid {
-  position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: auto auto;
@@ -110,11 +109,17 @@
 .gps-ref  { text-align: center; color: rgba(255,255,255,0.85); }
 
 /* ── CÍRCULO CENTRAL ── */
+/* Se coloca en la celda (fila1, col1) y se ancla a su esquina
+   inferior-derecha — que es exactamente el punto de cruce de
+   las 4 celdas — luego se desplaza medio tamaño con transform.
+   Así queda centrado en el cruce real, sin importar que las
+   filas tengan alturas distintas (radar vs tabla GPS). */
 .ficha-central {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  grid-row: 1;
+  grid-column: 1;
+  align-self: end;
+  justify-self: end;
+  transform: translate(50%, 50%);
   width: 200px;
   height: 200px;
   z-index: 5;
