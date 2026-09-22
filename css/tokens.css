@@ -1,0 +1,84 @@
+/* ================================================
+   TOKENS.CSS — Variables corporativas RM
+   RM App Base — Cantera Real Madrid
+   ================================================ */
+
+:root {
+  /* MARCA */
+  --rm-gold:        #c9a227;
+  --rm-gold-light:  #e8c048;
+  --rm-gold-dark:   #9b7c1a;
+
+  /* AZUL CORPORATIVO */
+  --blue-900: #0f172a;
+  --blue-800: #1e293b;
+  --blue-700: #1e3a5f;
+  --blue-600: #1d4ed8;
+  --blue-500: #2563eb;
+  --blue-400: #3b82f6;
+  --blue-300: #93c5fd;
+  --blue-100: #dbeafe;
+
+  /* SUPERFICIES — MODO CLARO (default) */
+  --bg-app:      #f0f4fa;
+  --bg-surface:  #ffffff;
+  --bg-raised:   #f8fafd;
+  --bg-hover:    #e8eef8;
+
+  /* TEXTO */
+  --text-primary:   #0f1117;
+  --text-secondary: #4b5563;
+  --text-muted:     #9ca3af;
+
+  /* BORDES */
+  --border-default:  #d1d9e6;
+  --border-subtle:   #e8eef8;
+  --border-emphasis: #b4bfd0;
+
+  /* HEADER — siempre oscuro independiente del modo */
+  --header-bg:     #0d1117;
+  --header-border: #c9a227;
+  --header-text:   #ffffff;
+
+  /* SOMBRAS */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.07);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.09);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.13);
+
+  /* FORMA */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* TIPOGRAFÍA */
+  --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  /* DIMENSIONES FIJAS */
+  --header-h: 56px;
+  --tabs-h:   40px;
+  --footer-h: 36px;
+
+  /* ANIMACIONES */
+  --t-fast: 120ms ease;
+  --t-base: 200ms ease;
+}
+
+/* ── MODO OSCURO ── */
+body.dark {
+  --bg-app:      #0d1117;
+  --bg-surface:  #161b22;
+  --bg-raised:   #1c2333;
+  --bg-hover:    #262d3a;
+
+  --text-primary:   #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted:     #484f58;
+
+  --border-default:  #30363d;
+  --border-subtle:   #21262d;
+  --border-emphasis: #3d444d;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.6);
+}
