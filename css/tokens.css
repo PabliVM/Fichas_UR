@@ -35,9 +35,9 @@
   --border-subtle:   #e8eef8;
   --border-emphasis: #b4bfd0;
 
-  /* HEADER — siempre oscuro independiente del modo */
-  --header-bg:     #0d1117;
-  --header-border: #c9a227;
+  /* HEADER — siempre azul corporativo, independiente del modo */
+  --header-bg:     var(--blue-700);
+  --header-border: var(--rm-gold);
   --header-text:   #ffffff;
 
   /* SOMBRAS */
