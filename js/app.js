@@ -2,13 +2,15 @@
 // APP.JS — Punto de entrada RM Perfiles
 // ================================================
 
-import { initFirebase }          from './firebase-service.js';
+import { initFirebase }           from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { renderHeader }  from './render-header.js';
 import { renderTabs }    from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
-import { TABS }          from './constants.js';
+import { TABS, LOGO_PATH } from './constants.js';
 import { state }         from './state.js';
+import { renderFichaDetalle } from './ficha-detalle.js';
+import { FICHA_DEMO_DATA }    from './ficha-demo-data.js';
 
 // ── AVISO FIREBASE ────────────────────────────────
 
@@ -71,11 +73,13 @@ function renderPanelJugadores(container) {
 function renderPanelFichas(container) {
   container.innerHTML = `
     ${firebaseNotice()}
-    <div class="card">
-      <div class="card-title">Fichas</div>
-      <div class="card-body">Plantilla de ficha individual pendiente de implementar.</div>
+    <div class="mb-16">
+      <strong>Plantilla de ficha (página 2)</strong> — datos de ejemplo, pendiente de conectar a Firestore.
     </div>
+    <div id="ficha-demo-wrap"></div>
   `;
+  const wrap = container.querySelector('#ficha-demo-wrap');
+  renderFichaDetalle(wrap, FICHA_DEMO_DATA, LOGO_PATH);
 }
 
 function renderPanelConfig(container) {
