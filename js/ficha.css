@@ -1,0 +1,187 @@
+/* ================================================
+   FICHA.CSS — Página de detalle de la ficha individual
+   Paleta propia (vino/pizarra), aislada del resto de la app.
+   No usa --header-bg, --bg-app, etc. — es un documento
+   con identidad fija, igual en claro y oscuro.
+   ================================================ */
+
+.ficha-detalle {
+  --wine:        #7b3a52;
+  --slate:       #24313d;
+  --slate-line:  rgba(255,255,255,0.12);
+  background: var(--slate);
+  color: #ffffff;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  font-family: var(--font-sans);
+}
+
+.ficha-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+}
+
+/* ── CUADRANTE ── */
+.ficha-quadrant {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--slate-line);
+}
+
+.ficha-q-header {
+  background: var(--wine);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  min-height: 44px;
+}
+.ficha-q-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  flex: 1;
+  text-align: center;
+  text-transform: uppercase;
+}
+.ficha-q-rp {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ficha-q-body {
+  display: flex;
+  flex: 1;
+  min-height: 260px;
+}
+.q-right .ficha-q-body { flex-direction: row; }
+.q-left  .ficha-q-body { flex-direction: row; }
+
+.ficha-radar { flex: 1.1; padding: 10px; display: flex; align-items: center; }
+.ficha-item-list {
+  flex: 1;
+  list-style: none;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.ficha-item-list li { display: flex; align-items: center; gap: 8px; }
+.ficha-item-list.align-left  li { justify-content: flex-start; }
+.ficha-item-list.align-right li { justify-content: flex-end; flex-direction: row-reverse; }
+
+.ficha-score {
+  min-width: 30px;
+  text-align: center;
+  font-weight: 800;
+}
+.score-green  { color: var(--score-green); }
+.score-yellow { color: var(--score-yellow); }
+.score-red    { color: var(--score-red); }
+.score-none   { color: rgba(255,255,255,0.5); }
+
+.ficha-item-label { color: #ffffff; }
+
+/* ── CONDICIONAL (GPS) ── */
+.gps-grid {
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.gps-row {
+  display: grid;
+  grid-template-columns: 56px 56px 1fr 56px 56px;
+  align-items: center;
+  gap: 6px;
+}
+.gps-val  { text-align: right; }
+.gps-ok   { color: var(--score-green); font-weight: 800; }
+.gps-fail { color: var(--score-red);   font-weight: 800; }
+.gps-label { padding-left: 6px; }
+.gps-ref  { text-align: center; color: rgba(255,255,255,0.85); }
+
+/* ── CÍRCULO CENTRAL ── */
+.ficha-central {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200px;
+  height: 200px;
+  z-index: 5;
+}
+.ficha-central-svg { width: 100%; height: 100%; }
+
+/* ── PLAN DE ACCIÓN ── */
+.ficha-plan-title {
+  background: var(--wine);
+  text-align: center;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 10px;
+}
+.ficha-plan-grid {
+  display: grid;
+  grid-template-columns: 110px 1fr 1fr 1fr 1fr;
+}
+.plan-col { border: 1px solid var(--slate-line); display: flex; flex-direction: column; }
+.plan-col-header {
+  background: #0d1117;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+.plan-col-header-dark {
+  background: var(--blue-800, #1e293b);
+  justify-content: center;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.2;
+}
+.plan-col-icon { font-size: 15px; }
+.plan-col-list {
+  list-style: none;
+  padding: 10px 14px;
+  margin: 0;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #e6edf3;
+  background: rgba(255,255,255,0.03);
+}
+.plan-col-list li {
+  border-bottom: 1px dashed var(--slate-line);
+  padding-bottom: 4px;
+  min-height: 16px;
+  outline: none;
+}
+.plan-col-list li:focus { background: rgba(255,255,255,0.06); }
+.plan-crest {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+}
+.plan-crest img { width: 44px; height: 44px; object-fit: contain; }
+
+@media (max-width: 900px) {
+  .ficha-grid { grid-template-columns: 1fr; }
+  .ficha-central { display: none; }
+  .ficha-plan-grid { grid-template-columns: 1fr; }
+}
