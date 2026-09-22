@@ -9,7 +9,6 @@
 // amarillo arriba-dcha/abajo-dcha — tal como se pidió.
 // ================================================
 
-import { SCORE_THRESHOLDS } from './constants.js';
 import { scoreColor, safeText } from './utils.js';
 import { buildRadarSVG } from './radar-chart.js';
 
@@ -64,13 +63,13 @@ function buildCentralCircle(photoUrl) {
 
 // ── BLOQUE CON RADAR (mental / técnico / táctico) ──
 
-function buildRatedBlock({ title, rp, items, side }) {
+function buildRatedBlock({ title, rp, items, side, thresholds }) {
   const rpDisplay = rp && rp[0] != null && rp[1] != null
     ? `${formatNum(rp[0])} / ${formatNum(rp[1])}`
     : '-';
 
   const listHTML = items.map(item => {
-    const color = scoreColor(item.value, SCORE_THRESHOLDS);
+    const color = scoreColor(item.value, thresholds);
     const valueText = item.value == null ? '-' : formatNum(item.value);
     const colorClass = color ? `score-${color}` : 'score-none';
     return side === 'left'
@@ -189,16 +188,16 @@ function formatNum(n) {
  * @param {Object} data — { player, blocks: {mental, tecnico, tactico, condicional}, plan }
  * @param {string} logoPath — ruta del escudo (LOGO_PATH de constants.js)
  */
-export function renderFichaDetalle(container, data, logoPath) {
+export function renderFichaDetalle(container, data, logoPath, thresholds) {
   const { player, blocks, plan } = data;
 
   container.innerHTML = `
     <div class="ficha-detalle">
       <div class="ficha-grid">
-        ${buildRatedBlock({ title: 'MENTAL',  rp: blocks.mental.rp,  items: blocks.mental.items,  side: 'left'  })}
-        ${buildRatedBlock({ title: 'TÉCNICO', rp: blocks.tecnico.rp, items: blocks.tecnico.items, side: 'right' })}
+        ${buildRatedBlock({ title: 'MENTAL',  rp: blocks.mental.rp,  items: blocks.mental.items,  side: 'left',  thresholds })}
+        ${buildRatedBlock({ title: 'TÉCNICO', rp: blocks.tecnico.rp, items: blocks.tecnico.items, side: 'right', thresholds })}
         ${buildCondicionalBlock({ title: 'CONDICIONAL', rp: blocks.condicional.rp, items: blocks.condicional.items })}
-        ${buildRatedBlock({ title: 'TÁCTICO', rp: blocks.tactico.rp, items: blocks.tactico.items, side: 'right' })}
+        ${buildRatedBlock({ title: 'TÁCTICO', rp: blocks.tactico.rp, items: blocks.tactico.items, side: 'right', thresholds })}
         <div class="ficha-central">${buildCentralCircle(player?.photoUrl)}</div>
       </div>
       ${buildPlanAccion(plan, logoPath)}
