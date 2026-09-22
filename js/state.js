@@ -5,14 +5,15 @@
 // almacenamiento local.
 // ================================================
 
-import { APP_NAME, DEFAULT_SEASON, TEAMS } from './constants.js';
+import { APP_NAME, DEFAULT_SEASON, TEAMS, SCORE_THRESHOLDS } from './constants.js';
 
 const _state = {
-  appName:    APP_NAME,
-  season:     DEFAULT_SEASON,
-  activeTeam: TEAMS[0].key,
-  activeTab:  'inicio',
-  darkMode:   false,
+  appName:         APP_NAME,
+  season:          DEFAULT_SEASON,
+  activeTeam:      TEAMS[0].key,
+  activeTab:       'inicio',
+  darkMode:        false,
+  scoreThresholds: { ...SCORE_THRESHOLDS }, // editable desde Configuración
 };
 
 export const state = _state;
