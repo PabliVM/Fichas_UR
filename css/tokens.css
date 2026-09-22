@@ -36,8 +36,7 @@
   --border-emphasis: #b4bfd0;
 
   /* HEADER — siempre azul corporativo, independiente del modo */
-  --header-bg:     var(--blue-700);
-  --header-border: var(--rm-gold);
+  --header-bg:     var(--blue-600);
   --header-text:   #ffffff;
 
   /* SOMBRAS */
@@ -54,7 +53,7 @@
   --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
 
   /* DIMENSIONES FIJAS */
-  --header-h: 56px;
+  --header-h: 64px;
   --tabs-h:   40px;
   --footer-h: 36px;
 
