@@ -19,6 +19,11 @@
   --blue-300: #93c5fd;
   --blue-100: #dbeafe;
 
+  /* COLORES DE MEDIA — umbrales en constants.js (SCORE_THRESHOLDS) */
+  --score-green:  #22c55e;
+  --score-yellow: #eab308;
+  --score-red:    #ef4444;
+
   /* SUPERFICIES — MODO CLARO (default) */
   --bg-app:      #f0f4fa;
   --bg-surface:  #ffffff;
