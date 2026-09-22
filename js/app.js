@@ -11,6 +11,7 @@ import { TABS, LOGO_PATH } from './constants.js';
 import { state }         from './state.js';
 import { renderFichaDetalle } from './ficha-detalle.js';
 import { FICHA_DEMO_DATA }    from './ficha-demo-data.js';
+import { showError, showSuccess } from './utils.js';
 
 // ── AVISO FIREBASE ────────────────────────────────
 
@@ -79,17 +80,54 @@ function renderPanelFichas(container) {
     <div id="ficha-demo-wrap"></div>
   `;
   const wrap = container.querySelector('#ficha-demo-wrap');
-  renderFichaDetalle(wrap, FICHA_DEMO_DATA, LOGO_PATH);
+  renderFichaDetalle(wrap, FICHA_DEMO_DATA, LOGO_PATH, state.scoreThresholds);
 }
 
 function renderPanelConfig(container) {
+  const t = state.scoreThresholds;
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="card">
-      <div class="card-title">Configuración</div>
-      <div class="card-body">Opciones de configuración de la aplicación.</div>
+      <div class="card-title">Límites de color (medias)</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">
+          Se aplican a MENTAL, TÉCNICO y TÁCTICO. CONDICIONAL usa objetivos GPS aparte (✔/✘), no estos límites.
+        </p>
+        <div class="flex gap-12" style="align-items:flex-end;flex-wrap:wrap;">
+          <label>
+            <div class="text-xs text-muted mb-8">Verde a partir de</div>
+            <input class="input" type="number" step="0.1" min="0" max="5" id="th-green" value="${t.green}" />
+          </label>
+          <label>
+            <div class="text-xs text-muted mb-8">Amarillo a partir de</div>
+            <input class="input" type="number" step="0.1" min="0" max="5" id="th-yellow" value="${t.yellow}" />
+          </label>
+          <span class="text-xs text-muted">Por debajo de amarillo → rojo.</span>
+        </div>
+        <p class="text-xs text-muted mt-16">
+          ⚠ Pendiente: esto solo dura mientras la pestaña está abierta. Falta guardarlo en Firestore para que persista.
+        </p>
+      </div>
     </div>
   `;
+
+  const greenInput  = container.querySelector('#th-green');
+  const yellowInput = container.querySelector('#th-yellow');
+
+  function applyThresholds() {
+    const green  = parseFloat(greenInput.value);
+    const yellow = parseFloat(yellowInput.value);
+    if (Number.isNaN(green) || Number.isNaN(yellow) || yellow > green) {
+      showError('El límite amarillo no puede ser mayor que el verde.');
+      return;
+    }
+    setState({ scoreThresholds: { green, yellow } });
+    document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
+    showSuccess('Límites actualizados.');
+  }
+
+  greenInput.addEventListener('change', applyThresholds);
+  yellowInput.addEventListener('change', applyThresholds);
 }
 
 const RENDERERS = {
@@ -128,6 +166,11 @@ function setupEvents() {
 
     const render = RENDERERS[tabKey];
     if (render) render(panel);
+  });
+
+  document.addEventListener('rm:thresholds-changed', () => {
+    const panel = document.querySelector('.tab-panel[data-tab="fichas"]');
+    if (panel) renderPanelFichas(panel);
   });
 }
 
