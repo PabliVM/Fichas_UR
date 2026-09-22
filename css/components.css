@@ -4,11 +4,11 @@
 
 /* ── HEADER INTERNO ── */
 .header-logo {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.08);
-  border: 1.5px solid var(--rm-gold-dark);
+  background: #ffffff;
+  border: 2px solid rgba(255,255,255,0.35);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -16,16 +16,23 @@
   flex-shrink: 0;
 }
 .header-logo img {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   object-fit: contain;
 }
 .header-app-name {
   font-size: 15px;
   font-weight: 700;
   color: var(--header-text);
-  letter-spacing: 0.03em;
-  flex: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.header-app-subtitle {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.75);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -43,24 +50,38 @@
   gap: 8px;
   margin-left: 8px;
 }
+.header-actions .select {
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.header-actions .select:focus {
+  outline: none;
+  background: rgba(255,255,255,0.22);
+  box-shadow: none;
+}
 
 /* ── BOTÓN TEMA ── */
 .btn-theme {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(255,255,255,0.15);
-  background: transparent;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,0.22);
   cursor: pointer;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1;
   transition: background var(--t-fast);
   flex-shrink: 0;
 }
-.btn-theme:hover { background: rgba(255,255,255,0.1); }
+.btn-theme:hover { background: rgba(0,0,0,0.32); }
 
 /* ── TABS ── */
 .tab-btn {
