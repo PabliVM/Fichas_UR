@@ -4,12 +4,12 @@
 // ================================================
 
 export const firebaseConfig = {
-  apiKey:            'TU_API_KEY',
-  authDomain:        'TU_AUTH_DOMAIN',
-  projectId:         'TU_PROJECT_ID',
-  storageBucket:     'TU_STORAGE_BUCKET',
-  messagingSenderId: 'TU_MESSAGING_SENDER_ID',
-  appId:             'TU_APP_ID',
+  apiKey:            'AIzaSyAllp03rHd98dUAtHL8YHNrqRxR5VT5Cs0',
+  authDomain:        'fichasur-f9d61.firebaseapp.com',
+  projectId:         'fichasur-f9d61',
+  storageBucket:     'fichasur-f9d61.firebasestorage.app',
+  messagingSenderId: '1093958036122',
+  appId:             '1:1093958036122:web:5f72454086c11b7afc8d23',
 };
 
 /**
