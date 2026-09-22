@@ -1,0 +1,264 @@
+/* ================================================
+   COMPONENTS.CSS — Componentes reutilizables
+   ================================================ */
+
+/* ── HEADER INTERNO ── */
+.header-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid var(--rm-gold-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.header-logo img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+.header-app-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--header-text);
+  letter-spacing: 0.03em;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.header-season {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--rm-gold);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+/* ── BOTÓN TEMA ── */
+.btn-theme {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255,255,255,0.15);
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  transition: background var(--t-fast);
+  flex-shrink: 0;
+}
+.btn-theme:hover { background: rgba(255,255,255,0.1); }
+
+/* ── TABS ── */
+.tab-btn {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  height: 100%;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all var(--t-fast);
+  white-space: nowrap;
+  font-family: var(--font-sans);
+}
+.tab-btn:hover  { color: var(--text-primary); background: var(--bg-hover); }
+.tab-btn.active { color: var(--blue-500); border-bottom-color: var(--blue-500); }
+
+/* ── BOTONES ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--t-fast);
+  white-space: nowrap;
+  line-height: 1;
+  text-decoration: none;
+}
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--blue-500);
+  color: #fff;
+  border-color: var(--blue-600);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--blue-400);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border-default);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-emphasis);
+}
+
+.btn-gold {
+  background: transparent;
+  color: var(--rm-gold);
+  border-color: var(--rm-gold-dark);
+}
+.btn-gold:hover:not(:disabled) {
+  background: rgba(201,162,39,0.1);
+  border-color: var(--rm-gold);
+}
+
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn-icon { padding: 6px; min-width: 30px; min-height: 30px; }
+
+/* ── CARDS ── */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+.card-lg { padding: 24px; }
+.card-sm { padding: 10px 12px; }
+
+.card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.card-body {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ── BADGES ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.badge-blue    { background: rgba(37,99,235,0.12);   color: var(--blue-400); }
+.badge-gold    { background: rgba(201,162,39,0.12);  color: var(--rm-gold); }
+.badge-green   { background: rgba(34,197,94,0.12);   color: #22c55e; }
+.badge-red     { background: rgba(239,68,68,0.12);   color: #ef4444; }
+.badge-gray    { background: rgba(107,114,128,0.15); color: #9ca3af; }
+
+/* ── INPUTS ── */
+.input, .select, .textarea {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 7px 10px;
+  width: 100%;
+  outline: none;
+  transition: border-color var(--t-fast);
+}
+.input:focus, .select:focus, .textarea:focus {
+  border-color: var(--blue-500);
+  box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+}
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='%238b949e' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 26px;
+  cursor: pointer;
+}
+.textarea { resize: vertical; min-height: 72px; line-height: 1.5; }
+
+.label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 5px;
+}
+.field-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+
+/* ── DIVISOR ── */
+.divider {
+  height: 1px;
+  background: var(--border-default);
+  border: none;
+  margin: 16px 0;
+}
+
+/* ── EMPTY / LOADING STATE ── */
+.state-empty, .state-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 56px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.state-empty-icon { font-size: 36px; opacity: 0.35; }
+.state-empty p    { font-size: 13px; max-width: 280px; line-height: 1.5; }
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--border-default);
+  border-top-color: var(--blue-400);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── FIREBASE NOTICE ── */
+.firebase-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.3);
+  border-radius: var(--radius-md);
+  color: #f59e0b;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
