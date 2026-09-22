@@ -2,7 +2,8 @@
 // APP.JS — Punto de entrada RM Perfiles
 // ================================================
 
-import { initFirebase, isFirebaseUnconfigured } from './firebase-service.js';
+import { initFirebase }          from './firebase-service.js';
+import { isFirebaseUnconfigured } from './firebase-config.js';
 import { renderHeader }  from './render-header.js';
 import { renderTabs }    from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
