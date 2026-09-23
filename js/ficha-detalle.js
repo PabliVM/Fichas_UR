@@ -345,8 +345,14 @@ export function renderFichaDetalle(container, data, logoPath, thresholds, pageLa
     fitFichaToFrame(container);
   });
   window.addEventListener('beforeprint', () => {
-    requestAnimationFrame(() => fitFichaToFrame(container));
+    // Al imprimir NO reescalamos por JS (los tiempos del navegador
+    // en beforeprint son poco fiables) — se deja la ficha a tamaño
+    // natural y es la opción "Ajustar al área de impresión" del
+    // propio diálogo de impresión la que la encoge a una página.
+    const ficha = container.querySelector('.ficha-detalle');
+    if (ficha) ficha.style.transform = 'none';
   });
+  window.addEventListener('afterprint', () => fitFichaToFrame(container));
 }
 
 /**
