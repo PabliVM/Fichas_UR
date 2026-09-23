@@ -58,13 +58,13 @@ function buildCentralCircle(photoUrl, blockColors) {
 
   const curvedLabel = (id, text, color) => {
     const fill = color === '#ffffff' ? '#334155' : '#0f1117';
-    return `<text font-size="38" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
+    return `<text font-size="50" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
   };
 
   const photo = photoUrl
     ? `<clipPath id="ficha-photo-clip"><circle cx="${cx}" cy="${cy}" r="${rInner - 4}" /></clipPath>
        <image href="${photoUrl}" x="${cx - rInner}" y="${cy - rInner}" width="${rInner * 2}" height="${rInner * 2}" clip-path="url(#ficha-photo-clip)" preserveAspectRatio="xMidYMid slice" />`
-    : `<text x="${cx}" y="${cy}" font-size="36" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
+    : `<text x="${cx}" y="${cy}" font-size="46" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
 
   return `
     <svg viewBox="0 0 ${size} ${size}" class="ficha-central-svg" xmlns="http://www.w3.org/2000/svg">
@@ -193,7 +193,9 @@ function buildCondicionalBlock({ title, rp, items }) {
         <span class="ficha-q-rp">${rpDisplay}</span>
         <span class="ficha-q-title">${safeText(title)}</span>
       </header>
-      <div class="gps-grid">${rows}</div>
+      <div class="ficha-condicional-body">
+        <div class="gps-grid">${rows}</div>
+      </div>
     </section>
   `;
 }
