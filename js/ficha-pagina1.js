@@ -208,9 +208,10 @@ export function renderFichaPagina1(container, data, logoPath) {
   container.innerHTML = `
     <div class="ficha-a4-frame">
       <div class="ficha-detalle p1-detalle">
+        ${buildFichaHeader(logoPath, '1/2')}
         <div class="p1-top">
           <div class="p1-left">
-            <header class="p1-name-header">${safeText(player.name) || '&nbsp;'}<span class="ficha-header-page">1/2</span></header>
+            <header class="p1-name-header">${safeText(player.name) || '&nbsp;'}</header>
             ${buildFacts(player)}
             ${buildRpBadges(player)}
             ${buildStatusBars(data.statusBars)}
