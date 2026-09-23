@@ -144,9 +144,9 @@
 .gps-grid {
   padding: 10px 10px;
   display: grid;
-  grid-template-columns: 96px 96px auto 96px 96px;
+  grid-template-columns: 140px 140px auto 140px 140px;
   row-gap: 7px;
-  column-gap: 60px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
+  column-gap: 180px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
   align-items: center;
   justify-content: center; /* centra la rejilla en el ancho del cuadrante */
   font-size: 50px;
