@@ -100,21 +100,38 @@
   padding: 10px 16px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   font-size: 12.5px;
   font-weight: 600;
 }
 .gps-row {
   display: grid;
-  grid-template-columns: 56px 56px 1fr 56px 56px;
+  grid-template-columns: 74px 74px 1fr 64px 64px;
   align-items: center;
-  gap: 6px;
+  column-gap: 10px;
 }
-.gps-val  { text-align: right; }
-.gps-ok   { color: var(--score-green); font-weight: 800; }
-.gps-fail { color: var(--score-red);   font-weight: 800; }
-.gps-label { padding-left: 6px; }
-.gps-ref  { text-align: center; color: rgba(255,255,255,0.85); }
+.gps-val-cell, .gps-ref-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.gps-input {
+  width: 52px;
+  text-align: right;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--slate-line);
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 2px 4px;
+}
+.gps-input:focus { outline: none; border-color: var(--score-yellow); background: rgba(255,255,255,0.12); }
+.gps-icon { width: 14px; text-align: center; font-weight: 800; }
+.gps-ok   { color: var(--score-green); }
+.gps-fail { color: var(--score-red); }
+.gps-label { padding-left: 18px; color: #ffffff; }
 
 /* ── CÍRCULO CENTRAL ── */
 /* Se coloca en la celda (fila1, col1) y se ancla a su esquina
