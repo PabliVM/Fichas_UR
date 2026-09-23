@@ -33,10 +33,3 @@ export const TABS = [
   { key: 'fichas',     label: 'Fichas'            },
   { key: 'config',     label: 'Configuración'     },
 ];
-
-// Umbrales de color para medias (definidos por Pablo)
-export const SCORE_THRESHOLDS = {
-  green:  4,   // media >= 4        → verde
-  yellow: 3,   // 3 <= media < 4    → amarillo
-  // media < 3                      → rojo
-};
