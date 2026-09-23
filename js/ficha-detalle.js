@@ -140,7 +140,7 @@ function buildCondicionalBlock({ title, rp, items }) {
 
   const rows = items.map((item, i) => `
     <div class="gps-row" data-row="${i}">
-      <span class="gps-val-cell">
+      <span class="gps-val-cell gps-cell-a">
         <input class="gps-input" type="text" data-row="${i}" data-field="valueA" value="${item.valueA ?? ''}" />
         ${gpsIconMarkup(item.valueAOk)}
       </span>
@@ -149,7 +149,7 @@ function buildCondicionalBlock({ title, rp, items }) {
         ${gpsIconMarkup(item.valueBOk)}
       </span>
       <span class="gps-label">• ${safeText(item.label)}</span>
-      <span class="gps-ref-cell">
+      <span class="gps-ref-cell gps-cell-a">
         <input class="gps-input gps-ref-input" type="text" data-row="${i}" data-field="refA" value="${item.refA ?? ''}" />
       </span>
       <span class="gps-ref-cell">
