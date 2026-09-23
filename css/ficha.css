@@ -114,9 +114,9 @@
 .ficha-radar { flex: 1; padding: 10px 60px; display: flex; align-items: center; min-width: 0; }
 .ficha-item-list {
   flex: 0 0 auto;
-  width: 600px;
+  width: 640px;
   list-style: none;
-  padding: 10px 12px;
+  padding: 10px 30px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -129,7 +129,7 @@
 .ficha-item-list.align-right li { justify-content: flex-end; flex-direction: row-reverse; }
 
 .ficha-score {
-  min-width: 30px;
+  min-width: 70px;
   text-align: center;
   font-weight: 800;
 }
@@ -203,7 +203,7 @@
   background: var(--blue-800, #1e293b);
   color: #ffffff;
   text-align: center;
-  font-size: 30px;
+  font-size: 36px;
   font-weight: 600;
   letter-spacing: 0.04em;
   padding: 10px;
