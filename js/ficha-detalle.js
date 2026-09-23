@@ -356,21 +356,30 @@ export function renderFichaDetalle(container, data, logoPath, thresholds, pageLa
 }
 
 /**
- * Escala la ficha (tamaño de diseño fijo, 1600px) para que encaje
- * entera dentro de .ficha-a4-frame, sea cual sea el tamaño de ese
- * marco en cada momento (responsive en pantalla, mm reales al
- * imprimir). Se recalcula solo, no hay que tocar nada a mano.
+ * Escala la ficha (tamaño de diseño fijo) para que quepa dentro
+ * del límite de una A4 apaisada (297×210), y ajusta el marco
+ * visible exactamente a ese resultado — sin dejar hueco vacío
+ * a los lados. Se recalcula solo, no hay que tocar nada a mano.
  */
 export function fitFichaToFrame(container) {
   const frame = container.querySelector('.ficha-a4-frame');
   const ficha = container.querySelector('.ficha-detalle');
   if (!frame || !ficha) return;
 
+  frame.style.width  = '';
+  frame.style.height = '';
   ficha.style.transform = 'none'; // medir tamaño real, sin escalar todavía
-  const frameRect = frame.getBoundingClientRect();
+
+  const maxW = Math.min(frame.parentElement?.clientWidth || 1300, 1300);
+  const maxH = maxW * (210 / 297); // límite de proporción A4 apaisado
+
   const fichaRect = ficha.getBoundingClientRect();
   if (!fichaRect.width || !fichaRect.height) return;
 
-  const scale = Math.min(frameRect.width / fichaRect.width, frameRect.height / fichaRect.height);
+  const scale = Math.min(maxW / fichaRect.width, maxH / fichaRect.height);
   ficha.style.transform = `scale(${scale})`;
+
+  // El marco se ajusta exacto al tamaño ya escalado, sin hueco sobrante
+  frame.style.width  = `${fichaRect.width * scale}px`;
+  frame.style.height = `${fichaRect.height * scale}px`;
 }
