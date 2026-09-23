@@ -63,7 +63,7 @@ function buildCentralCircle(photoUrl) {
 
 // ── BLOQUE CON RADAR (mental / técnico / táctico) ──
 
-function buildRatedBlock({ title, rp, items, side, thresholds }) {
+function buildRatedBlock({ title, rp, items, side, thresholds, blockKey }) {
   const rpDisplay = rp && rp[0] != null && rp[1] != null
     ? `${formatNum(rp[0])} / ${formatNum(rp[1])}`
     : '-';
@@ -86,7 +86,7 @@ function buildRatedBlock({ title, rp, items, side, thresholds }) {
   const radarBlock = `<div class="ficha-radar">${radarSVG}</div>`;
 
   return `
-    <section class="ficha-quadrant ${side === 'left' ? 'q-left' : 'q-right'}">
+    <section class="ficha-quadrant q-${blockKey} ${side === 'left' ? 'q-left' : 'q-right'}">
       <header class="ficha-q-header">
         ${side === 'left' ? `<span class="ficha-q-rp">${rpDisplay}</span>` : ''}
         <span class="ficha-q-title">${safeText(title)}</span>
@@ -124,7 +124,7 @@ function buildCondicionalBlock({ title, rp, items }) {
   `).join('');
 
   return `
-    <section class="ficha-quadrant q-left ficha-condicional">
+    <section class="ficha-quadrant q-condicional q-left ficha-condicional">
       <header class="ficha-q-header">
         <span class="ficha-q-rp">${rpDisplay}</span>
         <span class="ficha-q-title">${safeText(title)}</span>
@@ -145,7 +145,7 @@ const PLAN_COLUMNS = [
 
 function buildPlanAccion(plan, logoPath) {
   const cols = PLAN_COLUMNS.map(col => {
-    const items = (plan?.[col.key] ?? ['', '', '']);
+    const items = (plan?.[col.key] ?? ['', '', '', '', '', '']);
     const lis = items.map(txt =>
       `<li contenteditable="true" data-plan="${col.key}">${safeText(txt)}</li>`
     ).join('');
@@ -194,10 +194,10 @@ export function renderFichaDetalle(container, data, logoPath, thresholds) {
   container.innerHTML = `
     <div class="ficha-detalle">
       <div class="ficha-grid">
-        ${buildRatedBlock({ title: 'MENTAL',  rp: blocks.mental.rp,  items: blocks.mental.items,  side: 'left',  thresholds })}
-        ${buildRatedBlock({ title: 'TÉCNICO', rp: blocks.tecnico.rp, items: blocks.tecnico.items, side: 'right', thresholds })}
+        ${buildRatedBlock({ title: 'MENTAL',  rp: blocks.mental.rp,  items: blocks.mental.items,  side: 'left',  thresholds, blockKey: 'mental'  })}
+        ${buildRatedBlock({ title: 'TÉCNICO', rp: blocks.tecnico.rp, items: blocks.tecnico.items, side: 'right', thresholds, blockKey: 'tecnico' })}
         ${buildCondicionalBlock({ title: 'CONDICIONAL', rp: blocks.condicional.rp, items: blocks.condicional.items })}
-        ${buildRatedBlock({ title: 'TÁCTICO', rp: blocks.tactico.rp, items: blocks.tactico.items, side: 'right', thresholds })}
+        ${buildRatedBlock({ title: 'TÁCTICO', rp: blocks.tactico.rp, items: blocks.tactico.items, side: 'right', thresholds, blockKey: 'tactico' })}
         <div class="ficha-central">${buildCentralCircle(player?.photoUrl)}</div>
       </div>
       ${buildPlanAccion(plan, logoPath)}
