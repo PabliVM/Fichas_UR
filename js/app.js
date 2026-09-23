@@ -65,6 +65,36 @@ function renderPanelRegistro(container) {
 }
 
 let plantillasSelectedPlayerId = null; // navegación local lista ↔ perfil (no es estado global de la app)
+let configCriteriaPosition = null;      // qué posición se está editando en "Items a evaluar"
+
+const CRITERIA_CATEGORIES = [
+  { key: 'mental',                  label: 'Mental (ficha 2)' },
+  { key: 'tecnico',                 label: 'Técnico (ficha 2)' },
+  { key: 'tactico',                 label: 'Táctico (ficha 2)' },
+  { key: 'condicional',             label: 'Condicional (ficha 2)' },
+  { key: 'personalidad',            label: 'Personalidad (ficha 1)' },
+  { key: 'competenciasOfensivas',   label: 'Competencias ofensivas (ficha 1)' },
+  { key: 'competenciasDefensivas',  label: 'Competencias defensivas (ficha 1)' },
+];
+
+function buildCriteriaCategoryHTML(cat) {
+  const items = state.criteriaSchemas[configCriteriaPosition]?.[cat.key] || [];
+  const chips = items.map((label, i) => `
+    <span class="chip">${safeText(label)} <button data-del-crit data-cat="${cat.key}" data-idx="${i}" title="Quitar">×</button></span>
+  `).join('');
+  return `
+    <div class="mb-16">
+      <div class="text-xs mb-8" style="font-weight:700;">${safeText(cat.label)}</div>
+      <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">
+        ${chips || '<span class="text-xs text-muted">Sin items definidos.</span>'}
+      </div>
+      <div class="flex gap-8">
+        <input class="input" type="text" data-crit-new data-cat="${cat.key}" placeholder="Nuevo item…" />
+        <button class="btn btn-sm" data-crit-add data-cat="${cat.key}">+ Añadir</button>
+      </div>
+    </div>
+  `;
+}
 
 function renderPanelPlantillas(container) {
   const player = plantillasSelectedPlayerId
@@ -310,6 +340,13 @@ function renderPanelConfig(container) {
     <span class="chip">${safeText(s)} <button data-del-season="${safeText(s)}" title="Quitar">×</button></span>
   `).join('');
 
+  if (configCriteriaPosition && !state.positions.some(p => p.key === configCriteriaPosition)) {
+    configCriteriaPosition = null;
+  }
+  if (!configCriteriaPosition && state.positions.length) {
+    configCriteriaPosition = state.positions[0].key;
+  }
+
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="card mb-16">
@@ -328,6 +365,23 @@ function renderPanelConfig(container) {
           </label>
           <button class="btn btn-primary" id="pos-add">+ Añadir posición</button>
         </div>
+      </div>
+    </div>
+    <div class="card mb-16">
+      <div class="card-title">Items a evaluar</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">
+          Los 4 bloques de la ficha 2 (Mental, Técnico, Táctico, Condicional) y los 3 de la ficha 1 (Personalidad, Competencias ofensivas, Competencias defensivas). Cada posición tiene su propia lista.
+        </p>
+        ${state.positions.length === 0 ? '<p class="text-xs text-muted">Define primero al menos una posición arriba.</p>' : `
+          <label class="mb-16" style="display:block;max-width:280px;">
+            <div class="text-xs text-muted mb-8">Posición</div>
+            <select class="select" id="crit-position">
+              ${state.positions.map(p => `<option value="${p.key}" ${p.key === configCriteriaPosition ? 'selected' : ''}>${safeText(p.label)}</option>`).join('')}
+            </select>
+          </label>
+          ${CRITERIA_CATEGORIES.map(buildCriteriaCategoryHTML).join('')}
+        `}
       </div>
     </div>
     <div class="card mb-16">
@@ -417,6 +471,49 @@ function renderPanelConfig(container) {
         return;
       }
       setState({ positions: state.positions.filter(p => p.key !== key) });
+      renderPanelConfig(container);
+    });
+  });
+
+  const critSelect = container.querySelector('#crit-position');
+  if (critSelect) {
+    critSelect.addEventListener('change', () => {
+      configCriteriaPosition = critSelect.value;
+      renderPanelConfig(container);
+    });
+  }
+
+  container.querySelectorAll('[data-crit-add]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cat = btn.dataset.cat;
+      const input = container.querySelector(`[data-crit-new][data-cat="${cat}"]`);
+      const label = input.value.trim();
+      if (!label) { showError('Escribe el nombre del item.'); return; }
+      const schema = state.criteriaSchemas[configCriteriaPosition] || {};
+      const items = schema[cat] || [];
+      if (items.includes(label)) { showError('Ese item ya existe en este bloque.'); return; }
+      setState({
+        criteriaSchemas: {
+          ...state.criteriaSchemas,
+          [configCriteriaPosition]: { ...schema, [cat]: [...items, label] },
+        },
+      });
+      renderPanelConfig(container);
+    });
+  });
+
+  container.querySelectorAll('[data-del-crit]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cat = btn.dataset.cat;
+      const idx = Number(btn.dataset.idx);
+      const schema = state.criteriaSchemas[configCriteriaPosition] || {};
+      const items = (schema[cat] || []).filter((_, i) => i !== idx);
+      setState({
+        criteriaSchemas: {
+          ...state.criteriaSchemas,
+          [configCriteriaPosition]: { ...schema, [cat]: items },
+        },
+      });
       renderPanelConfig(container);
     });
   });
