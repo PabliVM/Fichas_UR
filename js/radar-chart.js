@@ -64,7 +64,7 @@ export function buildRadarSVG(items, opts = {}) {
     const tspans = lines
       .map((line, li) => `<tspan x="${x.toFixed(1)}" dy="${li === 0 ? -((lines.length - 1) * 5.5) : 11}">${escapeXml(line)}</tspan>`)
       .join('');
-    labelsSVG += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="10.5" fill="${labelColor}" text-anchor="${anchor}" dominant-baseline="middle">${tspans}</text>`;
+    labelsSVG += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="11.5" fill="${labelColor}" text-anchor="${anchor}" dominant-baseline="middle">${tspans}</text>`;
   });
 
   return `
