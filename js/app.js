@@ -5,14 +5,16 @@
 import { initFirebase }           from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { renderHeader }  from './render-header.js';
-import { renderTabs }    from './render-tabs.js';
+import { renderTabs, switchTab } from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
-import { TABS, LOGO_PATH } from './constants.js';
-import { state }         from './state.js';
+import { TABS, LOGO_PATH, TEAMS } from './constants.js';
+import { state, setState }         from './state.js';
 import { renderFichaDetalle } from './ficha-detalle.js';
+import { renderFichaPagina1 } from './ficha-pagina1.js';
+import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
 import { exportFichaAsPDF } from './pdf-export.js';
 import { FICHA_DEMO_DATA }    from './ficha-demo-data.js';
-import { showError, showSuccess } from './utils.js';
+import { showError, showSuccess, safeText } from './utils.js';
 
 // ── AVISO FIREBASE ────────────────────────────────
 
@@ -62,6 +64,200 @@ function renderPanelRegistro(container) {
   `;
 }
 
+let plantillasSelectedPlayerId = null; // navegación local lista ↔ perfil (no es estado global de la app)
+
+function renderPanelPlantillas(container) {
+  const player = plantillasSelectedPlayerId
+    ? state.players.find(p => p.id === plantillasSelectedPlayerId)
+    : null;
+
+  if (plantillasSelectedPlayerId && !player) plantillasSelectedPlayerId = null; // se borró, vuelve a la lista
+
+  if (player) {
+    renderPlayerProfile(container, player);
+  } else {
+    renderPlantillasList(container);
+  }
+}
+
+function renderPlantillasList(container) {
+  const posLabel = keys => keys
+    .map(k => state.positions.find(p => p.key === k)?.label || k)
+    .join(' / ');
+
+  const rows = state.players.map(pl => `
+    <tr>
+      <td><button class="link-btn" data-open="${pl.id}">${safeText(pl.name)}</button></td>
+      <td>
+        <select class="select" data-team-for="${pl.id}">
+          <option value="">—</option>
+          ${TEAMS.map(t => `<option value="${t.key}" ${pl.teamsBySeason[state.season] === t.key ? 'selected' : ''}>${t.label}</option>`).join('')}
+        </select>
+      </td>
+      <td>${safeText(posLabel(pl.positions))}</td>
+      <td><button class="btn btn-sm" data-del="${pl.id}">Eliminar</button></td>
+    </tr>
+  `).join('');
+
+  const posOptions = state.positions.map(p => `<option value="${p.key}">${safeText(p.label)}</option>`).join('');
+
+  container.innerHTML = `
+    ${firebaseNotice()}
+    <div class="card mb-16">
+      <div class="card-title">Nuevo jugador</div>
+      <div class="card-body">
+        <p class="text-xs text-muted mb-16">El equipo se asigna para la temporada activa (${safeText(state.season)}) — cámbiala en el selector del header.</p>
+        <div class="flex gap-12" style="flex-wrap:wrap;align-items:flex-end;">
+          <label>
+            <div class="text-xs text-muted mb-8">Nombre</div>
+            <input class="input" type="text" id="pl-name" placeholder="Nombre y apellidos" />
+          </label>
+          <label>
+            <div class="text-xs text-muted mb-8">Equipo (${safeText(state.season)})</div>
+            <select class="select" id="pl-team">
+              ${TEAMS.map(t => `<option value="${t.key}">${t.label}</option>`).join('')}
+            </select>
+          </label>
+          <label>
+            <div class="text-xs text-muted mb-8">Posición 1</div>
+            <select class="select" id="pl-pos1"><option value="">—</option>${posOptions}</select>
+          </label>
+          <label>
+            <div class="text-xs text-muted mb-8">Posición 2 (opcional)</div>
+            <select class="select" id="pl-pos2"><option value="">—</option>${posOptions}</select>
+          </label>
+          <button class="btn btn-primary" id="pl-add">+ Añadir jugador</button>
+        </div>
+        ${state.positions.length === 0 ? '<p class="text-xs text-muted mt-16">⚠ No hay posiciones definidas todavía — añádelas en Configuración.</p>' : ''}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Jugadores (${state.players.length}) — temporada ${safeText(state.season)}</div>
+      <div class="card-body" style="overflow-x:auto;">
+        <table class="table">
+          <thead><tr><th>Nombre</th><th>Equipo</th><th>Posición(es)</th><th></th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4" class="text-muted">Sin jugadores todavía.</td></tr>'}</tbody>
+        </table>
+      </div>
+      <p class="text-xs text-muted mt-16" style="padding: 0 16px 16px;">
+        ⚠ Pendiente: esto solo dura mientras la pestaña está abierta. Falta guardarlo en Firestore para que persista.
+      </p>
+    </div>
+  `;
+
+  container.querySelector('#pl-add').addEventListener('click', () => {
+    const name = container.querySelector('#pl-name').value.trim();
+    const team = container.querySelector('#pl-team').value;
+    const pos1 = container.querySelector('#pl-pos1').value;
+    const pos2 = container.querySelector('#pl-pos2').value;
+
+    if (!name) { showError('Falta el nombre del jugador.'); return; }
+    if (!pos1) { showError('Elige al menos una posición.'); return; }
+    if (pos2 && pos2 === pos1) { showError('Las 2 posiciones no pueden ser la misma.'); return; }
+
+    const positions = [pos1, ...(pos2 ? [pos2] : [])];
+    const teamsBySeason = team ? { [state.season]: team } : {};
+    setState({ players: [...state.players, { id: crypto.randomUUID(), name, positions, teamsBySeason }] });
+    renderPanelPlantillas(container);
+    showSuccess('Jugador añadido.');
+  });
+
+  container.querySelectorAll('[data-open]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      plantillasSelectedPlayerId = btn.dataset.open;
+      renderPanelPlantillas(container);
+    });
+  });
+
+  container.querySelectorAll('[data-team-for]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const id = sel.dataset.teamFor;
+      const players = state.players.map(p => p.id === id
+        ? { ...p, teamsBySeason: { ...p.teamsBySeason, [state.season]: sel.value } }
+        : p
+      );
+      setState({ players });
+      showSuccess('Equipo actualizado para ' + state.season + '.');
+    });
+  });
+
+  container.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setState({
+        players:  state.players.filter(p => p.id !== btn.dataset.del),
+        informes: state.informes.filter(i => i.playerId !== btn.dataset.del),
+      });
+      renderPanelPlantillas(container);
+    });
+  });
+}
+
+function renderPlayerProfile(container, player) {
+  const posLabel = state.positions.find(p => p.key === player.positions[0])?.label || player.positions[0];
+  const posLabel2 = player.positions[1]
+    ? (state.positions.find(p => p.key === player.positions[1])?.label || player.positions[1])
+    : null;
+
+  const teamRows = state.seasons.map(s => `
+    <tr><td>${safeText(s)}</td><td>${safeText(TEAMS.find(t => t.key === player.teamsBySeason[s])?.label || '—')}</td></tr>
+  `).join('');
+
+  const informesSeason = state.informes
+    .filter(i => i.playerId === player.id && i.season === state.season)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  const informesRows = informesSeason.map(inf => `
+    <tr>
+      <td>${new Date(inf.createdAt).toLocaleDateString('es-ES')}</td>
+      <td>${safeText(inf.season)}</td>
+      <td><button class="btn btn-sm" data-ver-informe="${inf.id}">Ver ficha</button></td>
+    </tr>
+  `).join('');
+
+  container.innerHTML = `
+    <button class="btn btn-sm mb-16" id="pl-back">← Volver a Plantillas</button>
+    <div class="card mb-16">
+      <div class="card-title">${safeText(player.name)}</div>
+      <div class="card-body">
+        <p class="mb-8"><strong>Posición${posLabel2 ? 'es' : ''}:</strong> ${safeText(posLabel)}${posLabel2 ? ' / ' + safeText(posLabel2) : ''}</p>
+        <table class="table" style="max-width:400px;">
+          <thead><tr><th>Temporada</th><th>Equipo</th></tr></thead>
+          <tbody>${teamRows}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Informes — temporada ${safeText(state.season)}</div>
+      <div class="card-body">
+        <button class="btn btn-primary mb-16" id="pl-new-informe">+ Nuevo informe (ficha 1/2 + 2/2)</button>
+        <table class="table">
+          <thead><tr><th>Fecha</th><th>Temporada</th><th></th></tr></thead>
+          <tbody>${informesRows || '<tr><td colspan="3" class="text-muted">Sin informes en esta temporada.</td></tr>'}</tbody>
+        </table>
+        <p class="text-xs text-muted mt-16">
+          ⚠ Pendiente: "Ver ficha" todavía no carga los datos reales de este jugador — de momento lleva a la plantilla de ejemplo en la pestaña Fichas.
+        </p>
+      </div>
+    </div>
+  `;
+
+  container.querySelector('#pl-back').addEventListener('click', () => {
+    plantillasSelectedPlayerId = null;
+    renderPanelPlantillas(container);
+  });
+
+  container.querySelector('#pl-new-informe').addEventListener('click', () => {
+    const informe = { id: crypto.randomUUID(), playerId: player.id, season: state.season, createdAt: new Date().toISOString() };
+    setState({ informes: [...state.informes, informe] });
+    renderPlayerProfile(container, player);
+    showSuccess('Informe creado.');
+  });
+
+  container.querySelectorAll('[data-ver-informe]').forEach(btn => {
+    btn.addEventListener('click', () => switchTab('fichas'));
+  });
+}
+
 function renderPanelJugadores(container) {
   container.innerHTML = `
     ${firebaseNotice()}
@@ -76,11 +272,15 @@ function renderPanelFichas(container) {
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="mb-16 flex ficha-toolbar" style="justify-content:space-between;align-items:center;">
-      <span><strong>Plantilla de ficha (página 2)</strong> — datos de ejemplo, pendiente de conectar a Firestore.</span>
+      <span><strong>Plantilla de ficha (2 páginas)</strong> — datos de ejemplo, pendiente de conectar a Firestore.</span>
       <button class="btn btn-primary btn-print-ficha" id="btn-print-ficha">⬇ Descargar PDF</button>
     </div>
+    <div id="ficha1-demo-wrap" class="mb-16"></div>
     <div id="ficha-demo-wrap"></div>
   `;
+  const wrap1 = container.querySelector('#ficha1-demo-wrap');
+  renderFichaPagina1(wrap1, FICHA1_DEMO_DATA, LOGO_PATH);
+
   const wrap = container.querySelector('#ficha-demo-wrap');
   renderFichaDetalle(wrap, FICHA_DEMO_DATA, LOGO_PATH, state.scoreThresholds);
 
@@ -103,8 +303,51 @@ function renderPanelFichas(container) {
 
 function renderPanelConfig(container) {
   const t = state.scoreThresholds;
+  const posRows = state.positions.map(p => `
+    <span class="chip">${safeText(p.label)} <button data-del-pos="${p.key}" title="Quitar">×</button></span>
+  `).join('');
+  const seasonRows = state.seasons.map(s => `
+    <span class="chip">${safeText(s)} <button data-del-season="${safeText(s)}" title="Quitar">×</button></span>
+  `).join('');
+
   container.innerHTML = `
     ${firebaseNotice()}
+    <div class="card mb-16">
+      <div class="card-title">Posiciones</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">
+          Las evaluaciones (CSV, formularios) son por posición — esta lista es la que se usa en Plantillas para asignar posición a cada jugador.
+        </p>
+        <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
+          ${posRows || '<span class="text-xs text-muted">Sin posiciones definidas.</span>'}
+        </div>
+        <div class="flex gap-12" style="align-items:flex-end;">
+          <label>
+            <div class="text-xs text-muted mb-8">Nueva posición</div>
+            <input class="input" type="text" id="pos-new" placeholder="Ej. Portero" />
+          </label>
+          <button class="btn btn-primary" id="pos-add">+ Añadir posición</button>
+        </div>
+      </div>
+    </div>
+    <div class="card mb-16">
+      <div class="card-title">Temporadas</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">
+          Al crear una temporada nueva, cada jugador empieza con el mismo equipo que tenía en la temporada anterior — luego lo cambias en Plantillas si se ha movido.
+        </p>
+        <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
+          ${seasonRows || '<span class="text-xs text-muted">Sin temporadas definidas.</span>'}
+        </div>
+        <div class="flex gap-12" style="align-items:flex-end;">
+          <label>
+            <div class="text-xs text-muted mb-8">Nueva temporada</div>
+            <input class="input" type="text" id="season-new" placeholder="Ej. 2027/2028" />
+          </label>
+          <button class="btn btn-primary" id="season-add">+ Crear temporada</button>
+        </div>
+      </div>
+    </div>
     <div class="card">
       <div class="card-title">Límites de color (medias)</div>
       <div class="card-body">
@@ -123,7 +366,7 @@ function renderPanelConfig(container) {
           <span class="text-xs text-muted">Por debajo de amarillo → rojo.</span>
         </div>
         <p class="text-xs text-muted mt-16">
-          ⚠ Pendiente: esto solo dura mientras la pestaña está abierta. Falta guardarlo en Firestore para que persista.
+          ⚠ Pendiente: nada de esta pantalla persiste todavía — falta guardarlo en Firestore.
         </p>
       </div>
     </div>
@@ -146,15 +389,87 @@ function renderPanelConfig(container) {
 
   greenInput.addEventListener('change', applyThresholds);
   yellowInput.addEventListener('change', applyThresholds);
+
+  container.querySelector('#pos-add').addEventListener('click', () => {
+    const input = container.querySelector('#pos-new');
+    const label = input.value.trim();
+    if (!label) { showError('Escribe el nombre de la posición.'); return; }
+
+    const key = label.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita acentos
+      .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+    if (state.positions.some(p => p.key === key)) {
+      showError('Esa posición ya existe.');
+      return;
+    }
+    setState({ positions: [...state.positions, { key, label }] });
+    renderPanelConfig(container);
+    showSuccess('Posición añadida.');
+  });
+
+  container.querySelectorAll('[data-del-pos]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.delPos;
+      const inUse = state.players.some(p => p.positions.includes(key));
+      if (inUse) {
+        showError('No se puede quitar: hay jugadores con esa posición asignada.');
+        return;
+      }
+      setState({ positions: state.positions.filter(p => p.key !== key) });
+      renderPanelConfig(container);
+    });
+  });
+
+  container.querySelector('#season-add').addEventListener('click', () => {
+    const input = container.querySelector('#season-new');
+    const season = input.value.trim();
+    if (!season) { showError('Escribe el nombre de la temporada.'); return; }
+    if (state.seasons.includes(season)) { showError('Esa temporada ya existe.'); return; }
+
+    // Traspaso automático: cada jugador empieza en la temporada nueva
+    // con el mismo equipo que tenía en la última temporada existente.
+    const prevSeason = state.seasons[state.seasons.length - 1];
+    const players = state.players.map(p => {
+      const prevTeam = p.teamsBySeason[prevSeason];
+      return prevTeam
+        ? { ...p, teamsBySeason: { ...p.teamsBySeason, [season]: prevTeam } }
+        : p;
+    });
+
+    setState({ seasons: [...state.seasons, season], players });
+    renderHeader();
+    renderPanelConfig(container);
+    showSuccess('Temporada creada. Revisa los equipos en Plantillas.');
+  });
+
+  container.querySelectorAll('[data-del-season]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const season = btn.dataset.delSeason;
+      if (season === state.season) {
+        showError('No se puede quitar la temporada activa — cámbiala primero en el header.');
+        return;
+      }
+      const inUse = state.players.some(p => p.teamsBySeason[season])
+        || state.informes.some(i => i.season === season);
+      if (inUse) {
+        showError('No se puede quitar: hay jugadores o informes de esa temporada.');
+        return;
+      }
+      setState({ seasons: state.seasons.filter(s => s !== season) });
+      renderPanelConfig(container);
+    });
+  });
 }
 
 const RENDERERS = {
-  inicio:    renderPanelInicio,
-  importar:  renderPanelImportar,
-  registro:  renderPanelRegistro,
-  jugadores: renderPanelJugadores,
-  fichas:    renderPanelFichas,
-  config:    renderPanelConfig,
+  inicio:     renderPanelInicio,
+  importar:   renderPanelImportar,
+  registro:   renderPanelRegistro,
+  plantillas: renderPanelPlantillas,
+  jugadores:  renderPanelJugadores,
+  fichas:     renderPanelFichas,
+  config:     renderPanelConfig,
 };
 
 // ── RENDERIZAR MAIN ───────────────────────────────
@@ -189,6 +504,11 @@ function setupEvents() {
   document.addEventListener('rm:thresholds-changed', () => {
     const panel = document.querySelector('.tab-panel[data-tab="fichas"]');
     if (panel) renderPanelFichas(panel);
+  });
+
+  document.addEventListener('rm:season-changed', () => {
+    const panel = document.querySelector('.tab-panel[data-tab="plantillas"]');
+    if (panel) renderPanelPlantillas(panel);
   });
 }
 
