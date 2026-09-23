@@ -146,7 +146,7 @@
   display: grid;
   grid-template-columns: 96px 96px auto 96px 96px;
   row-gap: 7px;
-  column-gap: 10px;
+  column-gap: 60px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
   align-items: center;
   justify-content: center; /* centra la rejilla en el ancho del cuadrante */
   font-size: 50px;
@@ -166,8 +166,6 @@
   justify-content: flex-start;
   gap: 5px;
 }
-.gps-val-cell.gps-cell-a { margin-right: 60px; } /* separación entre las 2 cajitas de valor */
-.gps-ref-cell.gps-cell-a { margin-right: 60px; margin-left: 50px; } /* separación entre las 2 cajitas de referencia */
 .gps-input {
   width: 88px;
   text-align: right;
@@ -183,7 +181,7 @@
 .gps-icon { width: 28px; text-align: center; font-weight: 800; font-size: 28px; }
 .gps-ok   { color: var(--score-green); }
 .gps-fail { color: var(--score-red); }
-.gps-label { padding-left: 45px; color: #ffffff; }
+.gps-label { color: #ffffff; }
 
 /* ── CÍRCULO CENTRAL ── */
 /* Posición fijada por JS (ver centerFichaCircle en ficha-detalle.js):
