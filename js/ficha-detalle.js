@@ -61,6 +61,28 @@ function buildCentralCircle(photoUrl) {
   `;
 }
 
+/**
+ * Coloca el círculo central exactamente en el cruce de los 4
+ * cuadrantes, midiendo el DOM real (fiable pase lo que pase con
+ * las alturas de MENTAL/TÉCNICO/CONDICIONAL/TÁCTICO).
+ */
+function centerFichaCircle(root) {
+  const grid   = root.querySelector('.ficha-grid');
+  const mental = root.querySelector('.q-mental');
+  const circle = root.querySelector('.ficha-central');
+  if (!grid || !mental || !circle) return;
+
+  const gridRect   = grid.getBoundingClientRect();
+  const mentalRect = mental.getBoundingClientRect();
+
+  const crossX = mentalRect.right  - gridRect.left; // borde derecho de MENTAL = línea vertical
+  const crossY = mentalRect.bottom - gridRect.top;   // borde inferior de MENTAL = línea horizontal
+  const half = circle.offsetWidth / 2;
+
+  circle.style.left = `${crossX - half}px`;
+  circle.style.top  = `${crossY - half}px`;
+}
+
 // ── BLOQUE CON RADAR (mental / técnico / táctico) ──
 
 function buildRatedBlock({ title, rp, items, side, thresholds, blockKey }) {
@@ -272,4 +294,8 @@ export function renderFichaDetalle(container, data, logoPath, thresholds, pageLa
   `;
 
   wireCondicionalInputs(container);
+
+  const fichaRoot = container.querySelector('.ficha-detalle');
+  centerFichaCircle(fichaRoot);
+  window.addEventListener('resize', () => centerFichaCircle(fichaRoot));
 }
