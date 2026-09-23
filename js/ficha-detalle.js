@@ -3,22 +3,19 @@
 // 4 bloques: MENTAL, TÉCNICO, CONDICIONAL, TÁCTICO
 // + círculo central + Plan de acción.
 //
-// Colores de media: usan SCORE_THRESHOLDS (constants.js).
+// Colores de media: usan state.scoreBands (Configuración) —
+// número de bandas y color de cada una, configurable.
 // El círculo central usa el MISMO color que la media del
-// bloque (verde/amarillo/rojo) — en blanco cuando aún no
-// hay dato, como en esta plantilla.
+// bloque — en blanco cuando aún no hay dato.
 // ================================================
 
 import { scoreColor, safeText } from './utils.js';
 import { buildRadarSVG } from './radar-chart.js';
 
-const SCORE_HEX = { green: '#22c55e', yellow: '#eab308', red: '#ef4444' };
-
-/** Color del cuarto del círculo para un bloque: hex de la media, o blanco si no hay dato. */
-function blockCircleColor(rp, thresholds) {
+/** Color del cuarto del círculo para un bloque: el de su banda, o blanco si no hay dato. */
+function blockCircleColor(rp, bands) {
   const avg = rp && rp[0] != null ? rp[0] : null;
-  const color = avg != null ? scoreColor(avg, thresholds) : null;
-  return color ? SCORE_HEX[color] : '#ffffff';
+  return avg != null ? (scoreColor(avg, bands) || '#ffffff') : '#ffffff';
 }
 
 // ── CÍRCULO CENTRAL ──────────────────────────────
@@ -117,18 +114,18 @@ function centerFichaCircle(root) {
 
 // ── BLOQUE CON RADAR (mental / técnico / táctico) ──
 
-function buildRatedBlock({ title, rp, items, side, thresholds, blockKey }) {
+function buildRatedBlock({ title, rp, items, side, bands, blockKey }) {
   const rpDisplay = rp && rp[0] != null && rp[1] != null
     ? `${formatNum(rp[0])} / ${formatNum(rp[1])}`
     : '-';
 
   const listHTML = items.map(item => {
-    const color = scoreColor(item.value, thresholds);
+    const color = scoreColor(item.value, bands); // hex de la banda, o null si no hay dato
     const valueText = item.value == null ? '-' : formatNum(item.value);
-    const colorClass = color ? `score-${color}` : 'score-none';
+    const style = `style="color:${color || 'rgba(255,255,255,0.5)'}"`;
     return side === 'left'
-      ? `<li><span class="ficha-score ${colorClass}">${valueText}</span><span class="ficha-item-label">${safeText(item.label)}</span></li>`
-      : `<li><span class="ficha-item-label">${safeText(item.label)}</span><span class="ficha-score ${colorClass}">${valueText}</span></li>`;
+      ? `<li><span class="ficha-score" ${style}>${valueText}</span><span class="ficha-item-label">${safeText(item.label)}</span></li>`
+      : `<li><span class="ficha-item-label">${safeText(item.label)}</span><span class="ficha-score" ${style}>${valueText}</span></li>`;
   }).join('');
 
   const radarSVG = buildRadarSVG(
@@ -238,7 +235,7 @@ function buildPlanAccion(plan) {
 
 // ── HEADER DE LA FICHA (azul corporativo, arriba del todo) ──
 
-function buildFichaHeader(logoPath, pageLabel) {
+export function buildFichaHeader(logoPath, pageLabel) {
   return `
     <header class="ficha-header">
       <img src="${logoPath}" alt="" class="ficha-header-crest" />
@@ -305,17 +302,17 @@ export function wireCondicionalInputs(container) {
  * @param {HTMLElement} container
  * @param {Object} data — { player, blocks: {mental, tecnico, tactico, condicional}, plan }
  * @param {string} logoPath — ruta del escudo (LOGO_PATH de constants.js)
- * @param {Object} thresholds — { green, yellow }
+ * @param {Array} bands — state.scoreBands: [{ color, min }, ...]
  * @param {string} [pageLabel] — indicador de página, ej. '2/2'. Vacío/omitido = no se muestra.
  */
-export function renderFichaDetalle(container, data, logoPath, thresholds, pageLabel = '2/2') {
+export function renderFichaDetalle(container, data, logoPath, bands, pageLabel = '2/2') {
   const { player, blocks, plan } = data;
 
   const blockColors = {
-    mental:      blockCircleColor(blocks.mental.rp,      thresholds),
-    tecnico:     blockCircleColor(blocks.tecnico.rp,      thresholds),
-    tactico:     blockCircleColor(blocks.tactico.rp,      thresholds),
-    condicional: blockCircleColor(blocks.condicional.rp,  thresholds),
+    mental:      blockCircleColor(blocks.mental.rp,      bands),
+    tecnico:     blockCircleColor(blocks.tecnico.rp,      bands),
+    tactico:     blockCircleColor(blocks.tactico.rp,      bands),
+    condicional: blockCircleColor(blocks.condicional.rp,  bands),
   };
 
   container.innerHTML = `
@@ -323,10 +320,10 @@ export function renderFichaDetalle(container, data, logoPath, thresholds, pageLa
       <div class="ficha-detalle">
         ${buildFichaHeader(logoPath, pageLabel)}
         <div class="ficha-grid">
-          ${buildRatedBlock({ title: 'MENTAL',  rp: blocks.mental.rp,  items: blocks.mental.items,  side: 'left',  thresholds, blockKey: 'mental'  })}
-          ${buildRatedBlock({ title: 'TÉCNICO', rp: blocks.tecnico.rp, items: blocks.tecnico.items, side: 'right', thresholds, blockKey: 'tecnico' })}
+          ${buildRatedBlock({ title: 'MENTAL',  rp: blocks.mental.rp,  items: blocks.mental.items,  side: 'left',  bands, blockKey: 'mental'  })}
+          ${buildRatedBlock({ title: 'TÉCNICO', rp: blocks.tecnico.rp, items: blocks.tecnico.items, side: 'right', bands, blockKey: 'tecnico' })}
           ${buildCondicionalBlock({ title: 'CONDICIONAL', rp: blocks.condicional.rp, items: blocks.condicional.items })}
-          ${buildRatedBlock({ title: 'TÁCTICO', rp: blocks.tactico.rp, items: blocks.tactico.items, side: 'right', thresholds, blockKey: 'tactico' })}
+          ${buildRatedBlock({ title: 'TÁCTICO', rp: blocks.tactico.rp, items: blocks.tactico.items, side: 'right', bands, blockKey: 'tactico' })}
           <div class="ficha-central">${buildCentralCircle(player?.photoUrl, blockColors)}</div>
         </div>
         ${buildPlanAccion(plan)}
