@@ -67,16 +67,19 @@ function buildCentralCircle(photoUrl) {
  * las alturas de MENTAL/TÉCNICO/CONDICIONAL/TÁCTICO).
  */
 function centerFichaCircle(root) {
-  const grid   = root.querySelector('.ficha-grid');
-  const mental = root.querySelector('.q-mental');
-  const circle = root.querySelector('.ficha-central');
-  if (!grid || !mental || !circle) return;
+  const grid       = root.querySelector('.ficha-grid');
+  const mental     = root.querySelector('.q-mental');
+  const condHeader = root.querySelector('.q-condicional .ficha-q-header');
+  const circle     = root.querySelector('.ficha-central');
+  if (!grid || !mental || !condHeader || !circle) return;
 
   const gridRect   = grid.getBoundingClientRect();
   const mentalRect = mental.getBoundingClientRect();
 
-  const crossX = mentalRect.right  - gridRect.left; // borde derecho de MENTAL = línea vertical
-  const crossY = mentalRect.bottom - gridRect.top;   // borde inferior de MENTAL = línea horizontal
+  const crossX = mentalRect.right - gridRect.left; // borde derecho de MENTAL = línea vertical
+  // línea horizontal: no el borde superior de la barra CONDICIONAL/TÁCTICO,
+  // sino su mitad — ahí es donde tiene que caer el ecuador del círculo.
+  const crossY = (mentalRect.bottom - gridRect.top) + condHeader.offsetHeight / 2;
   const half = circle.offsetWidth / 2;
 
   circle.style.left = `${crossX - half}px`;
