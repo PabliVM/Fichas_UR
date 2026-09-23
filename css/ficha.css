@@ -154,15 +154,20 @@
 }
 .gps-row { display: contents; } /* las celdas de cada fila se insertan en la rejilla común de arriba */
 
-.ficha-condicional { justify-content: center; } /* centra verticalmente en el hueco bajo la cabecera */
+.ficha-condicional-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .gps-val-cell, .gps-ref-cell {
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 5px;
 }
-.gps-val-cell.gps-cell-a { margin-right: 14px; } /* más separación entre las 2 columnas de la izquierda */
-.gps-ref-cell.gps-cell-a { margin-left: 16px; }  /* las de referencia, un poco más hacia la derecha */
+.gps-val-cell.gps-cell-a { margin-right: 34px; } /* separación entre las 2 cajitas de valor */
+.gps-ref-cell.gps-cell-a { margin-right: 34px; margin-left: 30px; } /* separación entre las 2 cajitas de referencia */
 .gps-input {
   width: 88px;
   text-align: right;
