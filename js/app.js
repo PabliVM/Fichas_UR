@@ -66,6 +66,14 @@ function renderPanelRegistro(container) {
 
 let plantillasSelectedPlayerId = null; // navegación local lista ↔ perfil (no es estado global de la app)
 let configCriteriaPosition = null;      // qué posición se está editando en "Items a evaluar"
+let configSubTab = 'posiciones';        // pestaña interna activa dentro de Configuración
+
+const CONFIG_SUBTABS = [
+  { key: 'posiciones',  label: 'Posiciones' },
+  { key: 'items',       label: 'Items por posición' },
+  { key: 'colores',     label: 'Rango de colores' },
+  { key: 'temporadas',  label: 'Temporadas' },
+];
 
 const CRITERIA_CATEGORIES = [
   { key: 'mental',                  label: 'Mental (ficha 2)' },
@@ -354,6 +362,13 @@ function renderPanelConfig(container) {
 
   container.innerHTML = `
     ${firebaseNotice()}
+    <div class="flex gap-8 mb-16" style="border-bottom:1px solid var(--border-default);padding-bottom:8px;">
+      ${CONFIG_SUBTABS.map(t => `
+        <button class="btn ${t.key === configSubTab ? 'btn-primary' : 'btn-sm'}" data-config-subtab="${t.key}">${t.label}</button>
+      `).join('')}
+    </div>
+
+    ${configSubTab !== 'posiciones' ? '' : `
     <div class="card mb-16">
       <div class="card-title">Posiciones</div>
       <div class="card-body">
@@ -372,23 +387,41 @@ function renderPanelConfig(container) {
         </div>
       </div>
     </div>
+    `}
+
+    ${configSubTab !== 'items' ? '' : `
     <div class="card mb-16">
       <div class="card-title">Items a evaluar</div>
       <div class="card-body">
         <p class="text-sm text-muted mb-16">
           Los 4 bloques de la ficha 2 (Mental, Técnico, Táctico, Condicional) y los 3 de la ficha 1 (Personalidad, Competencias ofensivas, Competencias defensivas). Cada posición tiene su propia lista.
         </p>
-        ${state.positions.length === 0 ? '<p class="text-xs text-muted">Define primero al menos una posición arriba.</p>' : `
-          <label class="mb-16" style="display:block;max-width:280px;">
-            <div class="text-xs text-muted mb-8">Posición</div>
-            <select class="select" id="crit-position">
-              ${state.positions.map(p => `<option value="${p.key}" ${p.key === configCriteriaPosition ? 'selected' : ''}>${safeText(p.label)}</option>`).join('')}
-            </select>
-          </label>
+        ${state.positions.length === 0 ? '<p class="text-xs text-muted">Define primero al menos una posición en la pestaña Posiciones.</p>' : `
+          <div class="flex gap-12 mb-16" style="align-items:flex-end;flex-wrap:wrap;">
+            <label style="display:block;max-width:280px;">
+              <div class="text-xs text-muted mb-8">Posición</div>
+              <select class="select" id="crit-position">
+                ${state.positions.map(p => `<option value="${p.key}" ${p.key === configCriteriaPosition ? 'selected' : ''}>${safeText(p.label)}</option>`).join('')}
+              </select>
+            </label>
+            ${state.positions.length > 1 ? `
+              <label style="display:block;max-width:280px;">
+                <div class="text-xs text-muted mb-8">Copiar todos los items desde…</div>
+                <select class="select" id="crit-copy-from">
+                  <option value="">—</option>
+                  ${state.positions.filter(p => p.key !== configCriteriaPosition).map(p => `<option value="${p.key}">${safeText(p.label)}</option>`).join('')}
+                </select>
+              </label>
+              <button class="btn btn-sm" id="crit-copy-btn">Copiar</button>
+            ` : ''}
+          </div>
           ${CRITERIA_CATEGORIES.map(buildCriteriaCategoryHTML).join('')}
         `}
       </div>
     </div>
+    `}
+
+    ${configSubTab !== 'temporadas' ? '' : `
     <div class="card mb-16">
       <div class="card-title">Temporadas</div>
       <div class="card-body">
@@ -407,6 +440,9 @@ function renderPanelConfig(container) {
         </div>
       </div>
     </div>
+    `}
+
+    ${configSubTab !== 'colores' ? '' : `
     <div class="card">
       <div class="card-title">Colores de las medias</div>
       <div class="card-body">
@@ -430,7 +466,40 @@ function renderPanelConfig(container) {
         </p>
       </div>
     </div>
+    `}
   `;
+
+  container.querySelectorAll('[data-config-subtab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      configSubTab = btn.dataset.configSubtab;
+      renderPanelConfig(container);
+    });
+  });
+
+  const copyBtn = container.querySelector('#crit-copy-btn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      const from = container.querySelector('#crit-copy-from').value;
+      if (!from) { showError('Elige de qué posición copiar.'); return; }
+      const source = state.criteriaSchemas[from] || {};
+      setState({
+        criteriaSchemas: {
+          ...state.criteriaSchemas,
+          [configCriteriaPosition]: {
+            mental: [...(source.mental || [])],
+            tecnico: [...(source.tecnico || [])],
+            tactico: [...(source.tactico || [])],
+            condicional: [...(source.condicional || [])],
+            personalidad: [...(source.personalidad || [])],
+            competenciasOfensivas: [...(source.competenciasOfensivas || [])],
+            competenciasDefensivas: [...(source.competenciasDefensivas || [])],
+          },
+        },
+      });
+      renderPanelConfig(container);
+      showSuccess('Items copiados. Revísalos antes de dar por bueno el perfil.');
+    });
+  }
 
   container.querySelectorAll('[data-band-color]').forEach(input => {
     input.addEventListener('change', () => {
@@ -469,7 +538,7 @@ function renderPanelConfig(container) {
     });
   });
 
-  container.querySelector('#band-add').addEventListener('click', () => {
+  container.querySelector('#band-add')?.addEventListener('click', () => {
     // Nueva banda entre la más baja actual y 0, con un color por defecto neutro.
     const lowestMin = bandsSorted[bandsSorted.length - 1]?.min ?? 1;
     const newMin = Math.max(0, lowestMin - 1);
@@ -479,7 +548,7 @@ function renderPanelConfig(container) {
     renderPanelConfig(container);
   });
 
-  container.querySelector('#pos-add').addEventListener('click', () => {
+  container.querySelector('#pos-add')?.addEventListener('click', () => {
     const input = container.querySelector('#pos-new');
     const label = input.value.trim();
     if (!label) { showError('Escribe el nombre de la posición.'); return; }
@@ -573,7 +642,7 @@ function renderPanelConfig(container) {
     });
   });
 
-  container.querySelector('#season-add').addEventListener('click', () => {
+  container.querySelector('#season-add')?.addEventListener('click', () => {
     const input = container.querySelector('#season-new');
     const season = input.value.trim();
     if (!season) { showError('Escribe el nombre de la temporada.'); return; }
