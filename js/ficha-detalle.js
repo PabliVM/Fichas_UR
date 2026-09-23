@@ -199,10 +199,10 @@ function buildCondicionalBlock({ title, rp, items }) {
 // ── PLAN DE ACCIÓN ────────────────────────────────
 
 const PLAN_COLUMNS = [
-  { key: 'tecnico',     label: 'TÉCNICO',     icon: './img/balon.png'   },
-  { key: 'tactico',     label: 'TÁCTICO',     icon: './img/pizarra.jpg' },
-  { key: 'condicional', label: 'CONDICIONAL', icon: './img/cohete.png'  },
-  { key: 'mental',      label: 'MENTAL',      icon: './img/cerebro.png' },
+  { key: 'tecnico',     label: 'TÉCNICO',     icon: './balon.png'   },
+  { key: 'tactico',     label: 'TÁCTICO',     icon: './pizarra.jpg' },
+  { key: 'condicional', label: 'CONDICIONAL', icon: './cohete.png'  },
+  { key: 'mental',      label: 'MENTAL',      icon: './cerebro.png' },
 ];
 
 function buildPlanAccion(plan) {
