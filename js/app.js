@@ -9,7 +9,7 @@ import { renderTabs }    from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
 import { TABS, LOGO_PATH } from './constants.js';
 import { state }         from './state.js';
-import { renderFichaDetalle, fitFichaToPrintPage, resetFichaPrintScale } from './ficha-detalle.js';
+import { renderFichaDetalle } from './ficha-detalle.js';
 import { FICHA_DEMO_DATA }    from './ficha-demo-data.js';
 import { showError, showSuccess } from './utils.js';
 
@@ -83,14 +83,7 @@ function renderPanelFichas(container) {
   const wrap = container.querySelector('#ficha-demo-wrap');
   renderFichaDetalle(wrap, FICHA_DEMO_DATA, LOGO_PATH, state.scoreThresholds);
 
-  container.querySelector('#btn-print-ficha').addEventListener('click', () => {
-    fitFichaToPrintPage(wrap);
-    window.print();
-  });
-
-  // Por si se imprime con Ctrl+P en vez de con el botón
-  window.addEventListener('beforeprint', () => fitFichaToPrintPage(wrap));
-  window.addEventListener('afterprint', () => resetFichaPrintScale(wrap));
+  container.querySelector('#btn-print-ficha').addEventListener('click', () => window.print());
 }
 
 function renderPanelConfig(container) {
