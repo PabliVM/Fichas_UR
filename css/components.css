@@ -283,3 +283,59 @@
   font-weight: 600;
   margin-bottom: 16px;
 }
+
+/* TABLA GENÉRICA (Plantillas, Registro de datos, etc.) */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table th, .table td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-default);
+}
+.table th {
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* CHIP (posiciones en Configuración, etiquetas sueltas) */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--blue-100, #dbeafe);
+  color: var(--blue-700, #1e3a5f);
+  border-radius: 999px;
+  padding: 4px 6px 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.chip button {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 50%;
+}
+.chip button:hover { background: rgba(0,0,0,0.1); }
+
+/* BOTÓN CON PINTA DE ENLACE (nombre de jugador → perfil, etc.) */
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--blue-500, #2563eb);
+  font-weight: 600;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.link-btn:hover { color: var(--blue-600, #1d4ed8); }
