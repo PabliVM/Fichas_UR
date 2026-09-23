@@ -61,15 +61,17 @@
   display: flex;
   flex: 1;
   min-height: 320px;
+  gap: 28px;
 }
 .q-right .ficha-q-body { flex-direction: row; }
 .q-left  .ficha-q-body { flex-direction: row; }
 
-.ficha-radar { flex: 1.1; padding: 10px; display: flex; align-items: center; }
+.ficha-radar { flex: 1; padding: 10px 6px; display: flex; align-items: center; min-width: 0; }
 .ficha-item-list {
-  flex: 1;
+  flex: 0 0 auto;
+  width: 210px;
   list-style: none;
-  padding: 10px 14px;
+  padding: 10px 6px;
   display: flex;
   flex-direction: column;
   gap: 6px;
