@@ -9,7 +9,9 @@
  * @param {Object} opts
  */
 export function buildRadarSVG(items, opts = {}) {
-  const size        = opts.size        ?? 320;
+  const size        = opts.size        ?? 300; // diámetro del área de datos
+  const padX         = opts.padX        ?? 78;  // margen extra: etiquetas largas a los lados
+  const padY         = opts.padY        ?? 26;  // margen extra arriba/abajo
   const max         = opts.max         ?? 5;
   const rings       = opts.rings       ?? 5;
   const fill        = opts.fill        ?? 'rgba(139,42,68,0.55)';
@@ -20,10 +22,12 @@ export function buildRadarSVG(items, opts = {}) {
   const n = items.length;
   if (n < 3) return '<svg></svg>';
 
-  const cx = size / 2;
-  const cy = size / 2;
-  const r  = size * 0.33;
-  const labelR = size * 0.46;
+  const cx = padX + size / 2;
+  const cy = padY + size / 2;
+  const r  = size * 0.32;
+  const labelR = size * 0.47;
+  const viewW = size + padX * 2;
+  const viewH = size + padY * 2;
 
   const angleFor = i => (Math.PI * 2 * i) / n - Math.PI / 2;
   const point = (radius, i) => {
@@ -60,7 +64,7 @@ export function buildRadarSVG(items, opts = {}) {
   });
 
   return `
-    <svg viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+    <svg viewBox="0 0 ${viewW} ${viewH}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;overflow:visible;">
       ${gridSVG}
       ${axesSVG}
       ${dataSVG}
