@@ -34,6 +34,7 @@ function buildCentralCircle(photoUrl, blockColors) {
   const cy = size / 2;
   const rOuter = 125;
   const rInner = 68;
+  const midR = (rOuter + rInner) / 2;
 
   const seg = (startDeg, endDeg, color) => {
     const p1 = polar(cx, cy, rOuter, startDeg);
@@ -41,12 +42,23 @@ function buildCentralCircle(photoUrl, blockColors) {
     const p3 = polar(cx, cy, rInner, endDeg);
     const p4 = polar(cx, cy, rInner, startDeg);
     const large = endDeg - startDeg > 180 ? 1 : 0;
-    return `<path d="M ${p1.x} ${p1.y} A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y} Z" fill="${color}" stroke="rgba(255,255,255,0.4)" stroke-width="1" />`;
+    return `<path d="M ${p1.x} ${p1.y} A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y} Z" fill="${color}" stroke="#94a3b8" stroke-width="1.5" />`;
   };
 
-  const label = (midDeg, text, rotate, dark) => {
-    const p = polar(cx, cy, (rOuter + rInner) / 2, midDeg);
-    return `<text x="${p.x}" y="${p.y}" font-size="13" font-weight="700" fill="${dark ? '#0f1117' : '#334155'}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate} ${p.x} ${p.y})">${text}</text>`;
+  // Arco invisible por cuadrante (radio medio) para que el texto lo siga.
+  // En la mitad inferior (TÁCTICO/CONDICIONAL) se dibuja al revés,
+  // si no el texto saldría boca abajo.
+  const arcPath = (id, aDeg, bDeg) => {
+    const p1 = polar(cx, cy, midR, aDeg);
+    const p2 = polar(cx, cy, midR, bDeg);
+    const large = Math.abs(bDeg - aDeg) > 180 ? 1 : 0;
+    const sweep = bDeg > aDeg ? 1 : 0;
+    return `<path id="${id}" d="M ${p1.x} ${p1.y} A ${midR} ${midR} 0 ${large} ${sweep} ${p2.x} ${p2.y}" fill="none" />`;
+  };
+
+  const curvedLabel = (id, text, color) => {
+    const fill = color === '#ffffff' ? '#334155' : '#0f1117';
+    return `<text font-size="12.5" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
   };
 
   const photo = photoUrl
@@ -56,16 +68,22 @@ function buildCentralCircle(photoUrl, blockColors) {
 
   return `
     <svg viewBox="0 0 ${size} ${size}" class="ficha-central-svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        ${arcPath('arc-mental', 270, 360)}
+        ${arcPath('arc-tecnico', 0, 90)}
+        ${arcPath('arc-tactico', 180, 90)}
+        ${arcPath('arc-condicional', 270, 180)}
+      </defs>
       ${seg(270, 360, blockColors.mental)}
       ${seg(0, 90, blockColors.tecnico)}
       ${seg(90, 180, blockColors.tactico)}
       ${seg(180, 270, blockColors.condicional)}
-      <circle cx="${cx}" cy="${cy}" r="${rInner + 4}" fill="#ffffff" />
+      <circle cx="${cx}" cy="${cy}" r="${rInner + 4}" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" />
       ${photo}
-      ${label(315, 'MENTAL', -35, blockColors.mental !== '#ffffff')}
-      ${label(45, 'TÉCNICO', 35, blockColors.tecnico !== '#ffffff')}
-      ${label(135, 'TÁCTICO', -35, blockColors.tactico !== '#ffffff')}
-      ${label(225, 'CONDICIONAL', 35, blockColors.condicional !== '#ffffff')}
+      ${curvedLabel('arc-mental', 'MENTAL', blockColors.mental)}
+      ${curvedLabel('arc-tecnico', 'TÉCNICO', blockColors.tecnico)}
+      ${curvedLabel('arc-tactico', 'TÁCTICO', blockColors.tactico)}
+      ${curvedLabel('arc-condicional', 'CONDICIONAL', blockColors.condicional)}
     </svg>
   `;
 }
