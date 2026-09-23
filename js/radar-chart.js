@@ -60,7 +60,7 @@ export function buildRadarSVG(items, opts = {}) {
   items.forEach((item, i) => {
     const [x, y] = point(labelR, i);
     const anchor = Math.abs(x - cx) < 4 ? 'middle' : (x > cx ? 'start' : 'end');
-    labelsSVG += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="9.5" fill="${labelColor}" text-anchor="${anchor}" dominant-baseline="middle">${escapeXml(item.label)}</text>`;
+    labelsSVG += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="10.5" fill="${labelColor}" text-anchor="${anchor}" dominant-baseline="middle">${escapeXml(item.label)}</text>`;
   });
 
   return `
