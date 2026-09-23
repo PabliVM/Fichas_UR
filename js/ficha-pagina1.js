@@ -6,11 +6,13 @@
 //
 // Los indicadores ✔ / cuadro de color son de estado
 // (no una media numérica como en la página 2): los fija
-// el técnico a mano, por eso no dependen de SCORE_THRESHOLDS.
+// el técnico a mano, por eso no usan las bandas de color
+// configurables (state.scoreBands) — esas solo aplican a
+// medias numéricas.
 // ================================================
 
 import { safeText } from './utils.js';
-import { fitFichaToFrame } from './ficha-detalle.js';
+import { fitFichaToFrame, buildFichaHeader } from './ficha-detalle.js';
 
 const STATUS_HEX = { green: '#22c55e', yellow: '#eab308', red: '#ef4444' };
 
@@ -34,11 +36,11 @@ function polar(cx, cy, r, deg) {
 }
 
 function buildMiniCircle(photoUrl, blockRp) {
-  const size = 280;
+  const size = 880;
   const cx = size / 2;
   const cy = size / 2;
-  const rOuter = 135;
-  const rInner = 75;
+  const rOuter = 424;
+  const rInner = 236;
   const midR = (rOuter + rInner) / 2;
 
   const colorFor = key => barColorHex(blockRp[key]);
@@ -60,12 +62,12 @@ function buildMiniCircle(photoUrl, blockRp) {
   };
   const label = (id, text, color) => {
     const fill = color ? '#0f1117' : '#334155';
-    return `<text font-size="13" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
+    return `<text font-size="50" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
   };
   const photo = photoUrl
     ? `<clipPath id="p1-photo-clip"><circle cx="${cx}" cy="${cy}" r="${rInner - 4}" /></clipPath>
        <image href="${photoUrl}" x="${cx - rInner}" y="${cy - rInner}" width="${rInner * 2}" height="${rInner * 2}" clip-path="url(#p1-photo-clip)" preserveAspectRatio="xMidYMid slice" />`
-    : `<text x="${cx}" y="${cy}" font-size="11" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
+    : `<text x="${cx}" y="${cy}" font-size="46" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
 
   return `
     <svg viewBox="0 0 ${size} ${size}" class="p1-central-svg" xmlns="http://www.w3.org/2000/svg">
