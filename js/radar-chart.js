@@ -60,7 +60,11 @@ export function buildRadarSVG(items, opts = {}) {
   items.forEach((item, i) => {
     const [x, y] = point(labelR, i);
     const anchor = Math.abs(x - cx) < 4 ? 'middle' : (x > cx ? 'start' : 'end');
-    labelsSVG += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="10.5" fill="${labelColor}" text-anchor="${anchor}" dominant-baseline="middle">${escapeXml(item.label)}</text>`;
+    const lines = wrapLabel(item.label);
+    const tspans = lines
+      .map((line, li) => `<tspan x="${x.toFixed(1)}" dy="${li === 0 ? -((lines.length - 1) * 5.5) : 11}">${escapeXml(line)}</tspan>`)
+      .join('');
+    labelsSVG += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="10.5" fill="${labelColor}" text-anchor="${anchor}" dominant-baseline="middle">${tspans}</text>`;
   });
 
   return `
@@ -78,4 +82,24 @@ function escapeXml(str) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+/**
+ * Si la etiqueta es larga, la parte en 2 líneas por el espacio
+ * más cercano al centro del texto. Si no hay espacio o es corta,
+ * la deja en una sola línea.
+ */
+function wrapLabel(label, maxLen = 14) {
+  const text = String(label ?? '');
+  if (text.length <= maxLen) return [text];
+
+  const spaces = [...text].reduce((acc, ch, i) => (ch === ' ' ? [...acc, i] : acc), []);
+  if (spaces.length === 0) return [text];
+
+  const mid = text.length / 2;
+  const splitAt = spaces.reduce((best, i) =>
+    Math.abs(i - mid) < Math.abs(best - mid) ? i : best
+  , spaces[0]);
+
+  return [text.slice(0, splitAt).trim(), text.slice(splitAt + 1).trim()];
 }
