@@ -25,7 +25,7 @@ export function buildRadarSVG(items, opts = {}) {
   const cx = padX + size / 2;
   const cy = padY + size / 2;
   const r  = size * 0.32;
-  const labelR = size * 0.47;
+  const labelR = size * 0.44;
   const viewW = size + padX * 2;
   const viewH = size + padY * 2;
 
