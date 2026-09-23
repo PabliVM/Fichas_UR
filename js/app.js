@@ -10,6 +10,7 @@ import { renderFooter }  from './render-footer.js';
 import { TABS, LOGO_PATH } from './constants.js';
 import { state }         from './state.js';
 import { renderFichaDetalle } from './ficha-detalle.js';
+import { exportFichaAsPDF } from './pdf-export.js';
 import { FICHA_DEMO_DATA }    from './ficha-demo-data.js';
 import { showError, showSuccess } from './utils.js';
 
@@ -76,14 +77,28 @@ function renderPanelFichas(container) {
     ${firebaseNotice()}
     <div class="mb-16 flex ficha-toolbar" style="justify-content:space-between;align-items:center;">
       <span><strong>Plantilla de ficha (página 2)</strong> — datos de ejemplo, pendiente de conectar a Firestore.</span>
-      <button class="btn btn-primary btn-print-ficha" id="btn-print-ficha">🖨 Imprimir / PDF</button>
+      <button class="btn btn-primary btn-print-ficha" id="btn-print-ficha">⬇ Descargar PDF</button>
     </div>
     <div id="ficha-demo-wrap"></div>
   `;
   const wrap = container.querySelector('#ficha-demo-wrap');
   renderFichaDetalle(wrap, FICHA_DEMO_DATA, LOGO_PATH, state.scoreThresholds);
 
-  container.querySelector('#btn-print-ficha').addEventListener('click', () => window.print());
+  const btnPrint = container.querySelector('#btn-print-ficha');
+  btnPrint.addEventListener('click', async () => {
+    const fichaEl = wrap.querySelector('.ficha-detalle');
+    if (!fichaEl) return;
+    btnPrint.disabled = true;
+    btnPrint.textContent = 'Generando PDF…';
+    try {
+      await exportFichaAsPDF(fichaEl);
+    } catch (err) {
+      showError('No se pudo generar el PDF: ' + err.message);
+    } finally {
+      btnPrint.disabled = false;
+      btnPrint.textContent = '⬇ Descargar PDF';
+    }
+  });
 }
 
 function renderPanelConfig(container) {
