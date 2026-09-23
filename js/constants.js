@@ -25,12 +25,13 @@ export const PROFILES = [
 ];
 
 export const TABS = [
-  { key: 'inicio',    label: 'Inicio'            },
-  { key: 'importar',  label: 'Importar CSV'      },
-  { key: 'registro',  label: 'Registro de datos' },
-  { key: 'jugadores', label: 'Jugadores'         },
-  { key: 'fichas',    label: 'Fichas'            },
-  { key: 'config',    label: 'Configuración'     },
+  { key: 'inicio',     label: 'Inicio'            },
+  { key: 'importar',   label: 'Importar CSV'      },
+  { key: 'registro',   label: 'Registro de datos' },
+  { key: 'plantillas', label: 'Plantillas'        },
+  { key: 'jugadores',  label: 'Jugadores'         },
+  { key: 'fichas',     label: 'Fichas'            },
+  { key: 'config',     label: 'Configuración'     },
 ];
 
 // Umbrales de color para medias (definidos por Pablo)
