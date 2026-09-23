@@ -29,11 +29,11 @@ function polar(cx, cy, r, deg) {
 }
 
 function buildCentralCircle(photoUrl, blockColors) {
-  const size = 340;
+  const size = 440;
   const cx = size / 2;
   const cy = size / 2;
-  const rOuter = 163;
-  const rInner = 90;
+  const rOuter = 212;
+  const rInner = 118;
   const midR = (rOuter + rInner) / 2;
 
   const seg = (startDeg, endDeg, color) => {
@@ -58,13 +58,13 @@ function buildCentralCircle(photoUrl, blockColors) {
 
   const curvedLabel = (id, text, color) => {
     const fill = color === '#ffffff' ? '#334155' : '#0f1117';
-    return `<text font-size="15" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
+    return `<text font-size="19" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
   };
 
   const photo = photoUrl
     ? `<clipPath id="ficha-photo-clip"><circle cx="${cx}" cy="${cy}" r="${rInner - 4}" /></clipPath>
        <image href="${photoUrl}" x="${cx - rInner}" y="${cy - rInner}" width="${rInner * 2}" height="${rInner * 2}" clip-path="url(#ficha-photo-clip)" preserveAspectRatio="xMidYMid slice" />`
-    : `<text x="${cx}" y="${cy}" font-size="14" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
+    : `<text x="${cx}" y="${cy}" font-size="18" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
 
   return `
     <svg viewBox="0 0 ${size} ${size}" class="ficha-central-svg" xmlns="http://www.w3.org/2000/svg">
@@ -370,7 +370,7 @@ export function fitFichaToFrame(container) {
   frame.style.height = '';
   ficha.style.transform = 'none'; // medir tamaño real, sin escalar todavía
 
-  const maxW = Math.min(frame.parentElement?.clientWidth || 1300, 1300);
+  const maxW = Math.min(frame.parentElement?.clientWidth || 1900, 1900);
   const maxH = maxW * (210 / 297); // límite de proporción A4 apaisado
 
   const fichaRect = ficha.getBoundingClientRect();
