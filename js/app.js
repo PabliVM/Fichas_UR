@@ -311,15 +311,21 @@ function renderPanelJugadores(container) {
   `;
 }
 
+let fichasSubPage = 1; // qué página de la ficha se muestra: 1 ó 2
+
 function renderPanelFichas(container) {
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="mb-16 flex ficha-toolbar" style="justify-content:space-between;align-items:center;">
-      <span><strong>Plantilla de ficha (2 páginas)</strong> — datos de ejemplo, pendiente de conectar a Firestore.</span>
+      <div class="flex gap-8">
+        <button class="btn ${fichasSubPage === 1 ? 'btn-primary' : 'btn-sm'}" data-ficha-page="1">Ficha 1</button>
+        <button class="btn ${fichasSubPage === 2 ? 'btn-primary' : 'btn-sm'}" data-ficha-page="2">Ficha 2</button>
+      </div>
       <button class="btn btn-primary btn-print-ficha" id="btn-print-ficha">⬇ Descargar PDF</button>
     </div>
-    <div id="ficha1-demo-wrap" class="mb-16"></div>
-    <div id="ficha-demo-wrap"></div>
+    <p class="text-xs text-muted mb-16">Datos de ejemplo, pendiente de conectar a Firestore.</p>
+    <div id="ficha1-demo-wrap" class="${fichasSubPage === 1 ? '' : 'hidden'}"></div>
+    <div id="ficha-demo-wrap" class="${fichasSubPage === 2 ? '' : 'hidden'}"></div>
   `;
   const wrap1 = container.querySelector('#ficha1-demo-wrap');
   renderFichaPagina1(wrap1, FICHA1_DEMO_DATA, LOGO_PATH);
@@ -327,14 +333,22 @@ function renderPanelFichas(container) {
   const wrap = container.querySelector('#ficha-demo-wrap');
   renderFichaDetalle(wrap, FICHA_DEMO_DATA, LOGO_PATH, state.scoreBands);
 
+  container.querySelectorAll('[data-ficha-page]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      fichasSubPage = Number(btn.dataset.fichaPage);
+      renderPanelFichas(container);
+    });
+  });
+
   const btnPrint = container.querySelector('#btn-print-ficha');
   btnPrint.addEventListener('click', async () => {
-    const fichaEl = wrap.querySelector('.ficha-detalle');
+    const activeWrap = fichasSubPage === 1 ? wrap1 : wrap;
+    const fichaEl = activeWrap.querySelector('.ficha-detalle');
     if (!fichaEl) return;
     btnPrint.disabled = true;
     btnPrint.textContent = 'Generando PDF…';
     try {
-      await exportFichaAsPDF(fichaEl);
+      await exportFichaAsPDF(fichaEl, `ficha-jugador-pagina${fichasSubPage}.pdf`);
     } catch (err) {
       showError('No se pudo generar el PDF: ' + err.message);
     } finally {
