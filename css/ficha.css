@@ -144,7 +144,7 @@
 .gps-grid {
   padding: 10px 10px;
   display: grid;
-  grid-template-columns: 140px 140px auto 140px 140px;
+  grid-template-columns: 180px 180px auto 180px 180px;
   row-gap: 7px;
   column-gap: 180px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
   align-items: center;
@@ -167,18 +167,18 @@
   gap: 5px;
 }
 .gps-input {
-  width: 88px;
+  width: 130px;
   text-align: right;
   background: rgba(255,255,255,0.06);
   border: 1px solid var(--slate-line);
   border-radius: 4px;
   color: #ffffff;
-  font-size: 28px;
+  font-size: 50px;
   font-weight: 600;
   padding: 2px 4px;
 }
 .gps-input:focus { outline: none; border-color: var(--score-yellow); background: rgba(255,255,255,0.12); }
-.gps-icon { width: 28px; text-align: center; font-weight: 800; font-size: 28px; }
+.gps-icon { width: 40px; text-align: center; font-weight: 800; font-size: 40px; }
 .gps-ok   { color: var(--score-green); }
 .gps-fail { color: var(--score-red); }
 .gps-label { color: #ffffff; }
@@ -249,7 +249,7 @@
   gap: 10px;
   color: #e6edf3;
   background: rgba(255,255,255,0.03);
-  font-size: 44px;
+  font-size: 50px;
   font-weight: 400;
 }
 .plan-col-list li {
