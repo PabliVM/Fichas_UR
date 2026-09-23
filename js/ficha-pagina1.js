@@ -10,6 +10,7 @@
 // ================================================
 
 import { safeText } from './utils.js';
+import { fitFichaToFrame } from './ficha-detalle.js';
 
 const STATUS_HEX = { green: '#22c55e', yellow: '#eab308', red: '#ef4444' };
 
@@ -227,4 +228,7 @@ export function renderFichaPagina1(container, data, logoPath) {
       </div>
     </div>
   `;
+
+  fitFichaToFrame(container);
+  window.addEventListener('resize', () => fitFichaToFrame(container));
 }
