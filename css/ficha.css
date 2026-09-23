@@ -25,7 +25,7 @@
   background: var(--slate);
   color: #ffffff;
   font-family: var(--font-sans);
-  width: 3900px;          /* tamaño de diseño fijo, siempre el mismo */
+  width: 4300px;          /* tamaño de diseño fijo, siempre el mismo */
   transform-origin: top left;
   position: absolute;
   top: 0;
@@ -48,7 +48,7 @@
   gap: 14px;
   padding: 16px 22px;
 }
-.ficha-header-crest { width: 58px; height: 58px; object-fit: contain; flex-shrink: 0; }
+.ficha-header-crest { width: 116px; height: 116px; object-fit: contain; flex-shrink: 0; }
 .ficha-header-title {
   flex: 1;
   text-align: center;
@@ -183,8 +183,8 @@
    exactamente en el cruce, sin depender de trucos de CSS. */
 .ficha-central {
   position: absolute;
-  width: 440px;
-  height: 440px;
+  width: 880px;
+  height: 880px;
   z-index: 5;
 }
 .ficha-central-svg { width: 100%; height: 100%; }
