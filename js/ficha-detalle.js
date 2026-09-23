@@ -99,13 +99,13 @@ function buildRatedBlock({ title, rp, items, side, thresholds, blockKey }) {
   `;
 }
 
-// ── BLOQUE CONDICIONAL (valores GPS, sin radar) ──
+// ── BLOQUE CONDICIONAL (valores GPS, editable, sin radar) ──
 
-function okIcon(ok) {
-  if (ok === null || ok === undefined) return '';
+function gpsIconMarkup(ok) {
+  if (ok === null || ok === undefined) return '<span class="gps-icon"></span>';
   return ok
-    ? '<span class="gps-ok">✔</span>'
-    : '<span class="gps-fail">✘</span>';
+    ? '<span class="gps-icon gps-ok">✔</span>'
+    : '<span class="gps-icon gps-fail">✘</span>';
 }
 
 function buildCondicionalBlock({ title, rp, items }) {
@@ -113,13 +113,23 @@ function buildCondicionalBlock({ title, rp, items }) {
     ? `${formatNum(rp[0])} / ${formatNum(rp[1])}`
     : '-';
 
-  const rows = items.map(item => `
-    <div class="gps-row">
-      <span class="gps-val">${item.valueA ?? '-'}</span>${okIcon(item.valueAOk)}
-      <span class="gps-val">${item.valueB ?? '-'}</span>${okIcon(item.valueBOk)}
+  const rows = items.map((item, i) => `
+    <div class="gps-row" data-row="${i}">
+      <span class="gps-val-cell">
+        <input class="gps-input" type="text" data-row="${i}" data-field="valueA" value="${item.valueA ?? ''}" />
+        ${gpsIconMarkup(item.valueAOk)}
+      </span>
+      <span class="gps-val-cell">
+        <input class="gps-input" type="text" data-row="${i}" data-field="valueB" value="${item.valueB ?? ''}" />
+        ${gpsIconMarkup(item.valueBOk)}
+      </span>
       <span class="gps-label">• ${safeText(item.label)}</span>
-      <span class="gps-ref">${item.refA ?? ''}</span>
-      <span class="gps-ref">${item.refB ?? ''}</span>
+      <span class="gps-ref-cell">
+        <input class="gps-input gps-ref-input" type="text" data-row="${i}" data-field="refA" value="${item.refA ?? ''}" />
+      </span>
+      <span class="gps-ref-cell">
+        <input class="gps-input gps-ref-input" type="text" data-row="${i}" data-field="refB" value="${item.refB ?? ''}" />
+      </span>
     </div>
   `).join('');
 
@@ -180,6 +190,49 @@ function formatNum(n) {
   return Number(n).toFixed(2).replace(/\.00$/, '').replace('.', ',');
 }
 
+function parseEsNumber(str) {
+  if (str == null || str === '') return null;
+  const n = parseFloat(String(str).replace(/\./g, '').replace(',', '.'));
+  return Number.isNaN(n) ? null : n;
+}
+
+/**
+ * Recalcula el icono ✔/✘ de una fila GPS comparando valueA/valueB
+ * contra el rango [refA, refB] (en cualquier orden).
+ */
+function recalcGpsRow(rowEl) {
+  const get = field => rowEl.querySelector(`[data-field="${field}"]`)?.value ?? '';
+  const refA = parseEsNumber(get('refA'));
+  const refB = parseEsNumber(get('refB'));
+  const hasRange = refA != null && refB != null;
+  const min = hasRange ? Math.min(refA, refB) : null;
+  const max = hasRange ? Math.max(refA, refB) : null;
+
+  ['valueA', 'valueB'].forEach(field => {
+    const input = rowEl.querySelector(`[data-field="${field}"]`);
+    const iconSlot = input.parentElement.querySelector('.gps-icon');
+    const val = parseEsNumber(input.value);
+    let ok = null;
+    if (hasRange && val != null) ok = val >= min && val <= max;
+    iconSlot.className = 'gps-icon' + (ok === true ? ' gps-ok' : ok === false ? ' gps-fail' : '');
+    iconSlot.textContent = ok === true ? '✔' : ok === false ? '✘' : '';
+  });
+}
+
+/**
+ * Conecta los inputs del bloque CONDICIONAL para que el ✔/✘
+ * se recalcule solo al escribir. Llamar tras insertar el HTML
+ * en el DOM (no persiste en Firestore todavía).
+ */
+export function wireCondicionalInputs(container) {
+  container.querySelectorAll('.gps-row').forEach(rowEl => {
+    recalcGpsRow(rowEl);
+    rowEl.querySelectorAll('.gps-input').forEach(input => {
+      input.addEventListener('input', () => recalcGpsRow(rowEl));
+    });
+  });
+}
+
 // ── RENDER PRINCIPAL ──────────────────────────────
 
 /**
@@ -203,4 +256,6 @@ export function renderFichaDetalle(container, data, logoPath, thresholds) {
       ${buildPlanAccion(plan, logoPath)}
     </div>
   `;
+
+  wireCondicionalInputs(container);
 }
