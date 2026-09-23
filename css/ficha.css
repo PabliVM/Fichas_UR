@@ -235,19 +235,21 @@
 .plan-col-icon-mental       { width: auto; height: 100px; margin: -6px 0; } /* cerebro */
 .plan-col-list {
   list-style: none;
-  padding: 10px 14px;
+  padding: 14px 18px;
   margin: 0;
-  min-height: 100px;
+  min-height: 320px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   color: #e6edf3;
   background: rgba(255,255,255,0.03);
+  font-size: 40px;
+  font-weight: 400;
 }
 .plan-col-list li {
   border-bottom: 1px dashed var(--slate-line);
-  padding-bottom: 4px;
-  min-height: 16px;
+  padding-bottom: 8px;
+  min-height: 50px;
   outline: none;
   overflow-wrap: break-word;
   word-break: break-word;
