@@ -28,7 +28,7 @@
   background: var(--slate);
   color: #ffffff;
   font-family: var(--font-sans);
-  width: 2200px;          /* tamaño de diseño fijo, siempre el mismo */
+  width: 2600px;          /* tamaño de diseño fijo, siempre el mismo */
   transform-origin: top left;
   position: absolute;
   top: 0;
@@ -57,14 +57,14 @@
   text-align: center;
   color: #ffffff;
   font-weight: 800;
-  font-size: 21px;
+  font-size: 24px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 .ficha-header-page {
   color: #ffffff;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
   background: rgba(255,255,255,0.18);
   padding: 5px 12px;
   border-radius: 999px;
@@ -92,7 +92,7 @@
   min-height: 44px;
 }
 .ficha-q-title {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 800;
   letter-spacing: 0.02em;
   flex: 1;
@@ -100,7 +100,7 @@
   text-transform: uppercase;
 }
 .ficha-q-rp {
-  font-size: 16.5px;
+  font-size: 18px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -117,14 +117,14 @@
 .ficha-radar { flex: 1; padding: 10px 20px; display: flex; align-items: center; min-width: 0; }
 .ficha-item-list {
   flex: 0 0 auto;
-  width: 280px;
+  width: 300px;
   list-style: none;
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   justify-content: center;
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 600;
 }
 .ficha-item-list li { display: flex; align-items: center; gap: 8px; }
@@ -147,11 +147,11 @@
 .gps-grid {
   padding: 10px 10px;
   display: grid;
-  grid-template-columns: 56px 56px auto 56px 56px;
-  row-gap: 6px;
+  grid-template-columns: 60px 60px auto 60px 60px;
+  row-gap: 7px;
   column-gap: 10px;
   align-items: center;
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 600;
 }
 .gps-row { display: contents; } /* las celdas de cada fila se insertan en la rejilla común de arriba */
@@ -164,18 +164,18 @@
 .gps-val-cell.gps-cell-a { margin-right: 14px; } /* más separación entre las 2 columnas de la izquierda */
 .gps-ref-cell.gps-cell-a { margin-left: 16px; }  /* las de referencia, un poco más hacia la derecha */
 .gps-input {
-  width: 48px;
+  width: 52px;
   text-align: right;
   background: rgba(255,255,255,0.06);
   border: 1px solid var(--slate-line);
   border-radius: 4px;
   color: #ffffff;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   padding: 2px 4px;
 }
 .gps-input:focus { outline: none; border-color: var(--score-yellow); background: rgba(255,255,255,0.12); }
-.gps-icon { width: 16px; text-align: center; font-weight: 800; font-size: 13px; }
+.gps-icon { width: 18px; text-align: center; font-weight: 800; font-size: 14px; }
 .gps-ok   { color: var(--score-green); }
 .gps-fail { color: var(--score-red); }
 .gps-label { padding-left: 18px; color: #ffffff; }
@@ -274,15 +274,17 @@
   @page { size: A4 landscape; margin: 8mm; }
 
   .ficha-a4-frame {
-    width: 281mm;   /* 297mm - 2×8mm de margen de @page */
-    height: 194mm;  /* 210mm - 2×8mm */
+    width: auto;
+    height: auto;
     max-width: none;
     aspect-ratio: auto;
+    overflow: visible;   /* no recortar: Chrome necesita ver todo el contenido para poder ajustarlo */
     box-shadow: none;
     border-radius: 0;
   }
 
   .ficha-detalle {
+    position: static;    /* vuelve al flujo normal, ya no hace falta posicionarla dentro del marco */
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
