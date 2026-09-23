@@ -19,7 +19,7 @@
   --blue-300: #93c5fd;
   --blue-100: #dbeafe;
 
-  /* COLORES DE MEDIA — umbrales en constants.js (SCORE_THRESHOLDS) */
+  /* COLORES DE MEDIA — bandas configurables en Configuración (state.scoreBands) */
   --score-green:  #22c55e;
   --score-yellow: #eab308;
   --score-red:    #ef4444;
