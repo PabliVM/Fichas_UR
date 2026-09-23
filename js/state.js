@@ -5,7 +5,7 @@
 // almacenamiento local.
 // ================================================
 
-import { APP_NAME, DEFAULT_SEASON, TEAMS, SCORE_THRESHOLDS, TABS, PROFILES, SEASONS } from './constants.js';
+import { APP_NAME, DEFAULT_SEASON, TEAMS, TABS, PROFILES, SEASONS } from './constants.js';
 
 function initialTab() {
   const hash = window.location.hash.replace('#', '');
@@ -18,7 +18,14 @@ const _state = {
   activeTeam:      TEAMS[0].key,
   activeTab:       initialTab(),
   darkMode:        false,
-  scoreThresholds: { ...SCORE_THRESHOLDS }, // editable desde Configuración
+  // Bandas de color para las medias — editable en Configuración: cuántas
+  // haya (2, 3, 4...) y qué color/umbral tiene cada una. Semilla: 3 bandas
+  // (verde/amarillo/rojo), igual que el criterio que ya usábamos.
+  scoreBands: [
+    { color: '#22c55e', min: 4 }, // verde:   media >= 4
+    { color: '#eab308', min: 3 }, // amarillo: 3 <= media < 4
+    { color: '#ef4444', min: 0 }, // rojo:    media < 3
+  ],
   positions:       PROFILES.map(p => ({ ...p })), // editable desde Configuración — semilla: PROFILES
   seasons:         [...SEASONS], // editable desde Configuración — semilla: SEASONS
   // { id, name, positions: [posKey, posKey2?], teamsBySeason: { [season]: teamKey } }
