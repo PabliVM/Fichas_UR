@@ -344,7 +344,9 @@ export function renderFichaDetalle(container, data, logoPath, thresholds, pageLa
     centerFichaCircle(fichaRoot);
     fitFichaToFrame(container);
   });
-  window.addEventListener('beforeprint', () => fitFichaToFrame(container));
+  window.addEventListener('beforeprint', () => {
+    requestAnimationFrame(() => fitFichaToFrame(container));
+  });
 }
 
 /**
