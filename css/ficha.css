@@ -270,23 +270,30 @@
    y GIRAMOS el contenido 90° con CSS para que salga apaisado
    igualmente. Cero pasos manuales.
    ================================================ */
+/* ================================================
+   IMPRESIÓN — A4 apaisado (297×210mm)
+   Requiere 2 clics en el diálogo de impresión (ver aviso más abajo):
+   "Horizontal" y "Ajustar al área de impresión". No hay forma
+   fiable de forzar esto desde CSS en todos los navegadores/
+   impresoras — lo he intentado con @page:landscape (el driver
+   "Adobe PDF" lo ignora) y con un giro por CSS (empeoró el
+   resultado). Esta es la versión que sí ha funcionado en pruebas.
+   ================================================ */
 @media print {
-  @page { size: A4; margin: 8mm; } /* A4 vertical, sin pedir "landscape" */
+  @page { size: A4 landscape; margin: 8mm; }
 
   .ficha-a4-frame {
-    width: max-content;
-    height: max-content;
-    transform-origin: top left;
-    transform: rotate(90deg) translateY(-100%); /* gira el contenido para que quede apaisado en una hoja vertical */
+    width: auto !important;
+    height: auto !important;
     max-width: none;
     aspect-ratio: auto;
-    overflow: visible;
+    overflow: visible;   /* no recortar: Chrome necesita ver todo el contenido para poder ajustarlo */
     box-shadow: none;
     border-radius: 0;
   }
 
   .ficha-detalle {
-    position: static;    /* vuelve al flujo normal dentro del marco ya girado */
+    position: static;    /* vuelve al flujo normal, ya no hace falta posicionarla dentro del marco */
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
