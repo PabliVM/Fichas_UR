@@ -25,6 +25,7 @@ export function renderTabs() {
 export function switchTab(tabKey) {
   if (state.activeTab === tabKey) return;
   setState({ activeTab: tabKey });
+  history.replaceState(null, '', '#' + tabKey);
 
   // Actualizar botones
   document.querySelectorAll('.tab-btn').forEach(btn => {
