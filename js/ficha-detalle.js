@@ -175,7 +175,6 @@ function buildPlanAccion(plan) {
       <div class="ficha-plan-grid">
         <div class="plan-col plan-col-crest">
           <div class="plan-col-header plan-col-header-dark">ASPECTOS DEL<br/>JUGADOR</div>
-          <div class="plan-crest"></div>
         </div>
         ${cols}
       </div>
@@ -185,11 +184,12 @@ function buildPlanAccion(plan) {
 
 // ── HEADER DE LA FICHA (azul corporativo, arriba del todo) ──
 
-function buildFichaHeader(logoPath) {
+function buildFichaHeader(logoPath, pageLabel) {
   return `
     <header class="ficha-header">
       <img src="${logoPath}" alt="" class="ficha-header-crest" />
       <span class="ficha-header-title">INFORME INDIVIDUAL DEL JUGADOR</span>
+      ${pageLabel ? `<span class="ficha-header-page">${safeText(pageLabel)}</span>` : ''}
     </header>
   `;
 }
@@ -251,13 +251,15 @@ export function wireCondicionalInputs(container) {
  * @param {HTMLElement} container
  * @param {Object} data — { player, blocks: {mental, tecnico, tactico, condicional}, plan }
  * @param {string} logoPath — ruta del escudo (LOGO_PATH de constants.js)
+ * @param {Object} thresholds — { green, yellow }
+ * @param {string} [pageLabel] — indicador de página, ej. '2/2'. Vacío/omitido = no se muestra.
  */
-export function renderFichaDetalle(container, data, logoPath, thresholds) {
+export function renderFichaDetalle(container, data, logoPath, thresholds, pageLabel = '2/2') {
   const { player, blocks, plan } = data;
 
   container.innerHTML = `
     <div class="ficha-detalle">
-      ${buildFichaHeader(logoPath)}
+      ${buildFichaHeader(logoPath, pageLabel)}
       <div class="ficha-grid">
         ${buildRatedBlock({ title: 'MENTAL',  rp: blocks.mental.rp,  items: blocks.mental.items,  side: 'left',  thresholds, blockKey: 'mental'  })}
         ${buildRatedBlock({ title: 'TÉCNICO', rp: blocks.tecnico.rp, items: blocks.tecnico.items, side: 'right', thresholds, blockKey: 'tecnico' })}
