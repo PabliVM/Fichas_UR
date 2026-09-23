@@ -137,7 +137,7 @@ body {
    ================================================ */
 @media print {
   #rm-header, #rm-tabs, #rm-footer, #rm-toast,
-  .firebase-notice, .btn-print-ficha {
+  .firebase-notice, .btn-print-ficha, .ficha-toolbar {
     display: none !important;
   }
   #rm-main {
