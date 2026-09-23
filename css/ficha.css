@@ -48,7 +48,7 @@
   gap: 14px;
   padding: 16px 22px;
 }
-.ficha-header-crest { width: 160px; height: 160px; object-fit: contain; flex-shrink: 0; }
+.ficha-header-crest { width: 190px; height: 190px; object-fit: contain; flex-shrink: 0; }
 .ficha-header-title {
   flex: 1;
   text-align: center;
