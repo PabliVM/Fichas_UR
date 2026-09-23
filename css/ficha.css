@@ -24,6 +24,26 @@
   grid-template-rows: auto auto;
 }
 
+/* ── HEADER DE LA FICHA (azul RM, arriba del todo) ── */
+.ficha-header {
+  background: var(--blue-700, #1e3a5f);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 20px;
+}
+.ficha-header-crest { width: 40px; height: 40px; object-fit: contain; }
+.ficha-header-title {
+  flex: 1;
+  text-align: center;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-right: 54px; /* compensa el ancho del escudo para centrar el texto */
+}
+
 /* ── CUADRANTE ── */
 .ficha-quadrant {
   display: flex;
@@ -44,7 +64,7 @@
   min-height: 44px;
 }
 .ficha-q-title {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 800;
   letter-spacing: 0.02em;
   flex: 1;
@@ -52,7 +72,7 @@
   text-transform: uppercase;
 }
 .ficha-q-rp {
-  font-size: 15px;
+  font-size: 16.5px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -76,7 +96,7 @@
   flex-direction: column;
   gap: 6px;
   justify-content: center;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 600;
 }
 .ficha-item-list li { display: flex; align-items: center; gap: 8px; }
@@ -97,38 +117,38 @@
 
 /* ── CONDICIONAL (GPS) ── */
 .gps-grid {
-  padding: 10px 16px;
+  padding: 10px 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 600;
 }
 .gps-row {
   display: grid;
-  grid-template-columns: 74px 74px 1fr 64px 64px;
+  grid-template-columns: 62px 62px 1fr 64px 64px;
   align-items: center;
-  column-gap: 10px;
+  column-gap: 8px;
 }
 .gps-val-cell, .gps-ref-cell {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
+  justify-content: flex-start;
+  gap: 5px;
 }
 .gps-input {
-  width: 52px;
+  width: 48px;
   text-align: right;
   background: rgba(255,255,255,0.06);
   border: 1px solid var(--slate-line);
   border-radius: 4px;
   color: #ffffff;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   padding: 2px 4px;
 }
 .gps-input:focus { outline: none; border-color: var(--score-yellow); background: rgba(255,255,255,0.12); }
-.gps-icon { width: 14px; text-align: center; font-weight: 800; }
+.gps-icon { width: 16px; text-align: center; font-weight: 800; font-size: 13px; }
 .gps-ok   { color: var(--score-green); }
 .gps-fail { color: var(--score-red); }
 .gps-label { padding-left: 18px; color: #ffffff; }
@@ -171,7 +191,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.03em;
 }
@@ -182,7 +202,7 @@
   font-size: 11px;
   line-height: 1.2;
 }
-.plan-col-icon { font-size: 22px; }
+.plan-col-icon { width: 26px; height: 26px; object-fit: contain; }
 .plan-col-list {
   list-style: none;
   padding: 10px 14px;
