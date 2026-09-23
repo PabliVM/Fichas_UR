@@ -1,201 +1,305 @@
 /* ================================================
-   FICHA1.CSS — Página 1 de la ficha individual
-   Comparte paleta y tokens con ficha.css (--wine, --slate,
-   --score-*), pero es una plantilla distinta a la de la
-   página 2 (identidad + competencias, no 4 cuadrantes).
+   FICHA.CSS — Página de detalle de la ficha individual
+   Paleta propia (vino/pizarra), aislada del resto de la app.
+   No usa --header-bg, --bg-app, etc. — es un documento
+   con identidad fija, igual en claro y oscuro.
    ================================================ */
 
-.p1-detalle {
+/* El límite de proporción A4 apaisado se respeta en el CÁLCULO
+   de la escala (fitFichaToFrame en JS), pero el marco visible en
+   pantalla se ajusta exacto al tamaño ya escalado — así no queda
+   hueco vacío a los lados. */
+.ficha-a4-frame {
+  margin: 0 auto;
+  overflow: hidden;
+  position: relative;
+  background: #24313d;
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.25);
+}
+
+.ficha-detalle {
   --wine:        #7b3a52;
   --slate:       #24313d;
   --slate-line:  rgba(255,255,255,0.12);
   background: var(--slate);
   color: #ffffff;
   font-family: var(--font-sans);
-  width: 4700px;          /* mismo ancho de diseño que la página 2 */
+  width: 4700px;          /* tamaño de diseño fijo, siempre el mismo */
   transform-origin: top left;
   position: absolute;
   top: 0;
   left: 0;
 }
 
-.p1-top {
+.ficha-grid {
   display: grid;
-  grid-template-columns: 1080px 1fr;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  border-top: 3px solid rgba(255,255,255,0.65);
   position: relative;
-  border-bottom: 3px solid rgba(255,255,255,0.65);
 }
 
-/* ── COLUMNA IZQUIERDA: identidad ── */
-.p1-left {
+/* ── HEADER DE LA FICHA (azul RM, arriba del todo) ── */
+.ficha-header {
+  background: var(--blue-600, #1d4ed8);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 22px;
+}
+.ficha-header-crest { width: 190px; height: 190px; object-fit: contain; flex-shrink: 0; }
+.ficha-header-title {
+  flex: 1;
+  text-align: center;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 60px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.ficha-header-page {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 46px;
+  background: rgba(255,255,255,0.18);
+  padding: 8px 22px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── CUADRANTE ── */
+.ficha-quadrant {
   display: flex;
   flex-direction: column;
-  border-right: 3px solid rgba(255,255,255,0.65);
+  border: 1px solid var(--slate-line);
 }
-.p1-name-header {
+.q-mental      { grid-row: 1; grid-column: 1; }
+.q-tecnico     { grid-row: 1; grid-column: 2; }
+.q-condicional { grid-row: 2; grid-column: 1; border-top: 3px solid rgba(255,255,255,0.65); }
+.q-tactico     { grid-row: 2; grid-column: 2; border-top: 3px solid rgba(255,255,255,0.65); }
+
+.ficha-q-header {
   background: var(--wine);
-  color: #ffffff;
-  font-size: 52px;
-  font-weight: 600;
-  padding: 16px 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 10px 16px;
+  min-height: 44px;
 }
-.p1-facts {
-  list-style: none;
-  margin: 0;
-  padding: 24px 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  font-size: 36px;
-}
-.p1-facts li::before { content: "• "; color: rgba(255,255,255,0.5); }
-.p1-check { color: var(--score-green); font-weight: 800; margin-left: 10px; }
-
-.p1-rp-row { display: flex; gap: 24px; padding: 0 28px; margin-bottom: 16px; }
-.p1-rp-badge {
-  width: 96px; height: 96px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 42px; font-weight: 800;
-  border: 4px solid #0f1117;
-}
-.p1-rp-badge-r { background: var(--score-yellow); color: #0f1117; }
-.p1-rp-badge-p { background: #ffffff; color: #0f1117; }
-.p1-rp-box {
-  width: 96px; height: 76px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 42px; font-weight: 800;
-  border-radius: 6px;
-}
-.p1-rp-box-r { background: var(--score-yellow); color: #0f1117; }
-.p1-rp-box-p { background: #dbeafe; color: #0f1117; }
-
-.p1-status-bars { display: flex; flex-direction: column; margin-top: 10px; }
-.p1-status-bar { color: #0f1117; font-weight: 700; font-size: 36px; padding: 16px 28px; }
-
-.p1-subheader {
-  background: var(--wine);
-  color: #ffffff;
-  font-size: 38px;
+.ficha-q-title {
+  font-size: 52px;
   font-weight: 600;
-  padding: 12px 20px;
-  text-align: center;
-}
-.p1-personalidad-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  padding: 22px 28px;
-  gap: 12px 44px;
+  letter-spacing: 0.02em;
   flex: 1;
-}
-.p1-plain-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; font-size: 34px; }
-.p1-plain-list li::before { content: "• "; color: rgba(255,255,255,0.5); }
-
-/* ── COLUMNA DERECHA: descripción + competencias ── */
-.p1-right { display: flex; flex-direction: column; }
-.p1-desc-header {
-  background: var(--wine);
-  color: #ffffff;
-  font-size: 38px;
-  font-weight: 600;
-  padding: 12px 20px;
   text-align: center;
+  text-transform: uppercase;
 }
-.p1-desc-text {
-  padding: 22px 28px;
-  font-size: 36px;
-  min-height: 90px;
-  background: rgba(255,255,255,0.03);
-  outline: none;
-}
-.p1-desc-text:focus { background: rgba(255,255,255,0.06); }
-.p1-comp-grid { display: grid; column-gap: 16px; padding: 20px 24px; }
-.p1-comp-cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; }
-.p1-comp-label { font-size: 24px; font-weight: 600; min-height: 90px; }
-.p1-status-box { display: inline-block; width: 36px; height: 36px; border-radius: 4px; }
-.p1-status-none { background: rgba(255,255,255,0.15); }
-
-/* ── CÍRCULO MINI (posición fija según el ancho de .p1-left) ── */
-.p1-central {
-  position: absolute;
-  top: 50%;
-  left: 1080px;
-  width: 880px;
-  height: 880px;
-  transform: translate(-50%, -50%);
-  z-index: 5;
-}
-.p1-central-svg { width: 100%; height: 100%; }
-
-/* ── ASPECTOS INDIVIDUALES (potenciar / mejorar, editable) ── */
-.p1-aspectos-grid { display: grid; grid-template-columns: 1fr 1fr; }
-.p1-aspectos-col { border: 1px solid var(--slate-line); display: flex; flex-direction: column; }
-.p1-aspectos-col-header {
-  background: #ffffff;
-  color: #0f1117;
-  text-align: center;
+.ficha-q-rp {
+  font-size: 22px;
   font-weight: 700;
-  font-size: 32px;
-  padding: 10px;
+  white-space: nowrap;
 }
-.p1-editable-list {
+
+.ficha-q-body {
+  display: flex;
+  flex: 1;
+  min-height: 320px;
+  gap: 55px;
+}
+.q-right .ficha-q-body { flex-direction: row; }
+.q-left  .ficha-q-body { flex-direction: row; }
+
+.ficha-radar { flex: 1; padding: 10px 40px; display: flex; align-items: center; min-width: 0; }
+.ficha-item-list {
+  flex: 0 0 auto;
+  width: 640px;
   list-style: none;
-  margin: 0;
-  padding: 18px 24px;
+  padding: 10px 30px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  font-size: 34px;
-  min-height: 160px;
-  background: rgba(255,255,255,0.03);
+  gap: 6px;
+  justify-content: center;
+  font-size: 50px;
+  font-weight: 400;
 }
-.p1-editable-list li {
-  border-bottom: 1px dashed var(--slate-line);
-  padding-bottom: 8px;
-  outline: none;
-  overflow-wrap: break-word;
-}
-.p1-editable-list li:focus { background: rgba(255,255,255,0.06); }
+.ficha-item-list li { display: flex; align-items: center; gap: 8px; }
+.ficha-item-list.align-left  li { justify-content: flex-start; }
+.ficha-item-list.align-right li { justify-content: flex-end; flex-direction: row-reverse; }
 
-/* ── CAMPO + LEYENDA ── */
-.p1-bottom { display: flex; border-top: 3px solid rgba(255,255,255,0.65); }
-.p1-pitch {
-  flex: 2;
-  min-height: 260px;
-  background: repeating-linear-gradient(
-    90deg, #2f7a3d 0 60px, #34863f 60px 120px
-  );
-  position: relative;
+.ficha-score {
+  min-width: 70px;
+  text-align: center;
+  font-weight: 800;
 }
-.p1-pitch-marker {
-  position: absolute;
-  left: 12%;
-  top: 50%;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: 3px solid #0f1117;
-  transform: translate(-50%, -50%);
+
+.ficha-item-label { color: #ffffff; }
+
+/* ── CONDICIONAL (GPS) ── */
+.gps-grid {
+  padding: 10px 10px;
+  display: grid;
+  grid-template-columns: 180px 180px auto 180px 180px;
+  row-gap: 7px;
+  column-gap: 180px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
+  align-items: center;
+  justify-content: center; /* centra la rejilla en el ancho del cuadrante */
+  font-size: 50px;
+  font-weight: 400;
 }
-.p1-legend {
+.gps-row { display: contents; } /* las celdas de cada fila se insertan en la rejilla común de arriba */
+
+.ficha-condicional-body {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 28px;
-  padding: 0 32px;
-  background: var(--slate);
+  justify-content: center;
 }
-.p1-legend-crest { width: 80px; height: 80px; object-fit: contain; }
-.p1-legend-item { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 26px; }
-.p1-legend-dot { width: 22px; height: 22px; border-radius: 4px; display: inline-block; }
+.gps-val-cell, .gps-ref-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+}
+.gps-input {
+  width: 130px;
+  text-align: right;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--slate-line);
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 50px;
+  font-weight: 600;
+  padding: 2px 4px;
+}
+.gps-input:focus { outline: none; border-color: var(--score-yellow); background: rgba(255,255,255,0.12); }
+.gps-icon { width: 40px; text-align: center; font-weight: 800; font-size: 40px; }
+.gps-ok   { color: var(--score-green); }
+.gps-fail { color: var(--score-red); }
+.gps-label { color: #ffffff; }
 
-@media (max-width: 900px) {
-  .p1-top { grid-template-columns: 1fr; }
-  .p1-central { display: none; }
-  .p1-personalidad-grid, .p1-aspectos-grid { grid-template-columns: 1fr; }
-  .p1-bottom { flex-direction: column; }
+/* ── CÍRCULO CENTRAL ── */
+/* Posición fijada por JS (ver centerFichaCircle en ficha-detalle.js):
+   mide el borde real de MENTAL/CONDICIONAL y coloca el círculo
+   exactamente en el cruce, sin depender de trucos de CSS. */
+.ficha-central {
+  position: absolute;
+  width: 880px;
+  height: 880px;
+  z-index: 5;
+}
+.ficha-central-svg { width: 100%; height: 100%; }
+
+/* ── PLAN DE ACCIÓN ── */
+.ficha-plan-title {
+  background: var(--wine);
+  text-align: center;
+  font-size: 52px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 10px;
+  border-top: 3px solid rgba(255,255,255,0.65);
+}
+.ficha-plan-subheader {
+  background: var(--blue-800, #1e293b);
+  color: #ffffff;
+  text-align: center;
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 10px;
+  border-bottom: 1px solid var(--slate-line);
+}
+.ficha-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* iguales: la línea central coincide con la de los cuadrantes de arriba */
+  border-bottom: 3px solid rgba(255,255,255,0.65);
+}
+.plan-col { border: 1px solid var(--slate-line); display: flex; flex-direction: column; min-width: 0; }
+.plan-col-header {
+  background: #0d1117;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 14px;
+  font-size: 52px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  height: 108px;           /* grosor fijo: ningún icono lo puede cambiar */
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.plan-col-icon { width: 62px; height: 62px; object-fit: contain; }
+.plan-col-icon-tactico     { width: auto; height: 80px; margin: -2px 0; }
+.plan-col-icon-condicional { width: auto; height: 108px; margin: -6px 0; } /* cohete */
+.plan-col-icon-mental       { width: auto; height: 108px; margin: -6px 0; } /* cerebro */
+.plan-col-list {
+  list-style: none;
+  padding: 14px 18px;
+  margin: 0;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: #e6edf3;
+  background: rgba(255,255,255,0.03);
+  font-size: 50px;
+  font-weight: 400;
+}
+.plan-col-list li {
+  border-bottom: 1px dashed var(--slate-line);
+  padding-bottom: 8px;
+  min-height: 50px;
+  outline: none;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
+}
+.plan-col-list li:focus { background: rgba(255,255,255,0.06); }
+
+
+/* ================================================
+   IMPRESIÓN — A4 SIN tocar nada a mano
+   El driver de algunas impresoras (p.ej. "Adobe PDF") ignora el
+   "landscape" que le pedíamos en @page y siempre arranca en
+   Vertical. En vez de depender de que el usuario cambie esa
+   opción, dejamos la página en Vertical (su valor por defecto)
+   y GIRAMOS el contenido 90° con CSS para que salga apaisado
+   igualmente. Cero pasos manuales.
+   ================================================ */
+/* ================================================
+   IMPRESIÓN — A4 apaisado (297×210mm)
+   Requiere 2 clics en el diálogo de impresión (ver aviso más abajo):
+   "Horizontal" y "Ajustar al área de impresión". No hay forma
+   fiable de forzar esto desde CSS en todos los navegadores/
+   impresoras — lo he intentado con @page:landscape (el driver
+   "Adobe PDF" lo ignora) y con un giro por CSS (empeoró el
+   resultado). Esta es la versión que sí ha funcionado en pruebas.
+   ================================================ */
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+
+  .ficha-a4-frame {
+    width: auto !important;
+    height: auto !important;
+    max-width: none;
+    aspect-ratio: auto;
+    overflow: visible;   /* no recortar: Chrome necesita ver todo el contenido para poder ajustarlo */
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .ficha-detalle {
+    position: static;    /* vuelve al flujo normal, ya no hace falta posicionarla dentro del marco */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* La regla de móvil (@media max-width:900px) puede activarse también
+     al imprimir según el navegador — la anulamos aquí explícitamente. */
+  .ficha-grid { grid-template-columns: 1fr 1fr !important; }
+  .ficha-central { display: block !important; }
+  .ficha-plan-grid { grid-template-columns: 110px repeat(4, minmax(0, 1fr)) !important; }
 }
