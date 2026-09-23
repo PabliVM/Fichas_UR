@@ -28,7 +28,7 @@
   background: var(--slate);
   color: #ffffff;
   font-family: var(--font-sans);
-  width: 1600px;         /* tamaño de diseño fijo, siempre el mismo */
+  width: 1900px;          /* tamaño de diseño fijo, siempre el mismo */
   transform-origin: top left;
   position: absolute;
   top: 0;
