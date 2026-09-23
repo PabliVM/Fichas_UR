@@ -100,6 +100,8 @@ function centerFichaCircle(root) {
   const circle     = root.querySelector('.ficha-central');
   if (!grid || !mental || !condHeader || !circle) return;
 
+  root.style.transform = 'none'; // medir en tamaño real, no en el ya escalado
+
   const gridRect   = grid.getBoundingClientRect();
   const mentalRect = mental.getBoundingClientRect();
 
@@ -317,7 +319,7 @@ export function renderFichaDetalle(container, data, logoPath, thresholds, pageLa
   };
 
   container.innerHTML = `
-    <div class="ficha-print-frame">
+    <div class="ficha-a4-frame">
       <div class="ficha-detalle">
         ${buildFichaHeader(logoPath, pageLabel)}
         <div class="ficha-grid">
@@ -336,32 +338,31 @@ export function renderFichaDetalle(container, data, logoPath, thresholds, pageLa
 
   const fichaRoot = container.querySelector('.ficha-detalle');
   centerFichaCircle(fichaRoot);
-  window.addEventListener('resize', () => centerFichaCircle(fichaRoot));
+  fitFichaToFrame(container);
+
+  window.addEventListener('resize', () => {
+    centerFichaCircle(fichaRoot);
+    fitFichaToFrame(container);
+  });
+  window.addEventListener('beforeprint', () => fitFichaToFrame(container));
 }
 
 /**
- * Escala la ficha para que quepa entera en una sola página A4 apaisada,
- * midiendo su tamaño real (que varía según cuántos datos tenga) en vez
- * de adivinarlo con CSS. Se llama justo antes de imprimir.
+ * Escala la ficha (tamaño de diseño fijo, 1600px) para que encaje
+ * entera dentro de .ficha-a4-frame, sea cual sea el tamaño de ese
+ * marco en cada momento (responsive en pantalla, mm reales al
+ * imprimir). Se recalcula solo, no hay que tocar nada a mano.
  */
-export function fitFichaToPrintPage(container) {
-  const frame = container.querySelector('.ficha-print-frame');
+export function fitFichaToFrame(container) {
+  const frame = container.querySelector('.ficha-a4-frame');
   const ficha = container.querySelector('.ficha-detalle');
   if (!frame || !ficha) return;
 
-  ficha.style.transform = 'none'; // medir en tamaño real, sin escalar todavía
+  ficha.style.transform = 'none'; // medir tamaño real, sin escalar todavía
   const frameRect = frame.getBoundingClientRect();
   const fichaRect = ficha.getBoundingClientRect();
+  if (!fichaRect.width || !fichaRect.height) return;
 
-  const scaleX = frameRect.width  / fichaRect.width;
-  const scaleY = frameRect.height / fichaRect.height;
-  const scale = Math.min(scaleX, scaleY, 1); // nunca agrandar, solo encoger si no cabe
-
+  const scale = Math.min(frameRect.width / fichaRect.width, frameRect.height / fichaRect.height);
   ficha.style.transform = `scale(${scale})`;
-}
-
-/** Deshace el escalado tras imprimir, para que en pantalla se vea normal. */
-export function resetFichaPrintScale(container) {
-  const ficha = container.querySelector('.ficha-detalle');
-  if (ficha) ficha.style.transform = 'none';
 }
