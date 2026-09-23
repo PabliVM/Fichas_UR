@@ -147,13 +147,13 @@ function buildCondicionalBlock({ title, rp, items }) {
 // ── PLAN DE ACCIÓN ────────────────────────────────
 
 const PLAN_COLUMNS = [
-  { key: 'tecnico',     label: 'TÉCNICO',     icon: '⚽' },
-  { key: 'tactico',     label: 'TÁCTICO',     icon: '🗺️' },
-  { key: 'condicional', label: 'CONDICIONAL', icon: '🚀' },
-  { key: 'mental',      label: 'MENTAL',      icon: '🧠' },
+  { key: 'tecnico',     label: 'TÉCNICO',     icon: './img/balon.png'   },
+  { key: 'tactico',     label: 'TÁCTICO',     icon: './img/pizarra.jpg' },
+  { key: 'condicional', label: 'CONDICIONAL', icon: './img/cohete.png'  },
+  { key: 'mental',      label: 'MENTAL',      icon: './img/cerebro.png' },
 ];
 
-function buildPlanAccion(plan, logoPath) {
+function buildPlanAccion(plan) {
   const cols = PLAN_COLUMNS.map(col => {
     const items = (plan?.[col.key] ?? ['', '', '', '', '', '']);
     const lis = items.map(txt =>
@@ -162,7 +162,7 @@ function buildPlanAccion(plan, logoPath) {
     return `
       <div class="plan-col">
         <div class="plan-col-header">
-          <span>${col.label}</span><span class="plan-col-icon">${col.icon}</span>
+          <span>${col.label}</span><img class="plan-col-icon" src="${col.icon}" alt="" />
         </div>
         <ul class="plan-col-list">${lis}</ul>
       </div>
@@ -175,11 +175,22 @@ function buildPlanAccion(plan, logoPath) {
       <div class="ficha-plan-grid">
         <div class="plan-col plan-col-crest">
           <div class="plan-col-header plan-col-header-dark">ASPECTOS DEL<br/>JUGADOR</div>
-          <div class="plan-crest"><img src="${logoPath}" alt="" /></div>
+          <div class="plan-crest"></div>
         </div>
         ${cols}
       </div>
     </section>
+  `;
+}
+
+// ── HEADER DE LA FICHA (azul corporativo, arriba del todo) ──
+
+function buildFichaHeader(logoPath) {
+  return `
+    <header class="ficha-header">
+      <img src="${logoPath}" alt="" class="ficha-header-crest" />
+      <span class="ficha-header-title">INFORME INDIVIDUAL DEL JUGADOR</span>
+    </header>
   `;
 }
 
@@ -246,6 +257,7 @@ export function renderFichaDetalle(container, data, logoPath, thresholds) {
 
   container.innerHTML = `
     <div class="ficha-detalle">
+      ${buildFichaHeader(logoPath)}
       <div class="ficha-grid">
         ${buildRatedBlock({ title: 'MENTAL',  rp: blocks.mental.rp,  items: blocks.mental.items,  side: 'left',  thresholds, blockKey: 'mental'  })}
         ${buildRatedBlock({ title: 'TÉCNICO', rp: blocks.tecnico.rp, items: blocks.tecnico.items, side: 'right', thresholds, blockKey: 'tecnico' })}
@@ -253,7 +265,7 @@ export function renderFichaDetalle(container, data, logoPath, thresholds) {
         ${buildRatedBlock({ title: 'TÁCTICO', rp: blocks.tactico.rp, items: blocks.tactico.items, side: 'right', thresholds, blockKey: 'tactico' })}
         <div class="ficha-central">${buildCentralCircle(player?.photoUrl)}</div>
       </div>
-      ${buildPlanAccion(plan, logoPath)}
+      ${buildPlanAccion(plan)}
     </div>
   `;
 
