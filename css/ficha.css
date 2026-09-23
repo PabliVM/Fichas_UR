@@ -137,9 +137,10 @@
 }
 .gps-row {
   display: grid;
-  grid-template-columns: 62px 62px 1fr 64px 64px;
+  grid-template-columns: 56px 56px auto 56px 56px;
   align-items: center;
   column-gap: 8px;
+  align-self: flex-start; /* no estirar la fila a todo el ancho: se queda pegada a la izquierda */
 }
 .gps-val-cell, .gps-ref-cell {
   display: flex;
