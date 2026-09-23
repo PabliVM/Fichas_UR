@@ -123,8 +123,8 @@
   position: absolute;
   top: 50%;
   left: 1080px;
-  width: 280px;
-  height: 280px;
+  width: 880px;
+  height: 880px;
   transform: translate(-50%, -50%);
   z-index: 5;
 }
@@ -192,10 +192,3 @@
 .p1-legend-crest { width: 80px; height: 80px; object-fit: contain; }
 .p1-legend-item { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 26px; }
 .p1-legend-dot { width: 22px; height: 22px; border-radius: 4px; display: inline-block; }
-
-@media (max-width: 900px) {
-  .p1-top { grid-template-columns: 1fr; }
-  .p1-central { display: none; }
-  .p1-personalidad-grid, .p1-aspectos-grid { grid-template-columns: 1fr; }
-  .p1-bottom { flex-direction: column; }
-}
