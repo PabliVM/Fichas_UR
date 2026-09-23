@@ -25,7 +25,7 @@
   background: var(--slate);
   color: #ffffff;
   font-family: var(--font-sans);
-  width: 3400px;          /* tamaño de diseño fijo, siempre el mismo */
+  width: 3700px;          /* tamaño de diseño fijo, siempre el mismo */
   transform-origin: top left;
   position: absolute;
   top: 0;
@@ -114,14 +114,14 @@
 .ficha-radar { flex: 1; padding: 10px 20px; display: flex; align-items: center; min-width: 0; }
 .ficha-item-list {
   flex: 0 0 auto;
-  width: 380px;
+  width: 460px;
   list-style: none;
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   justify-content: center;
-  font-size: 26px;
+  font-size: 34px;
   font-weight: 600;
 }
 .ficha-item-list li { display: flex; align-items: center; gap: 8px; }
@@ -144,11 +144,11 @@
 .gps-grid {
   padding: 10px 10px;
   display: grid;
-  grid-template-columns: 80px 80px auto 80px 80px;
+  grid-template-columns: 96px 96px auto 96px 96px;
   row-gap: 7px;
   column-gap: 10px;
   align-items: center;
-  font-size: 26px;
+  font-size: 34px;
   font-weight: 600;
 }
 .gps-row { display: contents; } /* las celdas de cada fila se insertan en la rejilla común de arriba */
@@ -161,18 +161,18 @@
 .gps-val-cell.gps-cell-a { margin-right: 14px; } /* más separación entre las 2 columnas de la izquierda */
 .gps-ref-cell.gps-cell-a { margin-left: 16px; }  /* las de referencia, un poco más hacia la derecha */
 .gps-input {
-  width: 72px;
+  width: 88px;
   text-align: right;
   background: rgba(255,255,255,0.06);
   border: 1px solid var(--slate-line);
   border-radius: 4px;
   color: #ffffff;
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 600;
   padding: 2px 4px;
 }
 .gps-input:focus { outline: none; border-color: var(--score-yellow); background: rgba(255,255,255,0.12); }
-.gps-icon { width: 24px; text-align: center; font-weight: 800; font-size: 22px; }
+.gps-icon { width: 28px; text-align: center; font-weight: 800; font-size: 28px; }
 .gps-ok   { color: var(--score-green); }
 .gps-fail { color: var(--score-red); }
 .gps-label { padding-left: 18px; color: #ffffff; }
@@ -183,8 +183,8 @@
    exactamente en el cruce, sin depender de trucos de CSS. */
 .ficha-central {
   position: absolute;
-  width: 340px;
-  height: 340px;
+  width: 440px;
+  height: 440px;
   z-index: 5;
 }
 .ficha-central-svg { width: 100%; height: 100%; }
