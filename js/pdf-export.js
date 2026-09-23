@@ -53,7 +53,7 @@ export async function exportFichaAsPDF(fichaEl, filename = 'ficha-jugador.pdf') 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
-    const marginMm = 8;
+    const marginMm = 4;
     const pageW = 297 - marginMm * 2;
     const pageH = 210 - marginMm * 2;
 
