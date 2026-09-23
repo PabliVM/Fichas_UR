@@ -111,7 +111,7 @@
 .q-right .ficha-q-body { flex-direction: row; }
 .q-left  .ficha-q-body { flex-direction: row; }
 
-.ficha-radar { flex: 1; padding: 10px 60px; display: flex; align-items: center; min-width: 0; }
+.ficha-radar { flex: 1; padding: 10px 40px; display: flex; align-items: center; min-width: 0; }
 .ficha-item-list {
   flex: 0 0 auto;
   width: 640px;
