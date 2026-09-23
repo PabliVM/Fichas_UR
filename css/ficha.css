@@ -22,6 +22,8 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: auto auto;
+  border-top: 2px solid rgba(255,255,255,0.5);
+  position: relative;
 }
 
 /* ── HEADER DE LA FICHA (azul RM, arriba del todo) ── */
@@ -61,8 +63,8 @@
 }
 .q-mental      { grid-row: 1; grid-column: 1; }
 .q-tecnico     { grid-row: 1; grid-column: 2; }
-.q-condicional { grid-row: 2; grid-column: 1; }
-.q-tactico     { grid-row: 2; grid-column: 2; }
+.q-condicional { grid-row: 2; grid-column: 1; border-top: 2px solid rgba(255,255,255,0.5); }
+.q-tactico     { grid-row: 2; grid-column: 2; border-top: 2px solid rgba(255,255,255,0.5); }
 
 .ficha-q-header {
   background: var(--wine);
@@ -163,17 +165,11 @@
 .gps-label { padding-left: 18px; color: #ffffff; }
 
 /* ── CÍRCULO CENTRAL ── */
-/* Se coloca en la celda (fila1, col1) y se ancla a su esquina
-   inferior-derecha — que es exactamente el punto de cruce de
-   las 4 celdas — luego se desplaza medio tamaño con transform.
-   Así queda centrado en el cruce real, sin importar que las
-   filas tengan alturas distintas (radar vs tabla GPS). */
+/* Posición fijada por JS (ver centerFichaCircle en ficha-detalle.js):
+   mide el borde real de MENTAL/CONDICIONAL y coloca el círculo
+   exactamente en el cruce, sin depender de trucos de CSS. */
 .ficha-central {
-  grid-row: 1;
-  grid-column: 1;
-  align-self: end;
-  justify-self: end;
-  transform: translate(50%, 50%);
+  position: absolute;
   width: 260px;
   height: 260px;
   z-index: 5;
@@ -188,6 +184,7 @@
   font-weight: 800;
   letter-spacing: 0.05em;
   padding: 10px;
+  border-top: 2px solid rgba(255,255,255,0.5);
 }
 .ficha-plan-grid {
   display: grid;
