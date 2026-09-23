@@ -5,17 +5,34 @@
    con identidad fija, igual en claro y oscuro.
    ================================================ */
 
+/* Marco con la proporción exacta de A4 apaisado (297×210mm),
+   igual en pantalla que en impresión. Responsivo por max-width,
+   la ficha de dentro se escala sola (ver fitFichaToFrame en JS)
+   para encajar siempre entera, sin importar cuántos datos tenga. */
+.ficha-a4-frame {
+  width: 100%;
+  max-width: 1300px;
+  aspect-ratio: 297 / 210;
+  margin: 0 auto;
+  overflow: hidden;
+  position: relative;
+  background: #24313d;
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.25);
+}
+
 .ficha-detalle {
   --wine:        #7b3a52;
   --slate:       #24313d;
   --slate-line:  rgba(255,255,255,0.12);
   background: var(--slate);
   color: #ffffff;
-  border-radius: var(--radius-md);
-  overflow: hidden;
   font-family: var(--font-sans);
-  max-width: 1600px;   /* ≈ ratio A4 apaisado (297×210) a este ancho */
-  margin: 0 auto;
+  width: 1600px;         /* tamaño de diseño fijo, siempre el mismo */
+  transform-origin: top left;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .ficha-grid {
@@ -248,26 +265,24 @@
 }
 
 /* ================================================
-   IMPRESIÓN — A4 apaisado (297×210mm), una página
-   La ficha se escala por JS (fitFichaToPrintPage) para
-   caber siempre entera, tenga los datos que tenga.
+   IMPRESIÓN — A4 apaisado (297×210mm)
+   El marco (.ficha-a4-frame) ya tiene la proporción correcta
+   en pantalla; aquí solo se fija a su tamaño físico real.
+   El JS (fitFichaToFrame) recalcula la escala para ese tamaño.
    ================================================ */
 @media print {
   @page { size: A4 landscape; margin: 8mm; }
 
-  .ficha-print-frame {
+  .ficha-a4-frame {
     width: 281mm;   /* 297mm - 2×8mm de margen de @page */
     height: 194mm;  /* 210mm - 2×8mm */
-    overflow: hidden;
-    position: relative;
+    max-width: none;
+    aspect-ratio: auto;
+    box-shadow: none;
+    border-radius: 0;
   }
 
   .ficha-detalle {
-    max-width: none;
-    width: 1600px;  /* tamaño "de diseño" fijo; el JS lo escala al recuadro de arriba */
-    margin: 0;
-    border-radius: 0;
-    transform-origin: top left;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
