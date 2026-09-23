@@ -74,7 +74,7 @@ function renderPanelJugadores(container) {
 function renderPanelFichas(container) {
   container.innerHTML = `
     ${firebaseNotice()}
-    <div class="mb-16 flex" style="justify-content:space-between;align-items:center;">
+    <div class="mb-16 flex ficha-toolbar" style="justify-content:space-between;align-items:center;">
       <span><strong>Plantilla de ficha (página 2)</strong> — datos de ejemplo, pendiente de conectar a Firestore.</span>
       <button class="btn btn-primary btn-print-ficha" id="btn-print-ficha">🖨 Imprimir / PDF</button>
     </div>
