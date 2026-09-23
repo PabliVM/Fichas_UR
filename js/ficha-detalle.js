@@ -226,10 +226,8 @@ function buildPlanAccion(plan) {
   return `
     <section class="ficha-plan">
       <header class="ficha-plan-title">PLAN DE ACCIÓN</header>
+      <div class="ficha-plan-subheader">ASPECTOS DEL JUGADOR</div>
       <div class="ficha-plan-grid">
-        <div class="plan-col plan-col-crest">
-          <div class="plan-col-header plan-col-header-dark">ASPECTOS DEL<br/>JUGADOR</div>
-        </div>
         ${cols}
       </div>
     </section>
