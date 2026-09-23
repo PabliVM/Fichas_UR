@@ -4,13 +4,22 @@
 // + círculo central + Plan de acción.
 //
 // Colores de media: usan SCORE_THRESHOLDS (constants.js).
-// El círculo central usa colores FIJOS de diseño
-// (no derivados de las medias) — verde arriba-izda/abajo-izda,
-// amarillo arriba-dcha/abajo-dcha — tal como se pidió.
+// El círculo central usa el MISMO color que la media del
+// bloque (verde/amarillo/rojo) — en blanco cuando aún no
+// hay dato, como en esta plantilla.
 // ================================================
 
 import { scoreColor, safeText } from './utils.js';
 import { buildRadarSVG } from './radar-chart.js';
+
+const SCORE_HEX = { green: '#22c55e', yellow: '#eab308', red: '#ef4444' };
+
+/** Color del cuarto del círculo para un bloque: hex de la media, o blanco si no hay dato. */
+function blockCircleColor(rp, thresholds) {
+  const avg = rp && rp[0] != null ? rp[0] : null;
+  const color = avg != null ? scoreColor(avg, thresholds) : null;
+  return color ? SCORE_HEX[color] : '#ffffff';
+}
 
 // ── CÍRCULO CENTRAL ──────────────────────────────
 
@@ -19,7 +28,7 @@ function polar(cx, cy, r, deg) {
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
 }
 
-function buildCentralCircle(photoUrl) {
+function buildCentralCircle(photoUrl, blockColors) {
   const size = 260;
   const cx = size / 2;
   const cy = size / 2;
@@ -32,12 +41,12 @@ function buildCentralCircle(photoUrl) {
     const p3 = polar(cx, cy, rInner, endDeg);
     const p4 = polar(cx, cy, rInner, startDeg);
     const large = endDeg - startDeg > 180 ? 1 : 0;
-    return `<path d="M ${p1.x} ${p1.y} A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y} Z" fill="${color}" />`;
+    return `<path d="M ${p1.x} ${p1.y} A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y} Z" fill="${color}" stroke="rgba(255,255,255,0.4)" stroke-width="1" />`;
   };
 
-  const label = (midDeg, text, rotate) => {
+  const label = (midDeg, text, rotate, dark) => {
     const p = polar(cx, cy, (rOuter + rInner) / 2, midDeg);
-    return `<text x="${p.x}" y="${p.y}" font-size="13" font-weight="700" fill="#0f1117" text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate} ${p.x} ${p.y})">${text}</text>`;
+    return `<text x="${p.x}" y="${p.y}" font-size="13" font-weight="700" fill="${dark ? '#0f1117' : '#334155'}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate} ${p.x} ${p.y})">${text}</text>`;
   };
 
   const photo = photoUrl
@@ -47,16 +56,16 @@ function buildCentralCircle(photoUrl) {
 
   return `
     <svg viewBox="0 0 ${size} ${size}" class="ficha-central-svg" xmlns="http://www.w3.org/2000/svg">
-      ${seg(270, 360, '#22c55e')}
-      ${seg(0, 90, '#eab308')}
-      ${seg(90, 180, '#eab308')}
-      ${seg(180, 270, '#22c55e')}
+      ${seg(270, 360, blockColors.mental)}
+      ${seg(0, 90, blockColors.tecnico)}
+      ${seg(90, 180, blockColors.tactico)}
+      ${seg(180, 270, blockColors.condicional)}
       <circle cx="${cx}" cy="${cy}" r="${rInner + 4}" fill="#ffffff" />
       ${photo}
-      ${label(315, 'MENTAL', -35)}
-      ${label(45, 'TÉCNICO', 35)}
-      ${label(135, 'TÁCTICO', -35)}
-      ${label(225, 'CONDICIONAL', 35)}
+      ${label(315, 'MENTAL', -35, blockColors.mental !== '#ffffff')}
+      ${label(45, 'TÉCNICO', 35, blockColors.tecnico !== '#ffffff')}
+      ${label(135, 'TÁCTICO', -35, blockColors.tactico !== '#ffffff')}
+      ${label(225, 'CONDICIONAL', 35, blockColors.condicional !== '#ffffff')}
     </svg>
   `;
 }
@@ -282,6 +291,13 @@ export function wireCondicionalInputs(container) {
 export function renderFichaDetalle(container, data, logoPath, thresholds, pageLabel = '2/2') {
   const { player, blocks, plan } = data;
 
+  const blockColors = {
+    mental:      blockCircleColor(blocks.mental.rp,      thresholds),
+    tecnico:     blockCircleColor(blocks.tecnico.rp,      thresholds),
+    tactico:     blockCircleColor(blocks.tactico.rp,      thresholds),
+    condicional: blockCircleColor(blocks.condicional.rp,  thresholds),
+  };
+
   container.innerHTML = `
     <div class="ficha-detalle">
       ${buildFichaHeader(logoPath, pageLabel)}
@@ -290,7 +306,7 @@ export function renderFichaDetalle(container, data, logoPath, thresholds, pageLa
         ${buildRatedBlock({ title: 'TÉCNICO', rp: blocks.tecnico.rp, items: blocks.tecnico.items, side: 'right', thresholds, blockKey: 'tecnico' })}
         ${buildCondicionalBlock({ title: 'CONDICIONAL', rp: blocks.condicional.rp, items: blocks.condicional.items })}
         ${buildRatedBlock({ title: 'TÁCTICO', rp: blocks.tactico.rp, items: blocks.tactico.items, side: 'right', thresholds, blockKey: 'tactico' })}
-        <div class="ficha-central">${buildCentralCircle(player?.photoUrl)}</div>
+        <div class="ficha-central">${buildCentralCircle(player?.photoUrl, blockColors)}</div>
       </div>
       ${buildPlanAccion(plan)}
     </div>
