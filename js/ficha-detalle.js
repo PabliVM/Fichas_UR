@@ -20,11 +20,11 @@ function polar(cx, cy, r, deg) {
 }
 
 function buildCentralCircle(photoUrl) {
-  const size = 220;
+  const size = 260;
   const cx = size / 2;
   const cy = size / 2;
-  const rOuter = 105;
-  const rInner = 58;
+  const rOuter = 125;
+  const rInner = 68;
 
   const seg = (startDeg, endDeg, color) => {
     const p1 = polar(cx, cy, rOuter, startDeg);
@@ -37,13 +37,13 @@ function buildCentralCircle(photoUrl) {
 
   const label = (midDeg, text, rotate) => {
     const p = polar(cx, cy, (rOuter + rInner) / 2, midDeg);
-    return `<text x="${p.x}" y="${p.y}" font-size="11" font-weight="700" fill="#0f1117" text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate} ${p.x} ${p.y})">${text}</text>`;
+    return `<text x="${p.x}" y="${p.y}" font-size="13" font-weight="700" fill="#0f1117" text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate} ${p.x} ${p.y})">${text}</text>`;
   };
 
   const photo = photoUrl
     ? `<clipPath id="ficha-photo-clip"><circle cx="${cx}" cy="${cy}" r="${rInner - 4}" /></clipPath>
        <image href="${photoUrl}" x="${cx - rInner}" y="${cy - rInner}" width="${rInner * 2}" height="${rInner * 2}" clip-path="url(#ficha-photo-clip)" preserveAspectRatio="xMidYMid slice" />`
-    : `<text x="${cx}" y="${cy}" font-size="10" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
+    : `<text x="${cx}" y="${cy}" font-size="12" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
 
   return `
     <svg viewBox="0 0 ${size} ${size}" class="ficha-central-svg" xmlns="http://www.w3.org/2000/svg">
