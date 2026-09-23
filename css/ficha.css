@@ -129,25 +129,23 @@
 /* ── CONDICIONAL (GPS) ── */
 .gps-grid {
   padding: 10px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: 56px 56px auto 56px 56px;
+  row-gap: 6px;
+  column-gap: 10px;
+  align-items: center;
   font-size: 13.5px;
   font-weight: 600;
 }
-.gps-row {
-  display: grid;
-  grid-template-columns: 56px 56px auto 56px 56px;
-  align-items: center;
-  column-gap: 8px;
-  align-self: flex-start; /* no estirar la fila a todo el ancho: se queda pegada a la izquierda */
-}
+.gps-row { display: contents; } /* las celdas de cada fila se insertan en la rejilla común de arriba */
 .gps-val-cell, .gps-ref-cell {
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 5px;
 }
+.gps-val-cell.gps-cell-a { margin-right: 14px; } /* más separación entre las 2 columnas de la izquierda */
+.gps-ref-cell.gps-cell-a { margin-left: 16px; }  /* las de referencia, un poco más hacia la derecha */
 .gps-input {
   width: 48px;
   text-align: right;
