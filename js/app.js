@@ -80,7 +80,12 @@ const CRITERIA_CATEGORIES = [
 function buildCriteriaCategoryHTML(cat) {
   const items = state.criteriaSchemas[configCriteriaPosition]?.[cat.key] || [];
   const chips = items.map((label, i) => `
-    <span class="chip">${safeText(label)} <button data-del-crit data-cat="${cat.key}" data-idx="${i}" title="Quitar">×</button></span>
+    <span class="chip">
+      ${i > 0 ? `<button data-move-crit data-cat="${cat.key}" data-idx="${i}" data-dir="-1" title="Subir">↑</button>` : ''}
+      ${i < items.length - 1 ? `<button data-move-crit data-cat="${cat.key}" data-idx="${i}" data-dir="1" title="Bajar">↓</button>` : ''}
+      ${safeText(label)}
+      <button data-del-crit data-cat="${cat.key}" data-idx="${i}" title="Quitar">×</button>
+    </span>
   `).join('');
   return `
     <div class="mb-16">
@@ -312,7 +317,7 @@ function renderPanelFichas(container) {
   renderFichaPagina1(wrap1, FICHA1_DEMO_DATA, LOGO_PATH);
 
   const wrap = container.querySelector('#ficha-demo-wrap');
-  renderFichaDetalle(wrap, FICHA_DEMO_DATA, LOGO_PATH, state.scoreThresholds);
+  renderFichaDetalle(wrap, FICHA_DEMO_DATA, LOGO_PATH, state.scoreBands);
 
   const btnPrint = container.querySelector('#btn-print-ficha');
   btnPrint.addEventListener('click', async () => {
@@ -332,7 +337,7 @@ function renderPanelFichas(container) {
 }
 
 function renderPanelConfig(container) {
-  const t = state.scoreThresholds;
+  const bandsSorted = [...state.scoreBands].sort((a, b) => b.min - a.min);
   const posRows = state.positions.map(p => `
     <span class="chip">${safeText(p.label)} <button data-del-pos="${p.key}" title="Quitar">×</button></span>
   `).join('');
@@ -403,22 +408,23 @@ function renderPanelConfig(container) {
       </div>
     </div>
     <div class="card">
-      <div class="card-title">Límites de color (medias)</div>
+      <div class="card-title">Colores de las medias</div>
       <div class="card-body">
         <p class="text-sm text-muted mb-16">
-          Se aplican a MENTAL, TÉCNICO y TÁCTICO. CONDICIONAL usa objetivos GPS aparte (✔/✘), no estos límites.
+          Se aplican a MENTAL, TÉCNICO y TÁCTICO (y al círculo central). CONDICIONAL usa objetivos GPS aparte (✔/✘), no estas bandas.
+          Pon las bandas que necesites (3, 4, las que sean) — se ordenan solas de mayor a menor umbral.
         </p>
-        <div class="flex gap-12" style="align-items:flex-end;flex-wrap:wrap;">
-          <label>
-            <div class="text-xs text-muted mb-8">Verde a partir de</div>
-            <input class="input" type="number" step="0.1" min="0" max="5" id="th-green" value="${t.green}" />
-          </label>
-          <label>
-            <div class="text-xs text-muted mb-8">Amarillo a partir de</div>
-            <input class="input" type="number" step="0.1" min="0" max="5" id="th-yellow" value="${t.yellow}" />
-          </label>
-          <span class="text-xs text-muted">Por debajo de amarillo → rojo.</span>
+        <div class="flex gap-8" style="flex-direction:column;">
+          ${bandsSorted.map((b, i) => `
+            <div class="flex gap-12" style="align-items:center;" data-band-row="${i}">
+              <input type="color" value="${b.color}" data-band-color="${i}" style="width:40px;height:32px;padding:2px;border-radius:4px;border:1px solid var(--border-default);" />
+              <span class="text-xs text-muted">a partir de</span>
+              <input class="input" type="number" step="0.1" min="0" max="10" value="${b.min}" data-band-min="${i}" style="width:80px;" />
+              <button class="btn btn-sm" data-band-del="${i}" ${bandsSorted.length <= 1 ? 'disabled' : ''}>Quitar</button>
+            </div>
+          `).join('')}
         </div>
+        <button class="btn mt-16" id="band-add">+ Añadir banda de color</button>
         <p class="text-xs text-muted mt-16">
           ⚠ Pendiente: nada de esta pantalla persiste todavía — falta guardarlo en Firestore.
         </p>
@@ -426,23 +432,52 @@ function renderPanelConfig(container) {
     </div>
   `;
 
-  const greenInput  = container.querySelector('#th-green');
-  const yellowInput = container.querySelector('#th-yellow');
+  container.querySelectorAll('[data-band-color]').forEach(input => {
+    input.addEventListener('change', () => {
+      const i = Number(input.dataset.bandColor);
+      const bands = [...bandsSorted];
+      bands[i] = { ...bands[i], color: input.value };
+      setState({ scoreBands: bands });
+      document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
+      showSuccess('Color actualizado.');
+    });
+  });
 
-  function applyThresholds() {
-    const green  = parseFloat(greenInput.value);
-    const yellow = parseFloat(yellowInput.value);
-    if (Number.isNaN(green) || Number.isNaN(yellow) || yellow > green) {
-      showError('El límite amarillo no puede ser mayor que el verde.');
-      return;
-    }
-    setState({ scoreThresholds: { green, yellow } });
+  container.querySelectorAll('[data-band-min]').forEach(input => {
+    input.addEventListener('change', () => {
+      const i = Number(input.dataset.bandMin);
+      const min = parseFloat(input.value);
+      if (Number.isNaN(min)) { showError('Umbral no válido.'); return; }
+      const bands = [...bandsSorted];
+      bands[i] = { ...bands[i], min };
+      setState({ scoreBands: bands });
+      document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
+      renderPanelConfig(container); // reordena si el cambio lo requiere
+      showSuccess('Umbral actualizado.');
+    });
+  });
+
+  container.querySelectorAll('[data-band-del]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (bandsSorted.length <= 1) return;
+      const i = Number(btn.dataset.bandDel);
+      const bands = bandsSorted.filter((_, idx) => idx !== i);
+      setState({ scoreBands: bands });
+      document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
+      renderPanelConfig(container);
+      showSuccess('Banda eliminada.');
+    });
+  });
+
+  container.querySelector('#band-add').addEventListener('click', () => {
+    // Nueva banda entre la más baja actual y 0, con un color por defecto neutro.
+    const lowestMin = bandsSorted[bandsSorted.length - 1]?.min ?? 1;
+    const newMin = Math.max(0, lowestMin - 1);
+    const bands = [...bandsSorted, { color: '#94a3b8', min: newMin }];
+    setState({ scoreBands: bands });
     document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
-    showSuccess('Límites actualizados.');
-  }
-
-  greenInput.addEventListener('change', applyThresholds);
-  yellowInput.addEventListener('change', applyThresholds);
+    renderPanelConfig(container);
+  });
 
   container.querySelector('#pos-add').addEventListener('click', () => {
     const input = container.querySelector('#pos-new');
@@ -508,6 +543,26 @@ function renderPanelConfig(container) {
       const idx = Number(btn.dataset.idx);
       const schema = state.criteriaSchemas[configCriteriaPosition] || {};
       const items = (schema[cat] || []).filter((_, i) => i !== idx);
+      setState({
+        criteriaSchemas: {
+          ...state.criteriaSchemas,
+          [configCriteriaPosition]: { ...schema, [cat]: items },
+        },
+      });
+      renderPanelConfig(container);
+    });
+  });
+
+  container.querySelectorAll('[data-move-crit]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cat = btn.dataset.cat;
+      const idx = Number(btn.dataset.idx);
+      const dir = Number(btn.dataset.dir); // -1 sube, +1 baja
+      const schema = state.criteriaSchemas[configCriteriaPosition] || {};
+      const items = [...(schema[cat] || [])];
+      const target = idx + dir;
+      if (target < 0 || target >= items.length) return;
+      [items[idx], items[target]] = [items[target], items[idx]];
       setState({
         criteriaSchemas: {
           ...state.criteriaSchemas,
