@@ -265,4 +265,10 @@
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+
+  /* La regla de móvil (@media max-width:900px) puede activarse también
+     al imprimir según el navegador — la anulamos aquí explícitamente. */
+  .ficha-grid { grid-template-columns: 1fr 1fr !important; }
+  .ficha-central { display: block !important; }
+  .ficha-plan-grid { grid-template-columns: 110px repeat(4, minmax(0, 1fr)) !important; }
 }
