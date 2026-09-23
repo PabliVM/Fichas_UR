@@ -262,26 +262,31 @@
 }
 
 /* ================================================
-   IMPRESIÓN — A4 apaisado (297×210mm)
-   El marco (.ficha-a4-frame) ya tiene la proporción correcta
-   en pantalla; aquí solo se fija a su tamaño físico real.
-   El JS (fitFichaToFrame) recalcula la escala para ese tamaño.
+   IMPRESIÓN — A4 SIN tocar nada a mano
+   El driver de algunas impresoras (p.ej. "Adobe PDF") ignora el
+   "landscape" que le pedíamos en @page y siempre arranca en
+   Vertical. En vez de depender de que el usuario cambie esa
+   opción, dejamos la página en Vertical (su valor por defecto)
+   y GIRAMOS el contenido 90° con CSS para que salga apaisado
+   igualmente. Cero pasos manuales.
    ================================================ */
 @media print {
-  @page { size: A4 landscape; margin: 8mm; }
+  @page { size: A4; margin: 8mm; } /* A4 vertical, sin pedir "landscape" */
 
   .ficha-a4-frame {
-    width: auto !important;
-    height: auto !important;
+    width: max-content;
+    height: max-content;
+    transform-origin: top left;
+    transform: rotate(90deg) translateY(-100%); /* gira el contenido para que quede apaisado en una hoja vertical */
     max-width: none;
     aspect-ratio: auto;
-    overflow: visible;   /* no recortar: Chrome necesita ver todo el contenido para poder ajustarlo */
+    overflow: visible;
     box-shadow: none;
     border-radius: 0;
   }
 
   .ficha-detalle {
-    position: static;    /* vuelve al flujo normal, ya no hace falta posicionarla dentro del marco */
+    position: static;    /* vuelve al flujo normal dentro del marco ya girado */
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
