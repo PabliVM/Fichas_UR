@@ -131,3 +131,19 @@ body {
 .text-xs  { font-size: 11px; }
 .fw-600   { font-weight: 600; }
 .fw-700   { font-weight: 700; }
+
+/* ================================================
+   IMPRESIÓN — solo se ve la ficha, a tamaño A4 apaisado
+   ================================================ */
+@media print {
+  #rm-header, #rm-tabs, #rm-footer, #rm-toast,
+  .firebase-notice, .btn-print-ficha {
+    display: none !important;
+  }
+  #rm-main {
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  body { background: #ffffff !important; }
+}
