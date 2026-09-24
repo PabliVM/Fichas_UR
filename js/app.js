@@ -13,7 +13,6 @@ import { renderFichaDetalle } from './ficha-detalle.js';
 import { renderFichaPagina1 } from './ficha-pagina1.js';
 import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
 import { exportFichaAsPDF } from './pdf-export.js';
-import { FICHA_DEMO_DATA }    from './ficha-demo-data.js';
 import { showError, showSuccess, safeText } from './utils.js';
 
 // ── AVISO FIREBASE ────────────────────────────────
@@ -313,6 +312,35 @@ function renderPanelJugadores(container) {
 
 let fichasSubPage = 1; // qué página de la ficha se muestra: 1 ó 2
 
+/**
+ * Construye los datos de la ficha 2 (mental/técnico/táctico/condicional)
+ * a partir del esquema de Configuración de una posición — así, si cambias
+ * los items ahí, se reflejan aquí. Valores siempre en blanco (demo).
+ */
+function buildFichaDemoFromSchema(positionKey) {
+  const schema = state.criteriaSchemas[positionKey] || {};
+  const rated = key => (schema[key] || []).map(label => ({ label, value: null }));
+  const condicional = (schema.condicional || []).map(label => ({
+    label, valueA: null, valueAOk: null, valueB: null, valueBOk: null, refA: null, refB: null,
+  }));
+
+  return {
+    player: { name: 'Jugador de ejemplo', photoUrl: null },
+    blocks: {
+      mental:      { rp: [null, null], items: rated('mental') },
+      tecnico:     { rp: [null, null], items: rated('tecnico') },
+      tactico:     { rp: [null, null], items: rated('tactico') },
+      condicional: { rp: null,         items: condicional },
+    },
+    plan: {
+      tecnico:     ['', '', '', '', '', ''],
+      tactico:     ['', '', '', '', '', ''],
+      condicional: ['', '', '', '', '', ''],
+      mental:      ['', '', '', '', '', ''],
+    },
+  };
+}
+
 function renderPanelFichas(container) {
   container.innerHTML = `
     ${firebaseNotice()}
@@ -331,7 +359,7 @@ function renderPanelFichas(container) {
   renderFichaPagina1(wrap1, FICHA1_DEMO_DATA, LOGO_PATH);
 
   const wrap = container.querySelector('#ficha-demo-wrap');
-  renderFichaDetalle(wrap, FICHA_DEMO_DATA, LOGO_PATH, state.scoreBands);
+  renderFichaDetalle(wrap, buildFichaDemoFromSchema('portero'), LOGO_PATH, state.scoreBands);
 
   container.querySelectorAll('[data-ficha-page]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -510,6 +538,7 @@ function renderPanelConfig(container) {
           },
         },
       });
+      document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
       renderPanelConfig(container);
       showSuccess('Items copiados. Revísalos antes de dar por bueno el perfil.');
     });
@@ -616,6 +645,7 @@ function renderPanelConfig(container) {
           [configCriteriaPosition]: { ...schema, [cat]: [...items, label] },
         },
       });
+      document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
       renderPanelConfig(container);
     });
   });
@@ -632,6 +662,7 @@ function renderPanelConfig(container) {
           [configCriteriaPosition]: { ...schema, [cat]: items },
         },
       });
+      document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
       renderPanelConfig(container);
     });
   });
@@ -652,6 +683,7 @@ function renderPanelConfig(container) {
           [configCriteriaPosition]: { ...schema, [cat]: items },
         },
       });
+      document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
       renderPanelConfig(container);
     });
   });
@@ -744,6 +776,11 @@ function setupEvents() {
   document.addEventListener('rm:season-changed', () => {
     const panel = document.querySelector('.tab-panel[data-tab="plantillas"]');
     if (panel) renderPanelPlantillas(panel);
+  });
+
+  document.addEventListener('rm:criteria-changed', () => {
+    const panel = document.querySelector('.tab-panel[data-tab="fichas"]');
+    if (panel) renderPanelFichas(panel);
   });
 }
 
