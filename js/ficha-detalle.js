@@ -25,13 +25,14 @@ function polar(cx, cy, r, deg) {
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
 }
 
-function buildCentralCircle(photoUrl, blockColors) {
+function buildCentralCircle(photoUrl, blockColors, rpTexts) {
   const size = 1420;
   const cx = size / 2;
   const cy = size / 2;
   const rOuter = 683;
   const rInner = 378;
   const midR = (rOuter + rInner) / 2;
+  const rpR  = midR + (rOuter - midR) * 0.6; // un poco más hacia fuera que el nombre, pegado a él
 
   const seg = (startDeg, endDeg, color) => {
     const p1 = polar(cx, cy, rOuter, startDeg);
@@ -45,18 +46,23 @@ function buildCentralCircle(photoUrl, blockColors) {
   // Arco invisible por cuadrante (radio medio) para que el texto lo siga.
   // En la mitad inferior (TÁCTICO/CONDICIONAL) se dibuja al revés,
   // si no el texto saldría boca abajo.
-  const arcPath = (id, aDeg, bDeg) => {
-    const p1 = polar(cx, cy, midR, aDeg);
-    const p2 = polar(cx, cy, midR, bDeg);
+  const arcPath = (id, aDeg, bDeg, radius) => {
+    const p1 = polar(cx, cy, radius, aDeg);
+    const p2 = polar(cx, cy, radius, bDeg);
     const large = Math.abs(bDeg - aDeg) > 180 ? 1 : 0;
     const sweep = bDeg > aDeg ? 1 : 0;
-    return `<path id="${id}" d="M ${p1.x} ${p1.y} A ${midR} ${midR} 0 ${large} ${sweep} ${p2.x} ${p2.y}" fill="none" />`;
+    return `<path id="${id}" d="M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${large} ${sweep} ${p2.x} ${p2.y}" fill="none" />`;
   };
 
   const curvedLabel = (id, text, color) => {
     const fill = color === '#ffffff' ? '#334155' : '#0f1117';
     return `<text font-size="79" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
   };
+
+  // El R/P del bloque, pegado justo al lado del nombre (MENTAL/TÉCNICO/...).
+  const rpLabel = (id, text) => text
+    ? `<text font-size="42" font-weight="700" fill="#0f1117"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`
+    : '';
 
   const photo = photoUrl
     ? `<clipPath id="ficha-photo-clip"><circle cx="${cx}" cy="${cy}" r="${rInner - 4}" /></clipPath>
@@ -66,10 +72,14 @@ function buildCentralCircle(photoUrl, blockColors) {
   return `
     <svg viewBox="0 0 ${size} ${size}" class="ficha-central-svg" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        ${arcPath('arc-mental', 270, 360)}
-        ${arcPath('arc-tecnico', 0, 90)}
-        ${arcPath('arc-tactico', 180, 90)}
-        ${arcPath('arc-condicional', 270, 180)}
+        ${arcPath('arc-mental', 270, 360, midR)}
+        ${arcPath('arc-tecnico', 0, 90, midR)}
+        ${arcPath('arc-tactico', 180, 90, midR)}
+        ${arcPath('arc-condicional', 270, 180, midR)}
+        ${arcPath('rp-mental', 270, 360, rpR)}
+        ${arcPath('rp-tecnico', 0, 90, rpR)}
+        ${arcPath('rp-tactico', 180, 90, rpR)}
+        ${arcPath('rp-condicional', 270, 180, rpR)}
       </defs>
       ${seg(270, 360, blockColors.mental)}
       ${seg(0, 90, blockColors.tecnico)}
@@ -81,6 +91,10 @@ function buildCentralCircle(photoUrl, blockColors) {
       ${curvedLabel('arc-tecnico', 'TÉCNICO', blockColors.tecnico)}
       ${curvedLabel('arc-tactico', 'TÁCTICO', blockColors.tactico)}
       ${curvedLabel('arc-condicional', 'CONDICIONAL', blockColors.condicional)}
+      ${rpLabel('rp-mental', rpTexts?.mental)}
+      ${rpLabel('rp-tecnico', rpTexts?.tecnico)}
+      ${rpLabel('rp-tactico', rpTexts?.tactico)}
+      ${rpLabel('rp-condicional', rpTexts?.condicional)}
     </svg>
   `;
 }
@@ -115,10 +129,6 @@ function centerFichaCircle(root) {
 // ── BLOQUE CON RADAR (mental / técnico / táctico) ──
 
 function buildRatedBlock({ title, rp, items, side, bands, blockKey }) {
-  const rpDisplay = rp && rp[0] != null && rp[1] != null
-    ? `${formatNum(rp[0])} / ${formatNum(rp[1])}`
-    : '-';
-
   const listHTML = items.map(item => {
     const color = scoreColor(item.value, bands); // hex de la banda, o null si no hay dato
     const valueText = item.value == null ? '-' : formatNum(item.value);
@@ -139,9 +149,7 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey }) {
   return `
     <section class="ficha-quadrant q-${blockKey} ${side === 'left' ? 'q-left' : 'q-right'}">
       <header class="ficha-q-header">
-        ${side === 'left' ? `<span class="ficha-q-rp">${rpDisplay}</span>` : ''}
         <span class="ficha-q-title">${safeText(title)}</span>
-        ${side === 'right' ? `<span class="ficha-q-rp">${rpDisplay}</span>` : ''}
       </header>
       <div class="ficha-q-body">
         ${side === 'left' ? listBlock + radarBlock : radarBlock + listBlock}
@@ -160,10 +168,6 @@ function gpsIconMarkup(ok) {
 }
 
 function buildCondicionalBlock({ title, rp, items }) {
-  const rpDisplay = rp && rp[0] != null && rp[1] != null
-    ? `${formatNum(rp[0])} / ${formatNum(rp[1])}`
-    : '-';
-
   const rows = items.map((item, i) => `
     <div class="gps-row" data-row="${i}">
       <span class="gps-val-cell gps-cell-a">
@@ -187,7 +191,6 @@ function buildCondicionalBlock({ title, rp, items }) {
   return `
     <section class="ficha-quadrant q-condicional q-left ficha-condicional">
       <header class="ficha-q-header">
-        <span class="ficha-q-rp">${rpDisplay}</span>
         <span class="ficha-q-title">${safeText(title)}</span>
       </header>
       <div class="ficha-condicional-body">
@@ -315,6 +318,14 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
     condicional: blockCircleColor(blocks.condicional.rp,  bands),
   };
 
+  const rpText = rp => (rp && rp[0] != null && rp[1] != null) ? `${formatNum(rp[0])}/${formatNum(rp[1])}` : null;
+  const rpTexts = {
+    mental:      rpText(blocks.mental.rp),
+    tecnico:     rpText(blocks.tecnico.rp),
+    tactico:     rpText(blocks.tactico.rp),
+    condicional: rpText(blocks.condicional.rp),
+  };
+
   container.innerHTML = `
     <div class="ficha-a4-frame">
       <div class="ficha-detalle">
@@ -324,7 +335,7 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
           ${buildRatedBlock({ title: 'TÉCNICO', rp: blocks.tecnico.rp, items: blocks.tecnico.items, side: 'right', bands, blockKey: 'tecnico' })}
           ${buildCondicionalBlock({ title: 'CONDICIONAL', rp: blocks.condicional.rp, items: blocks.condicional.items })}
           ${buildRatedBlock({ title: 'TÁCTICO', rp: blocks.tactico.rp, items: blocks.tactico.items, side: 'right', bands, blockKey: 'tactico' })}
-          <div class="ficha-central">${buildCentralCircle(player?.photoUrl, blockColors)}</div>
+          <div class="ficha-central">${buildCentralCircle(player?.photoUrl, blockColors, rpTexts)}</div>
         </div>
         ${buildPlanAccion(plan)}
       </div>
