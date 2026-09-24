@@ -17,6 +17,10 @@ function initialTab() {
 export const DEFAULT_FICHA_COLORS = {
   slate: '#24313d', // fondo general de la ficha
   wine:  '#7b3a52', // cabeceras granate (MENTAL/TÉCNICO/... y PLAN DE ACCIÓN)
+  textGeneral:        '#ffffff', // texto general (listas, descripción...)
+  textHeader:         '#ffffff', // texto de las cabeceras granate y el header azul
+  textAspectos:       '#ffffff', // texto del header "ASPECTOS DEL JUGADOR"
+  textSubheaderWhite: '#0f1117', // texto de las cabeceras blancas (TÉCNICO/TÁCTICO/... del plan)
 };
 
 const _state = {
