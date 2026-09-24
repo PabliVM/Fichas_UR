@@ -308,7 +308,7 @@ export function wireCondicionalInputs(container) {
  * @param {Array} bands — state.scoreBands: [{ color, min }, ...]
  * @param {string} [pageLabel] — indicador de página, ej. '2/2'. Vacío/omitido = no se muestra.
  */
-export function renderFichaDetalle(container, data, logoPath, bands, pageLabel = '2/2') {
+export function renderFichaDetalle(container, data, logoPath, bands, pageLabel = '2/2', colors) {
   const { player, blocks, plan } = data;
 
   const blockColors = {
@@ -326,9 +326,11 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
     condicional: rpText(blocks.condicional.rp),
   };
 
+  const colorStyle = colors ? ` style="--slate:${colors.slate}; --wine:${colors.wine};"` : '';
+
   container.innerHTML = `
     <div class="ficha-a4-frame">
-      <div class="ficha-detalle">
+      <div class="ficha-detalle"${colorStyle}>
         ${buildFichaHeader(logoPath, pageLabel)}
         <div class="ficha-grid">
           ${buildRatedBlock({ title: 'MENTAL',  rp: blocks.mental.rp,  items: blocks.mental.items,  side: 'left',  bands, blockKey: 'mental'  })}
