@@ -87,10 +87,10 @@
 .p1-personalidad-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  padding: 40px 28px;
-  gap: 24px 44px;
+  padding: 20px 28px;
+  gap: 18px 44px;
   flex: 1;
-  min-height: 320px;
+  min-height: 200px;
 }
 .p1-plain-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 24px; font-size: 50px; }
 .p1-plain-list li::before { content: "• "; color: rgba(255,255,255,0.5); }
@@ -106,16 +106,16 @@
   text-align: center;
 }
 .p1-desc-text {
-  padding: 40px 28px;
+  padding: 20px 28px;
   font-size: 50px;
-  min-height: 180px;
+  min-height: 100px;
   background: rgba(255,255,255,0.03);
   outline: none;
 }
 .p1-desc-text:focus { background: rgba(255,255,255,0.06); }
-.p1-comp-grid { display: grid; column-gap: 16px; padding: 42px 24px; min-height: 267px; }
+.p1-comp-grid { display: grid; column-gap: 16px; padding: 20px 24px; min-height: 200px; }
 .p1-comp-cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; }
-.p1-comp-label { font-size: 30px; font-weight: 600; min-height: 140px; }
+.p1-comp-label { font-size: 26px; font-weight: 600; min-height: 90px; }
 .p1-status-box { display: inline-block; width: 36px; height: 36px; border-radius: 4px; }
 .p1-status-none { background: rgba(255,255,255,0.15); }
 
