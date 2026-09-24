@@ -123,7 +123,7 @@
   flex-direction: column;
   gap: 6px;
   justify-content: center;
-  font-size: 50px;
+  font-size: 55px;
   font-weight: 400;
 }
 .ficha-item-list li { display: flex; align-items: center; gap: 8px; }
@@ -189,8 +189,8 @@
    exactamente en el cruce, sin depender de trucos de CSS. */
 .ficha-central {
   position: absolute;
-  width: 1575px;
-  height: 1575px;
+  width: 1420px;
+  height: 1420px;
   z-index: 5;
 }
 .ficha-central-svg { width: 100%; height: 100%; }
