@@ -9,9 +9,9 @@
  * @param {Object} opts
  */
 export function buildRadarSVG(items, opts = {}) {
-  const size        = opts.size        ?? 230; // diámetro del área de datos
-  const padX         = opts.padX        ?? 60;  // margen extra: etiquetas largas a los lados
-  const padY         = opts.padY        ?? 20;  // margen extra arriba/abajo
+  const size        = opts.size        ?? 300; // diámetro del área de datos
+  const padX         = opts.padX        ?? 75;  // margen extra: etiquetas largas a los lados
+  const padY         = opts.padY        ?? 25;  // margen extra arriba/abajo
   const max         = opts.max         ?? 5;
   const rings       = opts.rings       ?? 5;
   const fill        = opts.fill        ?? 'rgba(139,42,68,0.55)';
