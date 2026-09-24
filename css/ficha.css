@@ -25,7 +25,7 @@
   background: var(--slate);
   color: #ffffff;
   font-family: var(--font-sans);
-  width: 6600px;          /* más ancha que alta → más rectangular al imprimir */
+  width: 7200px;          /* más ancha que alta → más rectangular al imprimir */
   transform-origin: top left;
   position: absolute;
   top: 0;
@@ -46,9 +46,9 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px 22px;
+  padding: 10px 22px;
 }
-.ficha-header-crest { width: 190px; height: 190px; object-fit: contain; flex-shrink: 0; }
+.ficha-header-crest { width: 130px; height: 130px; object-fit: contain; flex-shrink: 0; }
 .ficha-header-title {
   flex: 1;
   text-align: center;
@@ -85,8 +85,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
-  min-height: 44px;
+  padding: 6px 16px;
+  min-height: 32px;
 }
 .ficha-q-title {
   font-size: 52px;
@@ -105,7 +105,7 @@
 .ficha-q-body {
   display: flex;
   flex: 1;
-  min-height: 220px;
+  min-height: 160px;
   gap: 55px;
 }
 .q-right .ficha-q-body { flex-direction: row; }
@@ -116,7 +116,7 @@
   flex: 0 0 auto;
   width: 460px;
   list-style: none;
-  padding: 10px 30px;
+  padding: 6px 30px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -138,10 +138,10 @@
 
 /* ── CONDICIONAL (GPS) ── */
 .gps-grid {
-  padding: 10px 10px;
+  padding: 6px 10px;
   display: grid;
   grid-template-columns: 140px 140px auto 140px 140px;
-  row-gap: 7px;
+  row-gap: 4px;
   column-gap: 180px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
   align-items: center;
   justify-content: center; /* centra la rejilla en el ancho del cuadrante */
@@ -198,7 +198,7 @@
   font-size: 52px;
   font-weight: 600;
   letter-spacing: 0.05em;
-  padding: 10px;
+  padding: 6px;
   border-top: 3px solid rgba(255,255,255,0.65);
 }
 .ficha-plan-subheader {
@@ -227,22 +227,22 @@
   font-size: 52px;
   font-weight: 600;
   letter-spacing: 0.03em;
-  height: 78px;           /* grosor fijo: ningún icono lo puede cambiar */
+  height: 58px;           /* grosor fijo: ningún icono lo puede cambiar */
   box-sizing: border-box;
   overflow: hidden;
 }
-.plan-col-icon { width: 42px; height: 42px; object-fit: contain; }
-.plan-col-icon-tactico     { width: auto; height: 58px; margin: -2px 0; }
-.plan-col-icon-condicional { width: auto; height: 78px; margin: -6px 0; } /* cohete */
-.plan-col-icon-mental       { width: auto; height: 78px; margin: -6px 0; } /* cerebro */
+.plan-col-icon { width: 36px; height: 36px; object-fit: contain; }
+.plan-col-icon-tactico     { width: auto; height: 42px; margin: -2px 0; }
+.plan-col-icon-condicional { width: auto; height: 58px; margin: -6px 0; } /* cohete */
+.plan-col-icon-mental       { width: auto; height: 58px; margin: -6px 0; } /* cerebro */
 .plan-col-list {
   list-style: none;
-  padding: 14px 18px;
+  padding: 8px 18px;
   margin: 0;
-  min-height: 220px;
+  min-height: 130px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   color: #e6edf3;
   background: rgba(255,255,255,0.03);
   font-size: 50px;
@@ -251,7 +251,7 @@
 .plan-col-list li {
   border-bottom: 1px dashed var(--slate-line);
   padding-bottom: 8px;
-  min-height: 34px;
+  min-height: 22px;
   outline: none;
   overflow-wrap: break-word;
   word-break: break-word;
