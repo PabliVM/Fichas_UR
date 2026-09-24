@@ -227,7 +227,7 @@
   font-size: 52px;
   font-weight: 600;
   letter-spacing: 0.03em;
-  height: 270px;           /* grosor fijo: ningún icono lo puede cambiar */
+  height: 140px;           /* grosor fijo: ningún icono lo puede cambiar */
   box-sizing: border-box;
   overflow: hidden;
 }
