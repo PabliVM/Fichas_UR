@@ -12,12 +12,20 @@ function initialTab() {
   return TABS.some(t => t.key === hash) ? hash : 'inicio';
 }
 
+// Colores de la ficha (fondo, cabeceras) — editable en Configuración,
+// con botón para volver a estos valores por defecto.
+export const DEFAULT_FICHA_COLORS = {
+  slate: '#24313d', // fondo general de la ficha
+  wine:  '#7b3a52', // cabeceras granate (MENTAL/TÉCNICO/... y PLAN DE ACCIÓN)
+};
+
 const _state = {
   appName:         APP_NAME,
   season:          DEFAULT_SEASON,
   activeTeam:      TEAMS[0].key,
   activeTab:       initialTab(),
   darkMode:        false,
+  fichaColors:     { ...DEFAULT_FICHA_COLORS }, // editable desde Configuración
   // Bandas de color para las medias — editable en Configuración: cuántas
   // haya (2, 3, 4...) y qué color/umbral tiene cada una. Semilla: 3 bandas
   // (verde/amarillo/rojo), igual que el criterio que ya usábamos.
