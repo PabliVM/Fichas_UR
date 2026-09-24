@@ -202,12 +202,14 @@ function buildBottom(logoPath) {
  * @param {Object} data — ver ficha-pagina1-demo-data.js para la forma
  * @param {string} logoPath
  */
-export function renderFichaPagina1(container, data, logoPath) {
+export function renderFichaPagina1(container, data, logoPath, colors) {
   const { player } = data;
+
+  const colorStyle = colors ? ` style="--slate:${colors.slate}; --wine:${colors.wine};"` : '';
 
   container.innerHTML = `
     <div class="ficha-a4-frame">
-      <div class="ficha-detalle p1-detalle">
+      <div class="ficha-detalle p1-detalle"${colorStyle}>
         ${buildFichaHeader(logoPath, '1/2')}
         <div class="p1-top">
           <div class="p1-left">
