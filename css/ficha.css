@@ -26,6 +26,8 @@
   color: #ffffff;
   font-family: var(--font-sans);
   width: 7200px;          /* más ancha que alta → más rectangular al imprimir */
+  height: 5014px;         /* forzado: = 1183.9px en pantalla, NUNCA cambia */
+  overflow: hidden;
   transform-origin: top left;
   position: absolute;
   top: 0;
@@ -46,7 +48,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 70px 22px;
+  padding: 10px 22px;
 }
 .ficha-header-crest { width: 260px; height: 260px; object-fit: contain; flex-shrink: 0; }
 .ficha-header-title {
@@ -85,11 +87,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 70px 16px;
+  padding: 18px 16px;
   min-height: 44px;
 }
 .ficha-q-title {
-  font-size: 52px;
+  font-size: 104px;
   font-weight: 600;
   letter-spacing: 0.02em;
   flex: 1;
@@ -111,7 +113,7 @@
 .q-right .ficha-q-body { flex-direction: row; }
 .q-left  .ficha-q-body { flex-direction: row; }
 
-.ficha-radar { flex: 1; max-width: 650px; padding: 10px 30px; display: flex; align-items: center; min-width: 0; margin: 0 auto; }
+.ficha-radar { flex: 1; max-width: 1950px; padding: 10px 30px; display: flex; align-items: center; min-width: 0; margin: 0 auto; }
 .ficha-item-list {
   flex: 0 0 auto;
   width: 460px;
@@ -127,6 +129,8 @@
 .ficha-item-list li { display: flex; align-items: center; gap: 8px; }
 .ficha-item-list.align-left  li { justify-content: flex-start; }
 .ficha-item-list.align-right li { justify-content: flex-end; flex-direction: row-reverse; }
+.ficha-item-list.align-left  { padding-left: 110px; }
+.ficha-item-list.align-right { width: 720px; padding-right: 110px; }
 
 .ficha-score {
   min-width: 70px;
@@ -185,8 +189,8 @@
    exactamente en el cruce, sin depender de trucos de CSS. */
 .ficha-central {
   position: absolute;
-  width: 1050px;
-  height: 1050px;
+  width: 1575px;
+  height: 1575px;
   z-index: 5;
 }
 .ficha-central-svg { width: 100%; height: 100%; }
@@ -195,17 +199,17 @@
 .ficha-plan-title {
   background: var(--wine);
   text-align: center;
-  font-size: 52px;
+  font-size: 104px;
   font-weight: 600;
   letter-spacing: 0.05em;
-  padding: 70px;
+  padding: 18px 70px;
   border-top: 3px solid rgba(255,255,255,0.65);
 }
 .ficha-plan-subheader {
-  background: var(--blue-800, #1e293b);
-  color: #ffffff;
+  background: #ffffff;
+  color: #0f1117;
   text-align: center;
-  font-size: 36px;
+  font-size: 72px;
   font-weight: 600;
   letter-spacing: 0.04em;
   padding: 10px;
@@ -218,23 +222,24 @@
 }
 .plan-col { border: 1px solid var(--slate-line); display: flex; flex-direction: column; min-width: 0; }
 .plan-col-header {
-  background: #0d1117;
+  background: #ffffff;
+  color: #0f1117;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   padding: 6px 14px;
-  font-size: 52px;
+  font-size: 104px;
   font-weight: 600;
   letter-spacing: 0.03em;
-  height: 140px;           /* grosor fijo: ningún icono lo puede cambiar */
+  height: 210px;           /* grosor fijo: ningún icono lo puede cambiar */
   box-sizing: border-box;
   overflow: hidden;
 }
-.plan-col-icon { width: 36px; height: 36px; object-fit: contain; }
-.plan-col-icon-tactico     { width: auto; height: 66px; margin: -2px 0; }
-.plan-col-icon-condicional { width: auto; height: 90px; margin: -6px 0; } /* cohete */
-.plan-col-icon-mental       { width: auto; height: 90px; margin: -6px 0; } /* cerebro */
+.plan-col-icon { width: 72px; height: 72px; object-fit: contain; }
+.plan-col-icon-tactico     { width: auto; height: 132px; margin: -2px 0; }
+.plan-col-icon-condicional { width: auto; height: 180px; margin: -6px 0; } /* cohete */
+.plan-col-icon-mental       { width: auto; height: 180px; margin: -6px 0; } /* cerebro */
 .plan-col-list {
   list-style: none;
   padding: 85px 18px;
