@@ -149,7 +149,7 @@
   column-gap: 180px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
   align-items: center;
   justify-content: center; /* centra la rejilla en el ancho del cuadrante */
-  font-size: 50px;
+  font-size: 55px;
   font-weight: 400;
 }
 .gps-row { display: contents; } /* las celdas de cada fila se insertan en la rejilla común de arriba */
@@ -173,7 +173,7 @@
   border: 1px solid var(--slate-line);
   border-radius: 4px;
   color: #ffffff;
-  font-size: 50px;
+  font-size: 55px;
   font-weight: 600;
   padding: 2px 4px;
 }
@@ -212,7 +212,7 @@
   font-size: 82px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  padding: 10px;
+  padding: 6px;
   border-bottom: 1px solid var(--slate-line);
 }
 .ficha-plan-grid {
@@ -232,14 +232,14 @@
   font-size: 73px;
   font-weight: 600;
   letter-spacing: 0.03em;
-  height: 210px;           /* grosor fijo: ningún icono lo puede cambiar */
+  height: 150px;           /* grosor fijo: ningún icono lo puede cambiar */
   box-sizing: border-box;
   overflow: hidden;
 }
 .plan-col-icon { width: 88px; height: 88px; object-fit: contain; }
-.plan-col-icon-tactico     { width: auto; height: 132px; margin: -2px 0; }
-.plan-col-icon-condicional { width: auto; height: 180px; margin: -6px 0; } /* cohete */
-.plan-col-icon-mental       { width: auto; height: 180px; margin: -6px 0; } /* cerebro */
+.plan-col-icon-tactico     { width: auto; height: 100px; margin: -2px 0; }
+.plan-col-icon-condicional { width: auto; height: 140px; margin: -6px 0; } /* cohete */
+.plan-col-icon-mental       { width: auto; height: 140px; margin: -6px 0; } /* cerebro */
 .plan-col-list {
   list-style: none;
   padding: 85px 18px;
@@ -250,7 +250,7 @@
   gap: 10px;
   color: #e6edf3;
   background: rgba(255,255,255,0.03);
-  font-size: 50px;
+  font-size: 55px;
   font-weight: 400;
 }
 .plan-col-list li {
