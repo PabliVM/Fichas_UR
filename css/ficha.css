@@ -5,11 +5,15 @@
    con identidad fija, igual en claro y oscuro.
    ================================================ */
 
-/* El límite de proporción A4 apaisado se respeta en el CÁLCULO
-   de la escala (fitFichaToFrame en JS), pero el marco visible en
-   pantalla se ajusta exacto al tamaño ya escalado — así no queda
-   hueco vacío a los lados. */
+/* Tamaño FIJO e idéntico para las 2 páginas (misma proporción A4
+   apaisado), para que midan siempre igual entre sí — el contenido
+   de cada una se escala DENTRO de este mismo marco (fitFichaToFrame
+   en JS). Puede quedar algo de margen si una página no llena
+   exactamente esa proporción, pero ya no varía de una ficha a otra. */
 .ficha-a4-frame {
+  width: 100%;
+  max-width: 1900px;
+  aspect-ratio: 297 / 210;
   margin: 0 auto;
   overflow: hidden;
   position: relative;
@@ -25,7 +29,7 @@
   background: var(--slate);
   color: #ffffff;
   font-family: var(--font-sans);
-  width: 4700px;          /* tamaño de diseño fijo, siempre el mismo */
+  width: 6000px;          /* tamaño de diseño fijo, siempre el mismo */
   transform-origin: top left;
   position: absolute;
   top: 0;
