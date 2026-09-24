@@ -8,7 +8,7 @@ import { renderHeader }  from './render-header.js';
 import { renderTabs, switchTab } from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
 import { TABS, LOGO_PATH, TEAMS } from './constants.js';
-import { state, setState }         from './state.js';
+import { state, setState, DEFAULT_FICHA_COLORS }         from './state.js';
 import { renderFichaDetalle } from './ficha-detalle.js';
 import { renderFichaPagina1 } from './ficha-pagina1.js';
 import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
@@ -68,10 +68,11 @@ let configCriteriaPosition = null;      // qué posición se está editando en "
 let configSubTab = 'posiciones';        // pestaña interna activa dentro de Configuración
 
 const CONFIG_SUBTABS = [
-  { key: 'posiciones',  label: 'Posiciones' },
-  { key: 'items',       label: 'Items por posición' },
-  { key: 'colores',     label: 'Rango de colores' },
-  { key: 'temporadas',  label: 'Temporadas' },
+  { key: 'posiciones',    label: 'Posiciones' },
+  { key: 'items',         label: 'Items por posición' },
+  { key: 'colores',       label: 'Rango de colores' },
+  { key: 'ficha-colores', label: 'Colores de la ficha' },
+  { key: 'temporadas',    label: 'Temporadas' },
 ];
 
 const CRITERIA_CATEGORIES = [
@@ -356,10 +357,10 @@ function renderPanelFichas(container) {
     <div id="ficha-demo-wrap" class="ficha-wrap ${fichasSubPage === 2 ? '' : 'hidden'}"></div>
   `;
   const wrap1 = container.querySelector('#ficha1-demo-wrap');
-  renderFichaPagina1(wrap1, FICHA1_DEMO_DATA, LOGO_PATH);
+  renderFichaPagina1(wrap1, FICHA1_DEMO_DATA, LOGO_PATH, state.fichaColors);
 
   const wrap = container.querySelector('#ficha-demo-wrap');
-  renderFichaDetalle(wrap, buildFichaDemoFromSchema('portero'), LOGO_PATH, state.scoreBands);
+  renderFichaDetalle(wrap, buildFichaDemoFromSchema('portero'), LOGO_PATH, state.scoreBands, undefined, state.fichaColors);
 
   container.querySelectorAll('[data-ficha-page]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -509,6 +510,31 @@ function renderPanelConfig(container) {
       </div>
     </div>
     `}
+
+    ${configSubTab !== 'ficha-colores' ? '' : `
+    <div class="card">
+      <div class="card-title">Colores de la ficha</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">
+          El fondo general y el de las cabeceras (MENTAL/TÉCNICO/... y PLAN DE ACCIÓN) de la ficha 1 y la ficha 2. Empiezan con estos valores por defecto.
+        </p>
+        <div class="flex mb-16" style="gap:24px;flex-wrap:wrap;">
+          <label class="flex gap-8" style="align-items:center;">
+            <input type="color" id="ficha-color-slate" value="${state.fichaColors.slate}" style="width:40px;height:32px;padding:2px;border-radius:4px;border:1px solid var(--border-default);" />
+            <span class="text-xs text-muted">Fondo general</span>
+          </label>
+          <label class="flex gap-8" style="align-items:center;">
+            <input type="color" id="ficha-color-wine" value="${state.fichaColors.wine}" style="width:40px;height:32px;padding:2px;border-radius:4px;border:1px solid var(--border-default);" />
+            <span class="text-xs text-muted">Cabeceras (granate)</span>
+          </label>
+        </div>
+        <button class="btn" id="ficha-colors-reset">Restaurar valores por defecto</button>
+        <p class="text-xs text-muted mt-16">
+          ⚠ Pendiente: nada de esta pantalla persiste todavía — falta guardarlo en Firestore.
+        </p>
+      </div>
+    </div>
+    `}
   `;
 
   container.querySelectorAll('[data-config-subtab]').forEach(btn => {
@@ -589,6 +615,21 @@ function renderPanelConfig(container) {
     setState({ scoreBands: bands });
     document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
     renderPanelConfig(container);
+  });
+
+  container.querySelector('#ficha-color-slate')?.addEventListener('change', e => {
+    setState({ fichaColors: { ...state.fichaColors, slate: e.target.value } });
+    document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
+  });
+  container.querySelector('#ficha-color-wine')?.addEventListener('change', e => {
+    setState({ fichaColors: { ...state.fichaColors, wine: e.target.value } });
+    document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
+  });
+  container.querySelector('#ficha-colors-reset')?.addEventListener('click', () => {
+    setState({ fichaColors: { ...DEFAULT_FICHA_COLORS } });
+    document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
+    renderPanelConfig(container);
+    showSuccess('Colores restaurados.');
   });
 
   container.querySelector('#pos-add')?.addEventListener('click', () => {
