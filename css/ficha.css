@@ -144,7 +144,7 @@
 .gps-grid {
   padding: 60px 10px;
   display: grid;
-  grid-template-columns: 140px 140px auto 140px 140px;
+  grid-template-columns: 175px 175px auto 175px 175px;
   row-gap: 4px;
   column-gap: 180px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
   align-items: center;
@@ -167,7 +167,7 @@
   gap: 5px;
 }
 .gps-input {
-  width: 88px;
+  width: 120px;
   text-align: right;
   background: rgba(255,255,255,0.06);
   border: 1px solid var(--slate-line);
