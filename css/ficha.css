@@ -25,7 +25,7 @@
   background: var(--slate);
   color: #ffffff;
   font-family: var(--font-sans);
-  width: 11000px;          /* tamaño de diseño fijo, siempre el mismo */
+  width: 4700px;          /* mismo ancho de diseño que la ficha 1 */
   transform-origin: top left;
   position: absolute;
   top: 0;
@@ -54,14 +54,14 @@
   text-align: center;
   color: #ffffff;
   font-weight: 600;
-  font-size: 90px;
+  font-size: 52px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 .ficha-header-page {
   color: #ffffff;
   font-weight: 700;
-  font-size: 64px;
+  font-size: 36px;
   background: rgba(255,255,255,0.18);
   padding: 8px 22px;
   border-radius: 999px;
@@ -89,7 +89,7 @@
   min-height: 44px;
 }
 .ficha-q-title {
-  font-size: 78px;
+  font-size: 52px;
   font-weight: 600;
   letter-spacing: 0.02em;
   flex: 1;
@@ -114,14 +114,14 @@
 .ficha-radar { flex: 1; padding: 10px 40px; display: flex; align-items: center; min-width: 0; }
 .ficha-item-list {
   flex: 0 0 auto;
-  width: 640px;
+  width: 460px;
   list-style: none;
   padding: 10px 30px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   justify-content: center;
-  font-size: 74px;
+  font-size: 50px;
   font-weight: 400;
 }
 .ficha-item-list li { display: flex; align-items: center; gap: 8px; }
@@ -140,12 +140,12 @@
 .gps-grid {
   padding: 10px 10px;
   display: grid;
-  grid-template-columns: 180px 180px auto 180px 180px;
+  grid-template-columns: 140px 140px auto 140px 140px;
   row-gap: 7px;
   column-gap: 180px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
   align-items: center;
   justify-content: center; /* centra la rejilla en el ancho del cuadrante */
-  font-size: 74px;
+  font-size: 50px;
   font-weight: 400;
 }
 .gps-row { display: contents; } /* las celdas de cada fila se insertan en la rejilla común de arriba */
@@ -163,18 +163,18 @@
   gap: 5px;
 }
 .gps-input {
-  width: 130px;
+  width: 88px;
   text-align: right;
   background: rgba(255,255,255,0.06);
   border: 1px solid var(--slate-line);
   border-radius: 4px;
   color: #ffffff;
-  font-size: 74px;
+  font-size: 50px;
   font-weight: 600;
   padding: 2px 4px;
 }
 .gps-input:focus { outline: none; border-color: var(--score-yellow); background: rgba(255,255,255,0.12); }
-.gps-icon { width: 40px; text-align: center; font-weight: 800; font-size: 58px; }
+.gps-icon { width: 40px; text-align: center; font-weight: 800; font-size: 40px; }
 .gps-ok   { color: var(--score-green); }
 .gps-fail { color: var(--score-red); }
 .gps-label { color: #ffffff; }
@@ -195,7 +195,7 @@
 .ficha-plan-title {
   background: var(--wine);
   text-align: center;
-  font-size: 78px;
+  font-size: 52px;
   font-weight: 600;
   letter-spacing: 0.05em;
   padding: 10px;
@@ -224,17 +224,17 @@
   justify-content: center;
   gap: 10px;
   padding: 6px 14px;
-  font-size: 78px;
+  font-size: 52px;
   font-weight: 600;
   letter-spacing: 0.03em;
-  height: 108px;           /* grosor fijo: ningún icono lo puede cambiar */
+  height: 78px;           /* grosor fijo: ningún icono lo puede cambiar */
   box-sizing: border-box;
   overflow: hidden;
 }
-.plan-col-icon { width: 62px; height: 62px; object-fit: contain; }
-.plan-col-icon-tactico     { width: auto; height: 80px; margin: -2px 0; }
-.plan-col-icon-condicional { width: auto; height: 108px; margin: -6px 0; } /* cohete */
-.plan-col-icon-mental       { width: auto; height: 108px; margin: -6px 0; } /* cerebro */
+.plan-col-icon { width: 42px; height: 42px; object-fit: contain; }
+.plan-col-icon-tactico     { width: auto; height: 58px; margin: -2px 0; }
+.plan-col-icon-condicional { width: auto; height: 78px; margin: -6px 0; } /* cohete */
+.plan-col-icon-mental       { width: auto; height: 78px; margin: -6px 0; } /* cerebro */
 .plan-col-list {
   list-style: none;
   padding: 14px 18px;
@@ -245,7 +245,7 @@
   gap: 10px;
   color: #e6edf3;
   background: rgba(255,255,255,0.03);
-  font-size: 74px;
+  font-size: 50px;
   font-weight: 400;
 }
 .plan-col-list li {
