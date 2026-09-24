@@ -367,7 +367,7 @@ export function fitFichaToFrame(container) {
   frame.style.height = '';
   ficha.style.transform = 'none'; // medir tamaño real, sin escalar todavía
 
-  const maxW = Math.min(frame.parentElement?.clientWidth || 1900, 1900);
+  const maxW = Math.min(frame.parentElement?.clientWidth || 3200, 3200);
   const maxH = maxW * (210 / 297); // límite de proporción A4 apaisado
 
   const fichaRect = ficha.getBoundingClientRect();
