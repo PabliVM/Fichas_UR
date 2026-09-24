@@ -53,6 +53,11 @@ export async function exportFichaAsPDF(fichaEl, filename = 'ficha-jugador.pdf') 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
+    // Rellenar toda la hoja con el mismo color de fondo de la ficha,
+    // así si sobra margen queda integrado en vez de verse blanco.
+    doc.setFillColor(36, 49, 61); // #24313d
+    doc.rect(0, 0, 297, 210, 'F');
+
     const marginMm = 2;
     const pageW = 297 - marginMm * 2;
     const pageH = 210 - marginMm * 2;
