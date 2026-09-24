@@ -353,22 +353,30 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
 }
 
 /**
- * Escala la ficha (tamaño de diseño fijo) para que quepa entera
- * dentro de .ficha-a4-frame — que tiene un tamaño FIJO por CSS,
- * igual en las 2 páginas, así siempre miden lo mismo entre sí.
- * Se recalcula solo, no hay que tocar nada a mano.
+ * Escala la ficha (tamaño de diseño fijo) para que quepa dentro
+ * del límite de una A4 apaisada (297×210), y ajusta el marco
+ * visible exactamente a ese resultado — sin dejar margen sobrante
+ * de ningún color. Se recalcula solo, no hay que tocar nada a mano.
  */
 export function fitFichaToFrame(container) {
   const frame = container.querySelector('.ficha-a4-frame');
   const ficha = container.querySelector('.ficha-detalle');
   if (!frame || !ficha) return;
 
+  frame.style.width  = '';
+  frame.style.height = '';
   ficha.style.transform = 'none'; // medir tamaño real, sin escalar todavía
 
-  const frameRect = frame.getBoundingClientRect();
-  const fichaRect = ficha.getBoundingClientRect();
-  if (!frameRect.width || !frameRect.height || !fichaRect.width || !fichaRect.height) return;
+  const maxW = Math.min(frame.parentElement?.clientWidth || 1900, 1900);
+  const maxH = maxW * (210 / 297); // límite de proporción A4 apaisado
 
-  const scale = Math.min(frameRect.width / fichaRect.width, frameRect.height / fichaRect.height);
+  const fichaRect = ficha.getBoundingClientRect();
+  if (!fichaRect.width || !fichaRect.height) return;
+
+  const scale = Math.min(maxW / fichaRect.width, maxH / fichaRect.height);
   ficha.style.transform = `scale(${scale})`;
+
+  // El marco se ajusta exacto al tamaño ya escalado, sin margen sobrante
+  frame.style.width  = `${fichaRect.width * scale}px`;
+  frame.style.height = `${fichaRect.height * scale}px`;
 }
