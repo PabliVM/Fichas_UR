@@ -333,10 +333,10 @@ function buildFichaDemoFromSchema(positionKey) {
       condicional: { rp: null,         items: condicional },
     },
     plan: {
-      tecnico:     ['', '', '', '', '', ''],
-      tactico:     ['', '', '', '', '', ''],
-      condicional: ['', '', '', '', '', ''],
-      mental:      ['', '', '', '', '', ''],
+      tecnico:     ['', '', '', '', '', '', ''],
+      tactico:     ['', '', '', '', '', '', ''],
+      condicional: ['', '', '', '', '', '', ''],
+      mental:      ['', '', '', '', '', '', ''],
     },
   };
 }
