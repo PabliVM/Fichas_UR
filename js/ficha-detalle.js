@@ -369,7 +369,7 @@ export function fitFichaToFrame(container) {
   frame.style.height = '';
   ficha.style.transform = 'none'; // medir tamaño real, sin escalar todavía
 
-  const maxW = Math.min(frame.parentElement?.clientWidth || 3200, 3200);
+  const maxW = Math.min(frame.parentElement?.clientWidth || 1700, 1700);
 
   const fichaRect = ficha.getBoundingClientRect();
   if (!fichaRect.width || !fichaRect.height) return;
