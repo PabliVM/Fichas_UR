@@ -108,7 +108,7 @@
   display: flex;
   flex: 1;
   min-height: 300px;
-  gap: 55px;
+  gap: 35px;
 }
 .q-right .ficha-q-body { flex-direction: row; }
 .q-left  .ficha-q-body { flex-direction: row; }
@@ -129,8 +129,8 @@
 .ficha-item-list li { display: flex; align-items: center; gap: 8px; }
 .ficha-item-list.align-left  li { justify-content: flex-start; }
 .ficha-item-list.align-right li { justify-content: flex-end; flex-direction: row-reverse; }
-.ficha-item-list.align-left  { padding-left: 110px; }
-.ficha-item-list.align-right { width: 720px; padding-right: 110px; }
+.ficha-item-list.align-left  { width: 650px; padding-left: 110px; }
+.ficha-item-list.align-right { width: 850px; padding-right: 110px; }
 
 .ficha-score {
   min-width: 70px;
@@ -144,7 +144,7 @@
 .gps-grid {
   padding: 60px 10px;
   display: grid;
-  grid-template-columns: 175px 175px auto 175px 175px;
+  grid-template-columns: 230px 230px auto 230px 230px;
   row-gap: 4px;
   column-gap: 180px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
   align-items: center;
@@ -167,7 +167,7 @@
   gap: 5px;
 }
 .gps-input {
-  width: 120px;
+  width: 200px;
   text-align: right;
   background: rgba(255,255,255,0.06);
   border: 1px solid var(--slate-line);
@@ -250,7 +250,7 @@
   gap: 10px;
   color: #e6edf3;
   background: rgba(255,255,255,0.03);
-  font-size: 55px;
+  font-size: 62px;
   font-weight: 400;
 }
 .plan-col-list li {
