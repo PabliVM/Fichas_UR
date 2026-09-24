@@ -111,7 +111,7 @@
 .q-right .ficha-q-body { flex-direction: row; }
 .q-left  .ficha-q-body { flex-direction: row; }
 
-.ficha-radar { flex: 1; max-width: 420px; padding: 10px 30px; display: flex; align-items: center; min-width: 0; margin: 0 auto; }
+.ficha-radar { flex: 1; max-width: 650px; padding: 10px 30px; display: flex; align-items: center; min-width: 0; margin: 0 auto; }
 .ficha-item-list {
   flex: 0 0 auto;
   width: 460px;
@@ -185,8 +185,8 @@
    exactamente en el cruce, sin depender de trucos de CSS. */
 .ficha-central {
   position: absolute;
-  width: 880px;
-  height: 880px;
+  width: 1050px;
+  height: 1050px;
   z-index: 5;
 }
 .ficha-central-svg { width: 100%; height: 100%; }
