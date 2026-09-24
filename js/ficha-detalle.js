@@ -102,7 +102,7 @@ function centerFichaCircle(root) {
   const gridRect   = grid.getBoundingClientRect();
   const mentalRect = mental.getBoundingClientRect();
 
-  const crossX = mentalRect.right - gridRect.left + 30; // borde derecho de MENTAL + mitad del hueco central (60px)
+  const crossX = mentalRect.right - gridRect.left; // borde derecho de MENTAL = línea vertical
   // línea horizontal: no el borde superior de la barra CONDICIONAL/TÁCTICO,
   // sino su mitad — ahí es donde tiene que caer el ecuador del círculo.
   const crossY = (mentalRect.bottom - gridRect.top) + condHeader.offsetHeight / 2;
