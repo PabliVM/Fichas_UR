@@ -26,11 +26,11 @@ function polar(cx, cy, r, deg) {
 }
 
 function buildCentralCircle(photoUrl, blockColors) {
-  const size = 1575;
+  const size = 1420;
   const cx = size / 2;
   const cy = size / 2;
-  const rOuter = 758;
-  const rInner = 420;
+  const rOuter = 683;
+  const rInner = 378;
   const midR = (rOuter + rInner) / 2;
 
   const seg = (startDeg, endDeg, color) => {
@@ -55,7 +55,7 @@ function buildCentralCircle(photoUrl, blockColors) {
 
   const curvedLabel = (id, text, color) => {
     const fill = color === '#ffffff' ? '#334155' : '#0f1117';
-    return `<text font-size="87" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
+    return `<text font-size="79" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
   };
 
   const photo = photoUrl
