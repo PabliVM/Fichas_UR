@@ -45,10 +45,10 @@
 .p1-facts {
   list-style: none;
   margin: 0;
-  padding: 44px 28px;
+  padding: 42px 28px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 22px;
   font-size: 50px;
 }
 .p1-facts li::before { content: "• "; color: rgba(255,255,255,0.5); }
@@ -113,7 +113,7 @@
   outline: none;
 }
 .p1-desc-text:focus { background: rgba(255,255,255,0.06); }
-.p1-comp-grid { display: grid; column-gap: 16px; padding: 44px 24px; min-height: 275px; }
+.p1-comp-grid { display: grid; column-gap: 16px; padding: 42px 24px; min-height: 267px; }
 .p1-comp-cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; }
 .p1-comp-label { font-size: 30px; font-weight: 600; min-height: 140px; }
 .p1-status-box { display: inline-block; width: 36px; height: 36px; border-radius: 4px; }
@@ -150,7 +150,7 @@
   flex-direction: column;
   gap: 24px;
   font-size: 50px;
-  min-height: 335px;
+  min-height: 327px;
   background: rgba(255,255,255,0.03);
 }
 .p1-editable-list li {
@@ -165,7 +165,7 @@
 .p1-bottom { display: flex; border-top: 3px solid rgba(255,255,255,0.65); }
 .p1-pitch {
   flex: 2;
-  min-height: 375px;
+  min-height: 367px;
   background: repeating-linear-gradient(
     90deg, #2f7a3d 0 60px, #34863f 60px 120px
   );
