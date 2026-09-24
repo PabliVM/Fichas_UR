@@ -46,7 +46,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px 22px;
+  padding: 70px 22px;
 }
 .ficha-header-crest { width: 130px; height: 130px; object-fit: contain; flex-shrink: 0; }
 .ficha-header-title {
@@ -85,7 +85,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 70px 16px;
   min-height: 44px;
 }
 .ficha-q-title {
@@ -138,7 +138,7 @@
 
 /* ── CONDICIONAL (GPS) ── */
 .gps-grid {
-  padding: 6px 10px;
+  padding: 60px 10px;
   display: grid;
   grid-template-columns: 140px 140px auto 140px 140px;
   row-gap: 4px;
@@ -198,7 +198,7 @@
   font-size: 52px;
   font-weight: 600;
   letter-spacing: 0.05em;
-  padding: 10px;
+  padding: 70px;
   border-top: 3px solid rgba(255,255,255,0.65);
 }
 .ficha-plan-subheader {
@@ -227,7 +227,7 @@
   font-size: 52px;
   font-weight: 600;
   letter-spacing: 0.03em;
-  height: 90px;           /* grosor fijo: ningún icono lo puede cambiar */
+  height: 270px;           /* grosor fijo: ningún icono lo puede cambiar */
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -237,7 +237,7 @@
 .plan-col-icon-mental       { width: auto; height: 90px; margin: -6px 0; } /* cerebro */
 .plan-col-list {
   list-style: none;
-  padding: 14px 18px;
+  padding: 85px 18px;
   margin: 0;
   min-height: 300px;
   display: flex;
