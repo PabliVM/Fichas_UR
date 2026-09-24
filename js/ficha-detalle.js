@@ -26,11 +26,11 @@ function polar(cx, cy, r, deg) {
 }
 
 function buildCentralCircle(photoUrl, blockColors) {
-  const size = 1050;
+  const size = 1575;
   const cx = size / 2;
   const cy = size / 2;
-  const rOuter = 505;
-  const rInner = 280;
+  const rOuter = 758;
+  const rInner = 420;
   const midR = (rOuter + rInner) / 2;
 
   const seg = (startDeg, endDeg, color) => {
@@ -55,13 +55,13 @@ function buildCentralCircle(photoUrl, blockColors) {
 
   const curvedLabel = (id, text, color) => {
     const fill = color === '#ffffff' ? '#334155' : '#0f1117';
-    return `<text font-size="58" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
+    return `<text font-size="87" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
   };
 
   const photo = photoUrl
     ? `<clipPath id="ficha-photo-clip"><circle cx="${cx}" cy="${cy}" r="${rInner - 4}" /></clipPath>
        <image href="${photoUrl}" x="${cx - rInner}" y="${cy - rInner}" width="${rInner * 2}" height="${rInner * 2}" clip-path="url(#ficha-photo-clip)" preserveAspectRatio="xMidYMid slice" />`
-    : `<text x="${cx}" y="${cy}" font-size="52" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
+    : `<text x="${cx}" y="${cy}" font-size="78" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
 
   return `
     <svg viewBox="0 0 ${size} ${size}" class="ficha-central-svg" xmlns="http://www.w3.org/2000/svg">
