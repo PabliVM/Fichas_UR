@@ -46,7 +46,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 10px 22px;
+  padding: 16px 22px;
 }
 .ficha-header-crest { width: 130px; height: 130px; object-fit: contain; flex-shrink: 0; }
 .ficha-header-title {
@@ -85,8 +85,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 16px;
-  min-height: 32px;
+  padding: 10px 16px;
+  min-height: 44px;
 }
 .ficha-q-title {
   font-size: 52px;
@@ -105,7 +105,7 @@
 .ficha-q-body {
   display: flex;
   flex: 1;
-  min-height: 160px;
+  min-height: 300px;
   gap: 55px;
 }
 .q-right .ficha-q-body { flex-direction: row; }
@@ -198,7 +198,7 @@
   font-size: 52px;
   font-weight: 600;
   letter-spacing: 0.05em;
-  padding: 6px;
+  padding: 10px;
   border-top: 3px solid rgba(255,255,255,0.65);
 }
 .ficha-plan-subheader {
@@ -227,22 +227,22 @@
   font-size: 52px;
   font-weight: 600;
   letter-spacing: 0.03em;
-  height: 58px;           /* grosor fijo: ningún icono lo puede cambiar */
+  height: 90px;           /* grosor fijo: ningún icono lo puede cambiar */
   box-sizing: border-box;
   overflow: hidden;
 }
 .plan-col-icon { width: 36px; height: 36px; object-fit: contain; }
-.plan-col-icon-tactico     { width: auto; height: 42px; margin: -2px 0; }
-.plan-col-icon-condicional { width: auto; height: 58px; margin: -6px 0; } /* cohete */
-.plan-col-icon-mental       { width: auto; height: 58px; margin: -6px 0; } /* cerebro */
+.plan-col-icon-tactico     { width: auto; height: 66px; margin: -2px 0; }
+.plan-col-icon-condicional { width: auto; height: 90px; margin: -6px 0; } /* cohete */
+.plan-col-icon-mental       { width: auto; height: 90px; margin: -6px 0; } /* cerebro */
 .plan-col-list {
   list-style: none;
-  padding: 8px 18px;
+  padding: 14px 18px;
   margin: 0;
-  min-height: 130px;
+  min-height: 300px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   color: #e6edf3;
   background: rgba(255,255,255,0.03);
   font-size: 50px;
@@ -251,7 +251,7 @@
 .plan-col-list li {
   border-bottom: 1px dashed var(--slate-line);
   padding-bottom: 8px;
-  min-height: 22px;
+  min-height: 34px;
   outline: none;
   overflow-wrap: break-word;
   word-break: break-word;
