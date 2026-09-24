@@ -29,7 +29,7 @@
   background: var(--slate);
   color: #ffffff;
   font-family: var(--font-sans);
-  width: 7500px;          /* tamaño de diseño fijo, siempre el mismo */
+  width: 4700px;          /* tamaño de diseño fijo, siempre el mismo */
   transform-origin: top left;
   position: absolute;
   top: 0;
@@ -40,7 +40,6 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: auto auto;
-  column-gap: 60px;
   border-top: 3px solid rgba(255,255,255,0.65);
   position: relative;
 }
