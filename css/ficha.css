@@ -91,7 +91,7 @@
   min-height: 44px;
 }
 .ficha-q-title {
-  font-size: 104px;
+  font-size: 94px;
   font-weight: 600;
   letter-spacing: 0.02em;
   flex: 1;
@@ -199,17 +199,17 @@
 .ficha-plan-title {
   background: var(--wine);
   text-align: center;
-  font-size: 104px;
+  font-size: 94px;
   font-weight: 600;
   letter-spacing: 0.05em;
   padding: 18px 70px;
   border-top: 3px solid rgba(255,255,255,0.65);
 }
 .ficha-plan-subheader {
-  background: #ffffff;
-  color: #0f1117;
+  background: var(--blue-800, #1e293b);
+  color: #ffffff;
   text-align: center;
-  font-size: 72px;
+  font-size: 82px;
   font-weight: 600;
   letter-spacing: 0.04em;
   padding: 10px;
@@ -229,14 +229,14 @@
   justify-content: center;
   gap: 10px;
   padding: 6px 14px;
-  font-size: 104px;
+  font-size: 73px;
   font-weight: 600;
   letter-spacing: 0.03em;
   height: 210px;           /* grosor fijo: ningún icono lo puede cambiar */
   box-sizing: border-box;
   overflow: hidden;
 }
-.plan-col-icon { width: 72px; height: 72px; object-fit: contain; }
+.plan-col-icon { width: 88px; height: 88px; object-fit: contain; }
 .plan-col-icon-tactico     { width: auto; height: 132px; margin: -2px 0; }
 .plan-col-icon-condicional { width: auto; height: 180px; margin: -6px 0; } /* cohete */
 .plan-col-icon-mental       { width: auto; height: 180px; margin: -6px 0; } /* cerebro */
