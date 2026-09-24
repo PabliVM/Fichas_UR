@@ -13,6 +13,8 @@
   color: #ffffff;
   font-family: var(--font-sans);
   width: 4700px;          /* mismo ancho de diseño que la página 2 */
+  height: 3246px;         /* forzado: = 1174px en pantalla (igual que la ficha 2) */
+  overflow: hidden;
   transform-origin: top left;
   position: absolute;
   top: 0;
