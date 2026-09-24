@@ -25,7 +25,7 @@
   background: var(--slate);
   color: #ffffff;
   font-family: var(--font-sans);
-  width: 4700px;          /* mismo ancho de diseño que la ficha 1 */
+  width: 6600px;          /* más ancha que alta → más rectangular al imprimir */
   transform-origin: top left;
   position: absolute;
   top: 0;
@@ -105,7 +105,7 @@
 .ficha-q-body {
   display: flex;
   flex: 1;
-  min-height: 320px;
+  min-height: 220px;
   gap: 55px;
 }
 .q-right .ficha-q-body { flex-direction: row; }
@@ -239,7 +239,7 @@
   list-style: none;
   padding: 14px 18px;
   margin: 0;
-  min-height: 320px;
+  min-height: 220px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -251,7 +251,7 @@
 .plan-col-list li {
   border-bottom: 1px dashed var(--slate-line);
   padding-bottom: 8px;
-  min-height: 50px;
+  min-height: 34px;
   outline: none;
   overflow-wrap: break-word;
   word-break: break-word;
