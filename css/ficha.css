@@ -23,7 +23,7 @@
   --slate:       #24313d;
   --slate-line:  rgba(255,255,255,0.12);
   background: var(--slate);
-  color: #ffffff;
+  color: var(--text-general, #ffffff);
   font-family: var(--font-sans);
   width: 7200px;          /* más ancha que alta → más rectangular al imprimir */
   height: 5014px;         /* forzado: = 1183.9px en pantalla, NUNCA cambia */
@@ -54,14 +54,14 @@
 .ficha-header-title {
   flex: 1;
   text-align: center;
-  color: #ffffff;
+  color: var(--text-header, #ffffff);
   font-weight: 600;
   font-size: 104px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 .ficha-header-page {
-  color: #ffffff;
+  color: var(--text-header, #ffffff);
   font-weight: 700;
   font-size: 72px;
   background: rgba(255,255,255,0.18);
@@ -96,6 +96,7 @@
 }
 .ficha-q-title {
   font-size: 94px;
+  color: var(--text-header, #ffffff);
   font-weight: 600;
   letter-spacing: 0.02em;
   flex: 1;
@@ -133,8 +134,8 @@
 .ficha-item-list li { display: flex; align-items: center; gap: 8px; }
 .ficha-item-list.align-left  li { justify-content: flex-start; }
 .ficha-item-list.align-right li { justify-content: flex-end; flex-direction: row-reverse; }
-.ficha-item-list.align-left  { width: 650px; padding-left: 110px; }
-.ficha-item-list.align-right { width: 850px; padding-right: 110px; }
+.ficha-item-list.align-left  { width: 900px; padding-left: 110px; }
+.ficha-item-list.align-right { width: 1100px; padding-right: 110px; }
 
 .ficha-score {
   min-width: 70px;
@@ -142,7 +143,7 @@
   font-weight: 800;
 }
 
-.ficha-item-label { color: #ffffff; }
+.ficha-item-label { color: var(--text-general, #ffffff); }
 
 /* ── CONDICIONAL (GPS) ── */
 .gps-grid {
@@ -204,6 +205,7 @@
   background: var(--wine);
   text-align: center;
   font-size: 94px;
+  color: var(--text-header, #ffffff);
   font-weight: 600;
   letter-spacing: 0.05em;
   padding: 18px 70px;
@@ -211,7 +213,7 @@
 }
 .ficha-plan-subheader {
   background: var(--blue-800, #1e293b);
-  color: #ffffff;
+  color: var(--text-aspectos, #ffffff);
   text-align: center;
   font-size: 82px;
   font-weight: 600;
@@ -227,7 +229,7 @@
 .plan-col { border: 1px solid var(--slate-line); display: flex; flex-direction: column; min-width: 0; }
 .plan-col-header {
   background: #ffffff;
-  color: #0f1117;
+  color: var(--text-subheader-white, #0f1117);
   display: flex;
   align-items: center;
   justify-content: center;
