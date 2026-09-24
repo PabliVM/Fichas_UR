@@ -76,14 +76,15 @@ const CONFIG_SUBTABS = [
 ];
 
 const CRITERIA_CATEGORIES = [
-  { key: 'mental',                  label: 'Mental (ficha 2)' },
-  { key: 'tecnico',                 label: 'Técnico (ficha 2)' },
-  { key: 'tactico',                 label: 'Táctico (ficha 2)' },
-  { key: 'condicional',             label: 'Condicional (ficha 2)' },
-  { key: 'personalidad',            label: 'Personalidad (ficha 1)' },
-  { key: 'competenciasOfensivas',   label: 'Competencias ofensivas (ficha 1)' },
-  { key: 'competenciasDefensivas',  label: 'Competencias defensivas (ficha 1)' },
+  { key: 'mental',                  label: 'Mental',                  page: 2 },
+  { key: 'tecnico',                 label: 'Técnico',                 page: 2 },
+  { key: 'tactico',                 label: 'Táctico',                 page: 2 },
+  { key: 'condicional',             label: 'Condicional',             page: 2 },
+  { key: 'personalidad',            label: 'Personalidad',            page: 1 },
+  { key: 'competenciasOfensivas',   label: 'Competencias ofensivas',  page: 1 },
+  { key: 'competenciasDefensivas',  label: 'Competencias defensivas', page: 1 },
 ];
+let itemsConfigPage = 2; // qué página se edita en "Items a evaluar": 1 ó 2
 
 function buildCriteriaCategoryHTML(cat) {
   const items = state.criteriaSchemas[configCriteriaPosition]?.[cat.key] || [];
@@ -440,6 +441,10 @@ function renderPanelConfig(container) {
           Los 4 bloques de la ficha 2 (Mental, Técnico, Táctico, Condicional) y los 3 de la ficha 1 (Personalidad, Competencias ofensivas, Competencias defensivas). Cada posición tiene su propia lista.
         </p>
         ${state.positions.length === 0 ? '<p class="text-xs text-muted">Define primero al menos una posición en la pestaña Posiciones.</p>' : `
+          <div class="flex gap-8 mb-16">
+            <button class="btn ${itemsConfigPage === 1 ? 'btn-primary' : 'btn-sm'}" data-items-page="1">Ficha 1</button>
+            <button class="btn ${itemsConfigPage === 2 ? 'btn-primary' : 'btn-sm'}" data-items-page="2">Ficha 2</button>
+          </div>
           <div class="flex gap-12 mb-16" style="align-items:flex-end;flex-wrap:wrap;">
             <label style="display:block;max-width:280px;">
               <div class="text-xs text-muted mb-8">Posición</div>
@@ -458,7 +463,7 @@ function renderPanelConfig(container) {
               <button class="btn btn-sm" id="crit-copy-btn">Copiar</button>
             ` : ''}
           </div>
-          ${CRITERIA_CATEGORIES.map(buildCriteriaCategoryHTML).join('')}
+          ${CRITERIA_CATEGORIES.filter(c => c.page === itemsConfigPage).map(buildCriteriaCategoryHTML).join('')}
         `}
       </div>
     </div>
@@ -526,6 +531,22 @@ function renderPanelConfig(container) {
           <label class="flex gap-8" style="align-items:center;">
             <input type="color" id="ficha-color-wine" value="${state.fichaColors.wine}" style="width:40px;height:32px;padding:2px;border-radius:4px;border:1px solid var(--border-default);" />
             <span class="text-xs text-muted">Cabeceras (granate)</span>
+          </label>
+          <label class="flex gap-8" style="align-items:center;">
+            <input type="color" id="ficha-color-text-general" value="${state.fichaColors.textGeneral}" style="width:40px;height:32px;padding:2px;border-radius:4px;border:1px solid var(--border-default);" />
+            <span class="text-xs text-muted">Texto general</span>
+          </label>
+          <label class="flex gap-8" style="align-items:center;">
+            <input type="color" id="ficha-color-text-header" value="${state.fichaColors.textHeader}" style="width:40px;height:32px;padding:2px;border-radius:4px;border:1px solid var(--border-default);" />
+            <span class="text-xs text-muted">Texto de las cabeceras</span>
+          </label>
+          <label class="flex gap-8" style="align-items:center;">
+            <input type="color" id="ficha-color-text-aspectos" value="${state.fichaColors.textAspectos}" style="width:40px;height:32px;padding:2px;border-radius:4px;border:1px solid var(--border-default);" />
+            <span class="text-xs text-muted">Texto de "Aspectos del jugador"</span>
+          </label>
+          <label class="flex gap-8" style="align-items:center;">
+            <input type="color" id="ficha-color-text-subheader" value="${state.fichaColors.textSubheaderWhite}" style="width:40px;height:32px;padding:2px;border-radius:4px;border:1px solid var(--border-default);" />
+            <span class="text-xs text-muted">Texto de las cabeceras blancas del plan</span>
           </label>
         </div>
         <button class="btn" id="ficha-colors-reset">Restaurar valores por defecto</button>
@@ -625,6 +646,22 @@ function renderPanelConfig(container) {
     setState({ fichaColors: { ...state.fichaColors, wine: e.target.value } });
     document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
   });
+  container.querySelector('#ficha-color-text-general')?.addEventListener('change', e => {
+    setState({ fichaColors: { ...state.fichaColors, textGeneral: e.target.value } });
+    document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
+  });
+  container.querySelector('#ficha-color-text-header')?.addEventListener('change', e => {
+    setState({ fichaColors: { ...state.fichaColors, textHeader: e.target.value } });
+    document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
+  });
+  container.querySelector('#ficha-color-text-aspectos')?.addEventListener('change', e => {
+    setState({ fichaColors: { ...state.fichaColors, textAspectos: e.target.value } });
+    document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
+  });
+  container.querySelector('#ficha-color-text-subheader')?.addEventListener('change', e => {
+    setState({ fichaColors: { ...state.fichaColors, textSubheaderWhite: e.target.value } });
+    document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
+  });
   container.querySelector('#ficha-colors-reset')?.addEventListener('click', () => {
     setState({ fichaColors: { ...DEFAULT_FICHA_COLORS } });
     document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
@@ -670,6 +707,13 @@ function renderPanelConfig(container) {
       renderPanelConfig(container);
     });
   }
+
+  container.querySelectorAll('[data-items-page]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      itemsConfigPage = Number(btn.dataset.itemsPage);
+      renderPanelConfig(container);
+    });
+  });
 
   container.querySelectorAll('[data-crit-add]').forEach(btn => {
     btn.addEventListener('click', () => {
