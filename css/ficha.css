@@ -25,7 +25,7 @@
   background: var(--slate);
   color: #ffffff;
   font-family: var(--font-sans);
-  width: 9000px;          /* tamaño de diseño fijo, siempre el mismo */
+  width: 11000px;          /* tamaño de diseño fijo, siempre el mismo */
   transform-origin: top left;
   position: absolute;
   top: 0;
@@ -54,14 +54,14 @@
   text-align: center;
   color: #ffffff;
   font-weight: 600;
-  font-size: 60px;
+  font-size: 90px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 .ficha-header-page {
   color: #ffffff;
   font-weight: 700;
-  font-size: 46px;
+  font-size: 64px;
   background: rgba(255,255,255,0.18);
   padding: 8px 22px;
   border-radius: 999px;
@@ -89,7 +89,7 @@
   min-height: 44px;
 }
 .ficha-q-title {
-  font-size: 52px;
+  font-size: 78px;
   font-weight: 600;
   letter-spacing: 0.02em;
   flex: 1;
@@ -121,7 +121,7 @@
   flex-direction: column;
   gap: 6px;
   justify-content: center;
-  font-size: 50px;
+  font-size: 74px;
   font-weight: 400;
 }
 .ficha-item-list li { display: flex; align-items: center; gap: 8px; }
@@ -145,7 +145,7 @@
   column-gap: 180px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
   align-items: center;
   justify-content: center; /* centra la rejilla en el ancho del cuadrante */
-  font-size: 50px;
+  font-size: 74px;
   font-weight: 400;
 }
 .gps-row { display: contents; } /* las celdas de cada fila se insertan en la rejilla común de arriba */
@@ -169,12 +169,12 @@
   border: 1px solid var(--slate-line);
   border-radius: 4px;
   color: #ffffff;
-  font-size: 50px;
+  font-size: 74px;
   font-weight: 600;
   padding: 2px 4px;
 }
 .gps-input:focus { outline: none; border-color: var(--score-yellow); background: rgba(255,255,255,0.12); }
-.gps-icon { width: 40px; text-align: center; font-weight: 800; font-size: 40px; }
+.gps-icon { width: 40px; text-align: center; font-weight: 800; font-size: 58px; }
 .gps-ok   { color: var(--score-green); }
 .gps-fail { color: var(--score-red); }
 .gps-label { color: #ffffff; }
@@ -195,7 +195,7 @@
 .ficha-plan-title {
   background: var(--wine);
   text-align: center;
-  font-size: 52px;
+  font-size: 78px;
   font-weight: 600;
   letter-spacing: 0.05em;
   padding: 10px;
@@ -224,7 +224,7 @@
   justify-content: center;
   gap: 10px;
   padding: 6px 14px;
-  font-size: 52px;
+  font-size: 78px;
   font-weight: 600;
   letter-spacing: 0.03em;
   height: 108px;           /* grosor fijo: ningún icono lo puede cambiar */
@@ -245,7 +245,7 @@
   gap: 10px;
   color: #e6edf3;
   background: rgba(255,255,255,0.03);
-  font-size: 50px;
+  font-size: 74px;
   font-weight: 400;
 }
 .plan-col-list li {
