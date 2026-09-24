@@ -5,15 +5,11 @@
    con identidad fija, igual en claro y oscuro.
    ================================================ */
 
-/* Tamaño FIJO e idéntico para las 2 páginas (misma proporción A4
-   apaisado), para que midan siempre igual entre sí — el contenido
-   de cada una se escala DENTRO de este mismo marco (fitFichaToFrame
-   en JS). Puede quedar algo de margen si una página no llena
-   exactamente esa proporción, pero ya no varía de una ficha a otra. */
+/* El marco se ajusta EXACTO al contenido ya escalado (fitFichaToFrame
+   en JS) — así no queda ningún margen sobrante, de ningún color.
+   Consecuencia: la ficha 1 y la ficha 2 pueden medir ligeramente
+   distinto entre sí si su contenido no tiene la misma proporción. */
 .ficha-a4-frame {
-  width: 100%;
-  max-width: 1900px;
-  aspect-ratio: 297 / 210;
   margin: 0 auto;
   overflow: hidden;
   position: relative;
