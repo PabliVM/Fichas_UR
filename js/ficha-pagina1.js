@@ -205,7 +205,7 @@ function buildBottom(logoPath) {
 export function renderFichaPagina1(container, data, logoPath, colors) {
   const { player } = data;
 
-  const colorStyle = colors ? ` style="--slate:${colors.slate}; --wine:${colors.wine};"` : '';
+  const colorStyle = colors ? ` style="--slate:${colors.slate}; --wine:${colors.wine}; --text-general:${colors.textGeneral}; --text-header:${colors.textHeader}; --text-aspectos:${colors.textAspectos}; --text-subheader-white:${colors.textSubheaderWhite};"` : '';
 
   container.innerHTML = `
     <div class="ficha-a4-frame">
