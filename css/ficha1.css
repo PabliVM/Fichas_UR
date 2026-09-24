@@ -195,3 +195,11 @@
 .p1-legend-crest { width: 80px; height: 80px; object-fit: contain; }
 .p1-legend-item { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 26px; }
 .p1-legend-dot { width: 22px; height: 22px; border-radius: 4px; display: inline-block; }
+
+
+/* ── Header de la ficha 1: título, "1/2" y escudo x2 respecto
+   a la ficha 2 (misma anchura de header, solo estos 3 elementos
+   más grandes). Solo afecta a esta página. ── */
+.p1-detalle .ficha-header-title { font-size: 104px; }
+.p1-detalle .ficha-header-page  { font-size: 72px; }
+.p1-detalle .ficha-header-crest { width: 260px; height: 260px; }
