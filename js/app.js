@@ -352,8 +352,8 @@ function renderPanelFichas(container) {
       <button class="btn btn-primary btn-print-ficha" id="btn-print-ficha">⬇ Descargar PDF</button>
     </div>
     <p class="text-xs text-muted mb-16">Datos de ejemplo, pendiente de conectar a Firestore.</p>
-    <div id="ficha1-demo-wrap" class="${fichasSubPage === 1 ? '' : 'hidden'}"></div>
-    <div id="ficha-demo-wrap" class="${fichasSubPage === 2 ? '' : 'hidden'}"></div>
+    <div id="ficha1-demo-wrap" class="ficha-wrap ${fichasSubPage === 1 ? '' : 'hidden'}"></div>
+    <div id="ficha-demo-wrap" class="ficha-wrap ${fichasSubPage === 2 ? '' : 'hidden'}"></div>
   `;
   const wrap1 = container.querySelector('#ficha1-demo-wrap');
   renderFichaPagina1(wrap1, FICHA1_DEMO_DATA, LOGO_PATH);
