@@ -67,14 +67,24 @@ let plantillasSelectedPlayerId = null; // navegación local lista ↔ perfil (no
 let configCriteriaPosition = null;      // qué posición se está editando en "Items a evaluar"
 let configSubTab = 'posiciones';        // pestaña interna activa dentro de Configuración
 
-const CONFIG_SUBTABS = [
-  { key: 'posiciones',    label: 'Posiciones' },
-  { key: 'items',         label: 'ASPECTOS' },
-  { key: 'colores',       label: 'Rango de colores' },
-  { key: 'ficha-colores', label: 'Colores de la ficha' },
-  { key: 'temporadas',    label: 'Temporadas' },
-  { key: 'dimensiones',   label: 'Dimensiones oficiales' },
+const CONFIG_GROUPS = [
+  {
+    label: 'Contenido',
+    tabs: [
+      { key: 'posiciones', label: 'Posiciones' },
+      { key: 'items',      label: 'Aspectos' },
+      { key: 'colores',    label: 'Rango de colores' },
+    ],
+  },
+  {
+    label: 'Diseño',
+    tabs: [
+      { key: 'ficha-colores', label: 'Colores de la ficha' },
+      { key: 'dimensiones',   label: 'Dimensiones' },
+    ],
+  },
 ];
+// Temporadas: quitado de momento (código y datos se mantienen, solo se oculta la pestaña).
 
 // Comunes a todas las posiciones (sin selector de posición).
 const ASPECTOS_COMUNES_CATEGORIES = [
@@ -163,8 +173,9 @@ function buildOfenDefCheckboxesHTML(role, label) {
   const key = role === 'of' ? 'competenciasOfensivas' : 'competenciasDefensivas';
   const tactico = state.criteriaSchemas[configCriteriaPosition]?.tactico || [];
   const selected = state.criteriaSchemas[configCriteriaPosition]?.[key] || [];
+  const titleHTML = `<div class="mb-8" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">${label}</div>`;
   if (!tactico.length) {
-    return `<div class="mb-16"><div class="text-xs mb-8" style="font-weight:700;">${label}</div><p class="text-xs text-muted">Define antes el Táctico de esta posición (pestaña Ficha 2).</p></div>`;
+    return `<div style="flex:1;min-width:260px;">${titleHTML}<p class="text-xs text-muted">Define antes el Táctico de esta posición (pestaña Ficha 2).</p></div>`;
   }
   const boxes = tactico.map(label2 => `
     <label class="flex gap-8" style="align-items:center;">
@@ -173,8 +184,8 @@ function buildOfenDefCheckboxesHTML(role, label) {
     </label>
   `).join('');
   return `
-    <div class="mb-16">
-      <div class="text-xs mb-8" style="font-weight:700;">${label}</div>
+    <div style="flex:1;min-width:260px;">
+      ${titleHTML}
       <div class="flex gap-8" style="flex-direction:column;">${boxes}</div>
     </div>
   `;
@@ -495,9 +506,14 @@ function renderPanelConfig(container) {
 
   container.innerHTML = `
     ${firebaseNotice()}
-    <div class="flex gap-8 mb-16" style="border-bottom:1px solid var(--border-default);padding-bottom:8px;">
-      ${CONFIG_SUBTABS.map(t => `
-        <button class="btn ${t.key === configSubTab ? 'btn-primary' : 'btn-sm'}" data-config-subtab="${t.key}">${t.label}</button>
+    <div class="mb-16" style="border-bottom:1px solid var(--border-default);padding-bottom:8px;">
+      ${CONFIG_GROUPS.map(g => `
+        <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
+          <span class="text-xs text-muted" style="min-width:80px;font-weight:700;text-transform:uppercase;">${g.label}</span>
+          ${g.tabs.map(t => `
+            <button class="btn ${t.key === configSubTab ? 'btn-primary' : 'btn-sm'}" data-config-subtab="${t.key}">${t.label}</button>
+          `).join('')}
+        </div>
       `).join('')}
     </div>
 
@@ -538,14 +554,14 @@ function renderPanelConfig(container) {
 
           ${itemsConfigPage === 2 ? ASPECTOS_COMUNES_CATEGORIES.map(buildAspectoComunCategoryHTML).join('') : `
             <div class="mb-16">
-              <div class="text-xs mb-8" style="font-weight:700;">Personalidad <span class="text-muted" style="font-weight:400;">(automática)</span></div>
+              <div class="mb-8" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Personalidad <span class="text-muted" style="font-weight:400;text-transform:none;font-size:11px;">(automática)</span></div>
               <p class="text-xs text-muted">Se genera desde Mental. Edítala en la pestaña "Ficha 2".</p>
             </div>
           `}
 
           ${itemsConfigPage === 2
             ? buildTacticoCategoryHTML()
-            : buildPositionSelectorHTML() + buildOfenDefCheckboxesHTML('of', 'Competencias ofensivas') + buildOfenDefCheckboxesHTML('def', 'Competencias defensivas')}
+            : buildPositionSelectorHTML() + `<div class="flex gap-24" style="flex-wrap:wrap;">${buildOfenDefCheckboxesHTML('of', 'Competencias ofensivas')}${buildOfenDefCheckboxesHTML('def', 'Competencias defensivas')}</div>`}
         `}
       </div>
     </div>
