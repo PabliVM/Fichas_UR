@@ -303,6 +303,11 @@
   letter-spacing: 0.04em;
 }
 
+/* Variante compacta — solo para tablas de referencia/consulta (p.ej. Dimensiones oficiales) */
+.table-compact th, .table-compact td {
+  padding: 3px 12px;
+}
+
 /* CHIP (posiciones en Configuración, etiquetas sueltas) */
 .chip {
   display: inline-flex;
