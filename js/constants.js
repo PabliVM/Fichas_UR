@@ -21,6 +21,8 @@ export const FICHA2_OFFICIAL_DIMENSIONS = {
     {
       title: 'Header superior',
       rows: [
+        ['Ancho', '100% de la página (7200px)'],
+        ['Alto', '280px (fijo: escudo 260px + padding 10px arriba/abajo)'],
         ['Escudo', '260 × 260px'],
         ['Título', '104px'],
         ['Badge página', '72px'],
@@ -29,6 +31,8 @@ export const FICHA2_OFFICIAL_DIMENSIONS = {
     {
       title: 'Subheader granate (bloques)',
       rows: [
+        ['Ancho', '100% de su columna (mitad de página, ~3600px)'],
+        ['Alto', '≈144px (no fijo: line-height del título 94px + padding 18px×2)'],
         ['Título de bloque', '94px'],
         ['Padding', '18px 16px'],
       ],
@@ -67,8 +71,12 @@ export const FICHA2_OFFICIAL_DIMENSIONS = {
     {
       title: 'Plan de acción',
       rows: [
+        ['Ancho (título / subheader)', '100% de la página (7200px)'],
+        ['Alto (título)', '≈144px (no fijo, según texto 94px)'],
         ['Título', '94px'],
+        ['Alto (subheader aspectos)', '≈106px (no fijo, según texto 82px)'],
         ['Subheader "Aspectos del jugador"', '82px'],
+        ['Ancho (cabecera blanca)', '100% de su columna (1/4 de página, ~1800px)'],
         ['Cabecera blanca (alto fijo)', '73px / 150px'],
         ['Icono balón', '88 × 88px'],
         ['Texto de lista', '62px'],
