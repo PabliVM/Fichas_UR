@@ -160,30 +160,34 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey }) {
 
 // ── BLOQUE CONDICIONAL (valores GPS, editable, sin radar) ──
 
-function gpsIconMarkup(ok) {
-  if (ok === null || ok === undefined) return '<span class="gps-icon"></span>';
-  return ok
-    ? '<span class="gps-icon gps-ok">✔</span>'
-    : '<span class="gps-icon gps-fail">✘</span>';
-}
-
 function buildCondicionalBlock({ title, rp, items }) {
+  const header = `
+    <div class="gps-row gps-col-headers gps-header-row">
+      <span class="gps-val-cell gps-cell-a">1</span>
+      <span class="gps-val-cell">2</span>
+      <span class="gps-label"></span>
+      <span class="gps-ref-cell gps-cell-a">3</span>
+      <span class="gps-ref-cell">4</span>
+    </div>
+    <p class="gps-legend">1 Media del jugador &nbsp;·&nbsp; 2 Máxima del jugador &nbsp;·&nbsp; 3 Media profesional de la posición &nbsp;·&nbsp; 4 Máxima profesional de la posición</p>
+  `;
+
   const rows = items.map((item, i) => `
-    <div class="gps-row" data-row="${i}">
+    <div class="gps-row" data-row="${i}" data-ref-a="${item.refA ?? ''}">
       <span class="gps-val-cell gps-cell-a">
         <input class="gps-input" type="text" data-row="${i}" data-field="valueA" value="${item.valueA ?? ''}" />
-        ${gpsIconMarkup(item.valueAOk)}
+        <span class="gps-icon"></span>
       </span>
       <span class="gps-val-cell">
         <input class="gps-input" type="text" data-row="${i}" data-field="valueB" value="${item.valueB ?? ''}" />
-        ${gpsIconMarkup(item.valueBOk)}
+        <span class="gps-icon"></span>
       </span>
       <span class="gps-label">• ${safeText(item.label)}</span>
       <span class="gps-ref-cell gps-cell-a">
-        <input class="gps-input gps-ref-input" type="text" data-row="${i}" data-field="refA" value="${item.refA ?? ''}" />
+        <span class="gps-ref-value">${formatNum(item.refA)}</span>
       </span>
       <span class="gps-ref-cell">
-        <input class="gps-input gps-ref-input" type="text" data-row="${i}" data-field="refB" value="${item.refB ?? ''}" />
+        <span class="gps-ref-value">${formatNum(item.refB)}</span>
       </span>
     </div>
   `).join('');
@@ -194,7 +198,7 @@ function buildCondicionalBlock({ title, rp, items }) {
         <span class="ficha-q-title">${safeText(title)}</span>
       </header>
       <div class="ficha-condicional-body">
-        <div class="gps-grid">${rows}</div>
+        <div class="gps-grid">${header}${rows}</div>
       </div>
     </section>
   `;
@@ -262,25 +266,33 @@ function parseEsNumber(str) {
 }
 
 /**
- * Recalcula el icono ✔/✘ de una fila GPS comparando valueA/valueB
- * contra el rango [refA, refB] (en cualquier orden).
+ * Recalcula el icono de una fila GPS comparando valueA/valueB (columnas 1/2,
+ * manuales) contra refA — la columna 3, fija por posición desde Configuración
+ * → Datos condicionales (guardada en data-ref-a, NO es un input editable).
+ * La columna 4 (refB) es solo informativa, nunca participa en la comparación.
+ * diferencia = valor - refA:
+ *   > +0.2  → ✔ verde
+ *   < -0.2  → ✘ roja
+ *   resto (incl. límites) → guion amarillo
+ * Si falta valor o falta refA: sin icono (no se interpreta vacío como 0).
  */
 function recalcGpsRow(rowEl) {
-  const get = field => rowEl.querySelector(`[data-field="${field}"]`)?.value ?? '';
-  const refA = parseEsNumber(get('refA'));
-  const refB = parseEsNumber(get('refB'));
-  const hasRange = refA != null && refB != null;
-  const min = hasRange ? Math.min(refA, refB) : null;
-  const max = hasRange ? Math.max(refA, refB) : null;
+  const refARaw = rowEl.dataset.refA;
+  const refA = (refARaw === '' || refARaw == null || Number.isNaN(Number(refARaw))) ? null : Number(refARaw);
 
   ['valueA', 'valueB'].forEach(field => {
     const input = rowEl.querySelector(`[data-field="${field}"]`);
     const iconSlot = input.parentElement.querySelector('.gps-icon');
     const val = parseEsNumber(input.value);
-    let ok = null;
-    if (hasRange && val != null) ok = val >= min && val <= max;
-    iconSlot.className = 'gps-icon' + (ok === true ? ' gps-ok' : ok === false ? ' gps-fail' : '');
-    iconSlot.textContent = ok === true ? '✔' : ok === false ? '✘' : '';
+    let st = null; // null | 'ok' | 'fail' | 'dash'
+    if (val != null && refA != null) {
+      // redondeo a 2 decimales: 7.2 - 7.0 da 0.20000000000000018 en JS (float),
+      // y un valor justo en el límite (±0,2, que es inclusive) se colaría en verde/rojo.
+      const diff = Math.round((val - refA) * 100) / 100;
+      st = diff > 0.2 ? 'ok' : diff < -0.2 ? 'fail' : 'dash';
+    }
+    iconSlot.className = 'gps-icon' + (st ? ` gps-${st}` : '');
+    iconSlot.textContent = st === 'ok' ? '✔' : st === 'fail' ? '✘' : st === 'dash' ? '━' : '';
   });
 }
 
@@ -310,7 +322,7 @@ function equalizeGpsLabelWidth(container) {
  */
 export function wireCondicionalInputs(container) {
   equalizeGpsLabelWidth(container);
-  container.querySelectorAll('.gps-row').forEach(rowEl => {
+  container.querySelectorAll('.gps-row:not(.gps-header-row)').forEach(rowEl => {
     recalcGpsRow(rowEl);
     rowEl.querySelectorAll('.gps-input').forEach(input => {
       input.addEventListener('input', () => recalcGpsRow(rowEl));
