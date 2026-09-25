@@ -76,37 +76,81 @@ const CONFIG_SUBTABS = [
   { key: 'dimensiones',   label: 'Dimensiones oficiales' },
 ];
 
-const CRITERIA_CATEGORIES = [
-  { key: 'mental',                  label: 'Mental',                  page: 2 },
-  { key: 'tecnico',                 label: 'Técnico',                 page: 2 },
-  { key: 'tactico',                 label: 'Táctico',                 page: 2 },
-  { key: 'condicional',             label: 'Condicional',             page: 2 },
-  { key: 'personalidad',            label: 'Personalidad',            page: 1 },
-  { key: 'competenciasOfensivas',   label: 'Competencias ofensivas',  page: 1 },
-  { key: 'competenciasDefensivas',  label: 'Competencias defensivas', page: 1 },
+// Comunes a todas las posiciones (sin selector de posición).
+const ASPECTOS_COMUNES_CATEGORIES = [
+  { key: 'mental',      label: 'Mental' },
+  { key: 'tecnico',     label: 'Técnico' },
+  { key: 'condicional', label: 'Condicional' },
 ];
 let itemsConfigPage = 2; // qué página se edita en "Items a evaluar": 1 ó 2
 
-function buildCriteriaCategoryHTML(cat) {
-  const items = state.criteriaSchemas[configCriteriaPosition]?.[cat.key] || [];
+function buildAspectoComunCategoryHTML(cat) {
+  const items = state.aspectosComunes[cat.key] || [];
   const chips = items.map((label, i) => `
     <span class="chip">
-      ${i > 0 ? `<button data-move-crit data-cat="${cat.key}" data-idx="${i}" data-dir="-1" title="Subir">↑</button>` : ''}
-      ${i < items.length - 1 ? `<button data-move-crit data-cat="${cat.key}" data-idx="${i}" data-dir="1" title="Bajar">↓</button>` : ''}
+      ${i > 0 ? `<button data-move-crit data-scope="comun" data-cat="${cat.key}" data-idx="${i}" data-dir="-1" title="Subir">↑</button>` : ''}
+      ${i < items.length - 1 ? `<button data-move-crit data-scope="comun" data-cat="${cat.key}" data-idx="${i}" data-dir="1" title="Bajar">↓</button>` : ''}
       ${safeText(label)}
-      <button data-del-crit data-cat="${cat.key}" data-idx="${i}" title="Quitar">×</button>
+      <button data-del-crit data-scope="comun" data-cat="${cat.key}" data-idx="${i}" title="Quitar">×</button>
     </span>
   `).join('');
   return `
     <div class="mb-16">
-      <div class="text-xs mb-8" style="font-weight:700;">${safeText(cat.label)}</div>
+      <div class="text-xs mb-8" style="font-weight:700;">${safeText(cat.label)} <span class="text-muted" style="font-weight:400;">(común a todas las posiciones)</span></div>
       <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">
         ${chips || '<span class="text-xs text-muted">Sin items definidos.</span>'}
       </div>
       <div class="flex gap-8">
-        <input class="input" type="text" data-crit-new data-cat="${cat.key}" placeholder="Nuevo item…" />
-        <button class="btn btn-sm" data-crit-add data-cat="${cat.key}">+ Añadir</button>
+        <input class="input" type="text" data-crit-new data-scope="comun" data-cat="${cat.key}" placeholder="Nuevo item…" />
+        <button class="btn btn-sm" data-crit-add data-scope="comun" data-cat="${cat.key}">+ Añadir</button>
       </div>
+    </div>
+  `;
+}
+
+// Táctico: varía por posición (configCriteriaPosition).
+function buildTacticoCategoryHTML() {
+  const items = state.criteriaSchemas[configCriteriaPosition]?.tactico || [];
+  const chips = items.map((label, i) => `
+    <span class="chip">
+      ${i > 0 ? `<button data-move-crit data-cat="tactico" data-idx="${i}" data-dir="-1" title="Subir">↑</button>` : ''}
+      ${i < items.length - 1 ? `<button data-move-crit data-cat="tactico" data-idx="${i}" data-dir="1" title="Bajar">↓</button>` : ''}
+      ${safeText(label)}
+      <button data-del-crit data-cat="tactico" data-idx="${i}" title="Quitar">×</button>
+    </span>
+  `).join('');
+  return `
+    <div class="mb-16">
+      <div class="text-xs mb-8" style="font-weight:700;">Táctico</div>
+      <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">
+        ${chips || '<span class="text-xs text-muted">Sin items definidos.</span>'}
+      </div>
+      <div class="flex gap-8">
+        <input class="input" type="text" data-crit-new data-cat="tactico" placeholder="Nuevo item…" />
+        <button class="btn btn-sm" data-crit-add data-cat="tactico">+ Añadir</button>
+      </div>
+    </div>
+  `;
+}
+
+// Ofensivas/Defensivas: checkboxes SOBRE el Táctico ya creado (no texto libre).
+function buildOfenDefCheckboxesHTML(role, label) {
+  const key = role === 'of' ? 'competenciasOfensivas' : 'competenciasDefensivas';
+  const tactico = state.criteriaSchemas[configCriteriaPosition]?.tactico || [];
+  const selected = state.criteriaSchemas[configCriteriaPosition]?.[key] || [];
+  if (!tactico.length) {
+    return `<div class="mb-16"><div class="text-xs mb-8" style="font-weight:700;">${label}</div><p class="text-xs text-muted">Define antes el Táctico de esta posición (pestaña Ficha 2).</p></div>`;
+  }
+  const boxes = tactico.map(label2 => `
+    <label class="flex gap-8" style="align-items:center;">
+      <input type="checkbox" data-toggle-comp data-role="${role}" data-label="${safeText(label2)}" ${selected.includes(label2) ? 'checked' : ''} />
+      <span class="text-xs">${safeText(label2)}</span>
+    </label>
+  `).join('');
+  return `
+    <div class="mb-16">
+      <div class="text-xs mb-8" style="font-weight:700;">${label}</div>
+      <div class="flex gap-8" style="flex-direction:column;">${boxes}</div>
     </div>
   `;
 }
@@ -322,17 +366,17 @@ let fichasSubPage = 1; // qué página de la ficha se muestra: 1 ó 2
  */
 function buildFichaDemoFromSchema(positionKey) {
   const schema = state.criteriaSchemas[positionKey] || {};
-  const rated = key => (schema[key] || []).map(label => ({ label, value: null }));
-  const condicional = (schema.condicional || []).map(label => ({
+  const rated = list => (list || []).map(label => ({ label, value: null }));
+  const condicional = (state.aspectosComunes.condicional || []).map(label => ({
     label, valueA: null, valueAOk: null, valueB: null, valueBOk: null, refA: null, refB: null,
   }));
 
   return {
     player: { name: 'Jugador de ejemplo', photoUrl: null },
     blocks: {
-      mental:      { rp: [null, null], items: rated('mental') },
-      tecnico:     { rp: [null, null], items: rated('tecnico') },
-      tactico:     { rp: [null, null], items: rated('tactico') },
+      mental:      { rp: [null, null], items: rated(state.aspectosComunes.mental) },
+      tecnico:     { rp: [null, null], items: rated(state.aspectosComunes.tecnico) },
+      tactico:     { rp: [null, null], items: rated(schema.tactico) },
       condicional: { rp: null,         items: condicional },
     },
     plan: {
@@ -341,6 +385,25 @@ function buildFichaDemoFromSchema(positionKey) {
       condicional: ['', '', '', '', '', '', ''],
       mental:      ['', '', '', '', '', '', ''],
     },
+  };
+}
+
+/**
+ * Ficha 1: Personalidad = derivada de Mental (sin duplicar dato, fuente única).
+ * Ofensivas/Defensivas = las seleccionadas en Configuración (subconjunto de Táctico).
+ */
+function buildFicha1DemoFromSchema(positionKey) {
+  const schema = state.criteriaSchemas[positionKey] || {};
+  const mental = state.aspectosComunes.mental || [];
+  const mid = Math.ceil(mental.length / 2);
+  return {
+    ...FICHA1_DEMO_DATA,
+    personalidad: {
+      col1: mental.slice(0, mid).map(label => ({ label, status: null })),
+      col2: mental.slice(mid).map(label => ({ label, status: null })),
+    },
+    competenciasOfensivas: (schema.competenciasOfensivas || []).map(label => ({ label, status: null })),
+    competenciasDefensivas: (schema.competenciasDefensivas || []).map(label => ({ label, status: null })),
   };
 }
 
@@ -359,7 +422,7 @@ function renderPanelFichas(container) {
     <div id="ficha-demo-wrap" class="ficha-wrap ${fichasSubPage === 2 ? '' : 'hidden'}"></div>
   `;
   const wrap1 = container.querySelector('#ficha1-demo-wrap');
-  renderFichaPagina1(wrap1, FICHA1_DEMO_DATA, LOGO_PATH, state.fichaColors);
+  renderFichaPagina1(wrap1, buildFicha1DemoFromSchema('portero'), LOGO_PATH, state.fichaColors);
 
   const wrap = container.querySelector('#ficha-demo-wrap');
   renderFichaDetalle(wrap, buildFichaDemoFromSchema('portero'), LOGO_PATH, state.scoreBands, undefined, state.fichaColors);
@@ -439,13 +502,22 @@ function renderPanelConfig(container) {
       <div class="card-title">Items a evaluar</div>
       <div class="card-body">
         <p class="text-sm text-muted mb-16">
-          Los 4 bloques de la ficha 2 (Mental, Técnico, Táctico, Condicional) y los 3 de la ficha 1 (Personalidad, Competencias ofensivas, Competencias defensivas). Cada posición tiene su propia lista.
+          Mental/Técnico/Condicional son comunes a todas las posiciones. Táctico varía por posición.
+          Ofensivas/Defensivas (ficha 1) se seleccionan del Táctico de esa posición. Personalidad (ficha 1) se genera sola desde Mental.
         </p>
         ${state.positions.length === 0 ? '<p class="text-xs text-muted">Define primero al menos una posición en la pestaña Posiciones.</p>' : `
           <div class="flex gap-8 mb-16">
             <button class="btn ${itemsConfigPage === 1 ? 'btn-primary' : 'btn-sm'}" data-items-page="1">Ficha 1</button>
             <button class="btn ${itemsConfigPage === 2 ? 'btn-primary' : 'btn-sm'}" data-items-page="2">Ficha 2</button>
           </div>
+
+          ${itemsConfigPage === 2 ? ASPECTOS_COMUNES_CATEGORIES.map(buildAspectoComunCategoryHTML).join('') : `
+            <div class="mb-16">
+              <div class="text-xs mb-8" style="font-weight:700;">Personalidad <span class="text-muted" style="font-weight:400;">(automática)</span></div>
+              <p class="text-xs text-muted">Se genera desde Mental. Edítala en la pestaña "Ficha 2".</p>
+            </div>
+          `}
+
           <div class="flex gap-12 mb-16" style="align-items:flex-end;flex-wrap:wrap;">
             <label style="display:block;max-width:280px;">
               <div class="text-xs text-muted mb-8">Posición</div>
@@ -455,7 +527,7 @@ function renderPanelConfig(container) {
             </label>
             ${state.positions.length > 1 ? `
               <label style="display:block;max-width:280px;">
-                <div class="text-xs text-muted mb-8">Copiar todos los items desde…</div>
+                <div class="text-xs text-muted mb-8">Copiar Táctico/Ofensivas/Defensivas desde…</div>
                 <select class="select" id="crit-copy-from">
                   <option value="">—</option>
                   ${state.positions.filter(p => p.key !== configCriteriaPosition).map(p => `<option value="${p.key}">${safeText(p.label)}</option>`).join('')}
@@ -464,7 +536,10 @@ function renderPanelConfig(container) {
               <button class="btn btn-sm" id="crit-copy-btn">Copiar</button>
             ` : ''}
           </div>
-          ${CRITERIA_CATEGORIES.filter(c => c.page === itemsConfigPage).map(buildCriteriaCategoryHTML).join('')}
+
+          ${itemsConfigPage === 2
+            ? buildTacticoCategoryHTML()
+            : buildOfenDefCheckboxesHTML('of', 'Competencias ofensivas') + buildOfenDefCheckboxesHTML('def', 'Competencias defensivas')}
         `}
       </div>
     </div>
@@ -606,11 +681,7 @@ function renderPanelConfig(container) {
         criteriaSchemas: {
           ...state.criteriaSchemas,
           [configCriteriaPosition]: {
-            mental: [...(source.mental || [])],
-            tecnico: [...(source.tecnico || [])],
             tactico: [...(source.tactico || [])],
-            condicional: [...(source.condicional || [])],
-            personalidad: [...(source.personalidad || [])],
             competenciasOfensivas: [...(source.competenciasOfensivas || [])],
             competenciasDefensivas: [...(source.competenciasDefensivas || [])],
           },
@@ -749,18 +820,20 @@ function renderPanelConfig(container) {
   container.querySelectorAll('[data-crit-add]').forEach(btn => {
     btn.addEventListener('click', () => {
       const cat = btn.dataset.cat;
-      const input = container.querySelector(`[data-crit-new][data-cat="${cat}"]`);
+      const isComun = btn.dataset.scope === 'comun';
+      const input = container.querySelector(`[data-crit-new][data-cat="${cat}"]${isComun ? '[data-scope="comun"]' : ''}`);
       const label = input.value.trim();
       if (!label) { showError('Escribe el nombre del item.'); return; }
-      const schema = state.criteriaSchemas[configCriteriaPosition] || {};
-      const items = schema[cat] || [];
-      if (items.includes(label)) { showError('Ese item ya existe en este bloque.'); return; }
-      setState({
-        criteriaSchemas: {
-          ...state.criteriaSchemas,
-          [configCriteriaPosition]: { ...schema, [cat]: [...items, label] },
-        },
-      });
+      if (isComun) {
+        const items = state.aspectosComunes[cat] || [];
+        if (items.includes(label)) { showError('Ese item ya existe en este bloque.'); return; }
+        setState({ aspectosComunes: { ...state.aspectosComunes, [cat]: [...items, label] } });
+      } else {
+        const schema = state.criteriaSchemas[configCriteriaPosition] || {};
+        const items = schema[cat] || [];
+        if (items.includes(label)) { showError('Ese item ya existe en este bloque.'); return; }
+        setState({ criteriaSchemas: { ...state.criteriaSchemas, [configCriteriaPosition]: { ...schema, [cat]: [...items, label] } } });
+      }
       document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
       renderPanelConfig(container);
     });
@@ -770,14 +843,14 @@ function renderPanelConfig(container) {
     btn.addEventListener('click', () => {
       const cat = btn.dataset.cat;
       const idx = Number(btn.dataset.idx);
-      const schema = state.criteriaSchemas[configCriteriaPosition] || {};
-      const items = (schema[cat] || []).filter((_, i) => i !== idx);
-      setState({
-        criteriaSchemas: {
-          ...state.criteriaSchemas,
-          [configCriteriaPosition]: { ...schema, [cat]: items },
-        },
-      });
+      if (btn.dataset.scope === 'comun') {
+        const items = (state.aspectosComunes[cat] || []).filter((_, i) => i !== idx);
+        setState({ aspectosComunes: { ...state.aspectosComunes, [cat]: items } });
+      } else {
+        const schema = state.criteriaSchemas[configCriteriaPosition] || {};
+        const items = (schema[cat] || []).filter((_, i) => i !== idx);
+        setState({ criteriaSchemas: { ...state.criteriaSchemas, [configCriteriaPosition]: { ...schema, [cat]: items } } });
+      }
       document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
       renderPanelConfig(container);
     });
@@ -788,19 +861,32 @@ function renderPanelConfig(container) {
       const cat = btn.dataset.cat;
       const idx = Number(btn.dataset.idx);
       const dir = Number(btn.dataset.dir); // -1 sube, +1 baja
-      const schema = state.criteriaSchemas[configCriteriaPosition] || {};
-      const items = [...(schema[cat] || [])];
+      const isComun = btn.dataset.scope === 'comun';
+      const items = [...((isComun ? state.aspectosComunes[cat] : state.criteriaSchemas[configCriteriaPosition]?.[cat]) || [])];
       const target = idx + dir;
       if (target < 0 || target >= items.length) return;
       [items[idx], items[target]] = [items[target], items[idx]];
-      setState({
-        criteriaSchemas: {
-          ...state.criteriaSchemas,
-          [configCriteriaPosition]: { ...schema, [cat]: items },
-        },
-      });
+      if (isComun) {
+        setState({ aspectosComunes: { ...state.aspectosComunes, [cat]: items } });
+      } else {
+        const schema = state.criteriaSchemas[configCriteriaPosition] || {};
+        setState({ criteriaSchemas: { ...state.criteriaSchemas, [configCriteriaPosition]: { ...schema, [cat]: items } } });
+      }
       document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
       renderPanelConfig(container);
+    });
+  });
+
+  container.querySelectorAll('[data-toggle-comp]').forEach(box => {
+    box.addEventListener('change', () => {
+      const role = box.dataset.role; // 'of' | 'def'
+      const key = role === 'of' ? 'competenciasOfensivas' : 'competenciasDefensivas';
+      const label = box.dataset.label;
+      const schema = state.criteriaSchemas[configCriteriaPosition] || {};
+      const current = schema[key] || [];
+      const next = box.checked ? [...current, label] : current.filter(l => l !== label);
+      setState({ criteriaSchemas: { ...state.criteriaSchemas, [configCriteriaPosition]: { ...schema, [key]: next } } });
+      document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
     });
   });
 
