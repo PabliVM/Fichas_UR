@@ -69,6 +69,11 @@ const _state = {
       competenciasDefensivas: ['Dominio del juego aéreo', 'Defensa espalda ULDF acciones divididas', 'Defensa juego directo', 'Acciones bajo palos', 'Comunicación línea defensiva llegada a área', 'Gestión línea defensiva organizando marcas y equilibrio', 'Dominio interpretar y actuar ABP'],
     },
   },
+  // Valores FIJOS de referencia por posición para el bloque CONDICIONAL de
+  // la Ficha 2 (columnas 3/4). Se rellenan en Configuración → Datos
+  // condicionales. Sin semilla — no hay datos reales todavía.
+  // Forma: { [posKey]: { [itemCondicional]: { col3: number|null, col4: number|null } } }
+  condicionalRefs: {},
 };
 
 export const state = _state;
@@ -78,7 +83,7 @@ export const state = _state;
 // jugadores/informes NO van aquí (tendrán su propia colección más adelante).
 const CONFIG_COLLECTION = 'config';
 const CONFIG_DOC_ID = 'general';
-const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'seasons'];
+const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'seasons', 'condicionalRefs'];
 
 let _persistTimer = null;
 function schedulePersist() {
