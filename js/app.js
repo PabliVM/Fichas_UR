@@ -567,18 +567,20 @@ function renderPanelConfig(container) {
           Lienzo de diseño: ${FICHA2_OFFICIAL_DIMENSIONS.designWidth} × ${FICHA2_OFFICIAL_DIMENSIONS.designHeight}px.
           La Ficha 1 usa un lienzo de 4700px de ancho — sus valores se aplican escalados ×0.6528 (4700/7200) para que se vean del mismo tamaño en pantalla.
         </p>
-        ${FICHA2_OFFICIAL_DIMENSIONS.groups.map(g => `
-          <div class="mb-8">
-            <div class="text-xs mb-8" style="font-weight:700;">${safeText(g.title)}</div>
-            <table class="table table-compact">
-              <tbody>
-                ${g.rows.map(([label, value]) => `
-                  <tr><td>${safeText(label)}</td><td style="text-align:right;font-weight:600;white-space:nowrap;">${safeText(value)}</td></tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-        `).join('')}
+        <div style="max-width:520px;">
+          ${FICHA2_OFFICIAL_DIMENSIONS.groups.map(g => `
+            <div class="mb-8">
+              <div class="text-xs mb-8" style="font-weight:700;">${safeText(g.title)}</div>
+              <table class="table table-compact">
+                <tbody>
+                  ${g.rows.map(([label, value]) => `
+                    <tr><td>${safeText(label)}</td><td style="text-align:right;font-weight:600;white-space:nowrap;">${safeText(value)}</td></tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `).join('')}
+        </div>
         <p class="text-xs text-muted mt-16">
           ⚠ Ficha 1 ya aplica estos valores escalados en <code>css/ficha1.css</code> (título/subheader/listas/círculo). Lo que no tiene equivalente en Ficha 1 (radar, GPS, plan de acción) no aplica.
         </p>
