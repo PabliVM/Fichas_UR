@@ -8,7 +8,7 @@ import { renderHeader }  from './render-header.js';
 import { renderTabs, switchTab } from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
 import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS } from './constants.js';
-import { state, setState, DEFAULT_FICHA_COLORS }         from './state.js';
+import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore } from './state.js';
 import { renderFichaDetalle } from './ficha-detalle.js';
 import { renderFichaPagina1 } from './ficha-pagina1.js';
 import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
@@ -1065,8 +1065,9 @@ function setupEvents() {
 
 // ── BOOT ─────────────────────────────────────────
 
-function boot() {
+async function boot() {
   initFirebase();
+  await loadConfigFromFirestore(); // trae Configuración guardada antes de pintar
 
   renderFooter();
   renderHeader();
