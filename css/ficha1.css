@@ -71,6 +71,7 @@
   font-size: 61px;          /* oficial ficha2: 94px × 0.6528 */
   font-weight: 600;
   padding: 12px 28px;       /* vertical oficial: 18px × 0.6528; horizontal sin tocar (layout space-between) */
+  border-top: 3px solid rgba(255,255,255,0.65); /* como en ficha 2 */
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -115,6 +116,7 @@
   font-size: 61px;          /* oficial ficha2: 94px × 0.6528 */
   font-weight: 600;
   padding: 12px 20px;
+  border-top: 3px solid rgba(255,255,255,0.65); /* como en ficha 2 */
   text-align: center;
 }
 .p1-personalidad-grid {
@@ -136,6 +138,7 @@
   font-size: 61px;          /* oficial ficha2: 94px × 0.6528 */
   font-weight: 600;
   padding: 12px 20px;
+  border-top: 3px solid rgba(255,255,255,0.65); /* como en ficha 2 */
   text-align: center;
 }
 .p1-desc-text {
