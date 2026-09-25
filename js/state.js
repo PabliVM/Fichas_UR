@@ -44,15 +44,25 @@ const _state = {
   players:         [],
   // { id, playerId, season, createdAt } — informe = 1 registro de las 2 fichas para ese jugador/temporada
   informes:        [],
-  // Items a evaluar por posición y bloque (los 4 de la ficha 2 + los 3 de la ficha 1).
-  // Semilla: los que ya conocíamos del perfil de portero (de los PDF de formularios).
+  // MENTAL/TÉCNICO/CONDICIONAL: comunes a TODAS las posiciones. Editable en
+  // Configuración → Items a evaluar → Ficha 2, sin selector de posición.
+  aspectosComunes: {
+    mental: ['Autoconfianza', 'Act. y Preparación mental', 'Control del estrés', 'Concentración', 'Motivación', 'Comunicación', 'Capacidad de adaptación', 'Autonomía', 'Determinación'],
+    tecnico: ['Pase', 'Control', 'Conducción', 'Manejo pie no dominante', 'Perfiles', 'Cambios de orientación', 'Velocidad de juego', 'Capacidad de anticipación', 'Disputas aéreas', 'Duelos defensivos 1vs1', 'Contundencia defensiva', 'Despejes'],
+    condicional: ['V.MAX.', 'D.Sprint.', 'D.A Int.', 'N°Sprint.', 'Ac.Max.', 'N° Ac Max.', 'D.Total.', 'M/min.', 'CMJ', 'Índice Lesional.', 'Perfil Físico.', 'Edad Madurativa.'],
+  },
+  // Táctico varía por posición. Ofensivas/Defensivas (ficha 1) son un
+  // SUBCONJUNTO seleccionado del Táctico de esa posición — no texto libre.
+  // Semilla portero: los 12 originales de Táctico + los 5+7 que antes vivían
+  // como texto libre en Ofensivas/Defensivas (migrados tal cual, sin fusionar
+  // con los ya existentes por tener redacción distinta — ⚠ revisar duplicados).
   criteriaSchemas: {
     portero: {
-      mental: ['Autoconfianza', 'Act. y Preparación mental', 'Control del estrés', 'Concentración', 'Motivación', 'Comunicación', 'Capacidad de adaptación', 'Autonomía', 'Determinación'],
-      tecnico: ['Pase', 'Control', 'Conducción', 'Manejo pie no dominante', 'Perfiles', 'Cambios de orientación', 'Velocidad de juego', 'Capacidad de anticipación', 'Disputas aéreas', 'Duelos defensivos 1vs1', 'Contundencia defensiva', 'Despejes'],
-      tactico: ['Circulación / Timing', 'Progresión en conducción', 'Pase ULDF.', '1vs1 en banda', 'Progresión juego interior', 'Juego asociativo en banda', 'Cap. asociativa bajo presión', 'Pase ULDF', 'Defensa espalda', 'Continuidad en el juego', 'Defensa Juego directo.', 'Defensa de área llegando.'],
-      condicional: ['V.MAX.', 'D.Sprint.', 'D.A Int.', 'N°Sprint.', 'Ac.Max.', 'N° Ac Max.', 'D.Total.', 'M/min.', 'CMJ', 'Índice Lesional.', 'Perfil Físico.', 'Edad Madurativa.'],
-      personalidad: ['Autoconfianza', 'Act. y Prep. mental', 'Control del estrés', 'Concentración', 'Motivación', 'Comunicación', 'Cap. adaptación', 'Autonomía', 'Determinación'],
+      tactico: [
+        'Circulación / Timing', 'Progresión en conducción', 'Pase ULDF.', '1vs1 en banda', 'Progresión juego interior', 'Juego asociativo en banda', 'Cap. asociativa bajo presión', 'Pase ULDF', 'Defensa espalda', 'Continuidad en el juego', 'Defensa Juego directo.', 'Defensa de área llegando.',
+        'Continuidad en circulación', 'Pase largo para progresar', 'Progresión con pase desde juego interior', 'Capacidad asociativa bajo presión', 'Capacidad para iniciar acciones ofensivas',
+        'Dominio del juego aéreo', 'Defensa espalda ULDF acciones divididas', 'Defensa juego directo', 'Acciones bajo palos', 'Comunicación línea defensiva llegada a área', 'Gestión línea defensiva organizando marcas y equilibrio', 'Dominio interpretar y actuar ABP',
+      ],
       competenciasOfensivas: ['Continuidad en circulación', 'Pase largo para progresar', 'Progresión con pase desde juego interior', 'Capacidad asociativa bajo presión', 'Capacidad para iniciar acciones ofensivas'],
       competenciasDefensivas: ['Dominio del juego aéreo', 'Defensa espalda ULDF acciones divididas', 'Defensa juego directo', 'Acciones bajo palos', 'Comunicación línea defensiva llegada a área', 'Gestión línea defensiva organizando marcas y equilibrio', 'Dominio interpretar y actuar ABP'],
     },
