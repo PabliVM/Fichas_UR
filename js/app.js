@@ -527,7 +527,11 @@ function renderPanelConfig(container) {
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="mb-16" style="border-bottom:1px solid var(--border-default);padding-bottom:8px;">
-      ${CONFIG_GROUPS.map(g => `
+      ${CONFIG_GROUPS.map(g => g.tabs.length === 1 ? `
+        <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
+          <button class="btn ${g.tabs[0].key === configSubTab ? 'btn-primary' : 'btn-sm'}" data-config-subtab="${g.tabs[0].key}" style="font-weight:700;text-transform:uppercase;">${g.label}</button>
+        </div>
+      ` : `
         <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
           <span class="text-xs text-muted" style="min-width:80px;font-weight:700;text-transform:uppercase;">${g.label}</span>
           ${g.tabs.map(t => `
