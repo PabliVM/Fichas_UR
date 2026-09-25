@@ -217,7 +217,43 @@
 }
 .gps-ok   { color: var(--score-green); }
 .gps-fail { color: var(--score-red); }
+.gps-dash { color: var(--score-yellow); } /* dentro de ±0,2 respecto a la columna 3 */
 .gps-label { color: #ffffff; white-space: nowrap; } /* nunca 2 líneas — ver equalizeGpsLabelWidth en ficha-detalle.js */
+
+/* Columnas 3/4: valores fijos de Configuración → Datos condicionales.
+   Ya NO son <input> (no editables desde la ficha) — mismo aspecto que
+   .gps-input pero de solo lectura. */
+.gps-ref-value {
+  display: inline-block;
+  width: 200px;
+  box-sizing: border-box;
+  text-align: center;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--slate-line);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.7);
+  font-size: 55px;
+  font-weight: 600;
+  padding: 2px 4px;
+}
+
+/* Cabecera 1|2|3|4 + leyenda, dentro del propio .gps-grid (misma fila
+   flex que .gps-row para que las columnas queden alineadas). */
+.gps-col-headers {
+  font-weight: 800;
+  font-size: 40px;
+  color: rgba(255,255,255,0.85);
+}
+.gps-col-headers .gps-val-cell,
+.gps-col-headers .gps-ref-cell { justify-content: center; }
+.gps-legend {
+  font-size: 26px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.55);
+  text-align: center;
+  margin: 0 0 8px;
+  line-height: 1.3;
+}
 
 /* ── CÍRCULO CENTRAL ── */
 /* Posición fijada por JS (ver centerFichaCircle en ficha-detalle.js):
