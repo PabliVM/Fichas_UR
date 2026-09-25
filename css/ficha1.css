@@ -208,9 +208,10 @@
 .p1-pitch {
   flex: 2;
   min-height: 367px;
-  background: repeating-linear-gradient(
-    90deg, #2f7a3d 0 60px, #34863f 60px 120px
-  );
+  background-image: url('./campo.jpg');
+  background-size: cover;
+  background-position: center;
+  background-color: #2f7a3d; /* fallback si campo.jpg no carga */
   position: relative;
 }
 .p1-pitch-marker {
