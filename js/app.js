@@ -66,6 +66,12 @@ function renderPanelRegistro(container) {
 let plantillasSelectedPlayerId = null; // navegación local lista ↔ perfil (no es estado global de la app)
 let configCriteriaPosition = null;      // qué posición se está editando en "Items a evaluar"
 let fichaTipoPosition = null;           // qué posición se está viendo en Configuración → Fichas tipo
+let fichaTipoView = 'individual';       // 'individual' | 'campograma' | 'mapa-nivel'
+const FICHA_TIPO_VIEWS = [
+  { key: 'individual',  label: 'Individual' },
+  { key: 'campograma',  label: 'Campograma' },
+  { key: 'mapa-nivel',  label: 'Mapa de nivel' },
+];
 let configSubTab = 'posiciones';        // pestaña interna activa dentro de Configuración
 
 const CONFIG_GROUPS = [
@@ -78,9 +84,9 @@ const CONFIG_GROUPS = [
     ],
   },
   {
-    label: 'Fichas tipo - Individual',
+    label: 'Fichas tipo',
     tabs: [
-      { key: 'fichas-tipo', label: 'Fichas tipo - Individual' },
+      { key: 'fichas-tipo', label: 'Fichas tipo' },
     ],
   },
   {
@@ -701,14 +707,21 @@ function renderPanelConfig(container) {
 
     ${configSubTab !== 'fichas-tipo' ? '' : `
     <div class="card mb-16">
-      <div class="card-title">Fichas tipo - Individual</div>
+      <div class="card-title">Fichas tipo</div>
       <div class="card-body">
-        <p class="text-sm text-muted mb-16">Vista previa de Individual 1 e Individual 2 de cada posición, generadas desde Aspectos.</p>
-        ${state.positions.length === 0 ? '<p class="text-xs text-muted">Define primero al menos una posición en la pestaña Posiciones.</p>' : `
-          <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
-            ${state.positions.map(p => `<button class="btn ${p.key === fichaTipoPosition ? 'btn-primary' : 'btn-sm'}" data-ficha-tipo-pos="${p.key}">${safeText(p.label)}</button>`).join('')}
-          </div>
-          <div id="fichas-tipo-wrap"></div>
+        <div class="flex gap-8 mb-16">
+          ${FICHA_TIPO_VIEWS.map(v => `<button class="btn ${v.key === fichaTipoView ? 'btn-primary' : 'btn-sm'}" data-ficha-tipo-view="${v.key}">${v.label}</button>`).join('')}
+        </div>
+        ${fichaTipoView !== 'individual' ? `
+          <p class="text-xs text-muted">${FICHA_TIPO_VIEWS.find(v => v.key === fichaTipoView).label} — pendiente de implementar.</p>
+        ` : `
+          <p class="text-sm text-muted mb-16">Vista previa de la Ficha 1 y Ficha 2 de cada posición, generadas desde Aspectos.</p>
+          ${state.positions.length === 0 ? '<p class="text-xs text-muted">Define primero al menos una posición en la pestaña Posiciones.</p>' : `
+            <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
+              ${state.positions.map(p => `<button class="btn ${p.key === fichaTipoPosition ? 'btn-primary' : 'btn-sm'}" data-ficha-tipo-pos="${p.key}">${safeText(p.label)}</button>`).join('')}
+            </div>
+            <div id="fichas-tipo-wrap"></div>
+          `}
         `}
       </div>
     </div>
@@ -722,6 +735,13 @@ function renderPanelConfig(container) {
     });
   });
 
+  container.querySelectorAll('[data-ficha-tipo-view]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      fichaTipoView = btn.dataset.fichaTipoView;
+      renderPanelConfig(container);
+    });
+  });
+
   container.querySelectorAll('[data-ficha-tipo-pos]').forEach(btn => {
     btn.addEventListener('click', () => {
       fichaTipoPosition = btn.dataset.fichaTipoPos;
@@ -730,7 +750,7 @@ function renderPanelConfig(container) {
   });
 
   const fichasTipoWrap = container.querySelector('#fichas-tipo-wrap');
-  if (fichasTipoWrap) renderPanelFichas(fichasTipoWrap, fichaTipoPosition);
+  if (fichasTipoWrap && fichaTipoView === 'individual') renderPanelFichas(fichasTipoWrap, fichaTipoPosition);
 
   const copyBtn = container.querySelector('#crit-copy-btn');
   if (copyBtn) {
