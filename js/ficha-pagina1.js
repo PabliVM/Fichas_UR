@@ -12,9 +12,22 @@
 // ================================================
 
 import { safeText } from './utils.js';
-import { fitFichaToFrame, buildFichaHeader } from './ficha-detalle.js';
+import { fitFichaToFrame } from './ficha-detalle.js';
 
 const STATUS_HEX = { green: '#22c55e', yellow: '#eab308', red: '#ef4444' };
+
+// Header propio de la página 1 (clases p1-header-*, ver css/ficha1.css).
+// Antes usaba buildFichaHeader (compartido con la página 2) — se separó
+// para poder escalar sus tamaños ×0.6528 sin tocar la ficha 2.
+function buildP1Header(logoPath, pageLabel) {
+  return `
+    <header class="p1-header">
+      <img src="${logoPath}" alt="" class="p1-header-crest" />
+      <span class="p1-header-title">INFORME INDIVIDUAL DEL JUGADOR</span>
+      ${pageLabel ? `<span class="p1-header-page">${safeText(pageLabel)}</span>` : ''}
+    </header>
+  `;
+}
 
 function statusMarkup(status) {
   if (status === true) return '<span class="p1-check">✔</span>';
@@ -210,7 +223,7 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
   container.innerHTML = `
     <div class="ficha-a4-frame">
       <div class="ficha-detalle p1-detalle"${colorStyle}>
-        ${buildFichaHeader(logoPath, '1/2')}
+        ${buildP1Header(logoPath, '1/2')}
         <div class="p1-top">
           <div class="p1-left">
             <header class="p1-name-header">${safeText(player.name) || '&nbsp;'}</header>
