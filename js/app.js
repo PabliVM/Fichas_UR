@@ -7,7 +7,7 @@ import { isFirebaseUnconfigured } from './firebase-config.js';
 import { renderHeader }  from './render-header.js';
 import { renderTabs, switchTab } from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
-import { TABS, LOGO_PATH, TEAMS } from './constants.js';
+import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS } from './constants.js';
 import { state, setState, DEFAULT_FICHA_COLORS }         from './state.js';
 import { renderFichaDetalle } from './ficha-detalle.js';
 import { renderFichaPagina1 } from './ficha-pagina1.js';
@@ -73,6 +73,7 @@ const CONFIG_SUBTABS = [
   { key: 'colores',       label: 'Rango de colores' },
   { key: 'ficha-colores', label: 'Colores de la ficha' },
   { key: 'temporadas',    label: 'Temporadas' },
+  { key: 'dimensiones',   label: 'Dimensiones oficiales' },
 ];
 
 const CRITERIA_CATEGORIES = [
@@ -552,6 +553,34 @@ function renderPanelConfig(container) {
         <button class="btn" id="ficha-colors-reset">Restaurar valores por defecto</button>
         <p class="text-xs text-muted mt-16">
           ⚠ Pendiente: nada de esta pantalla persiste todavía — falta guardarlo en Firestore.
+        </p>
+      </div>
+    </div>
+    `}
+
+    ${configSubTab !== 'dimensiones' ? '' : `
+    <div class="card">
+      <div class="card-title">Dimensiones oficiales — Ficha 2</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">
+          Referencia fija (no editable): son los valores reales de <code>css/ficha.css</code> y <code>js/ficha-detalle.js</code>.
+          Lienzo de diseño: ${FICHA2_OFFICIAL_DIMENSIONS.designWidth} × ${FICHA2_OFFICIAL_DIMENSIONS.designHeight}px.
+          La Ficha 1 usa un lienzo de 4700px de ancho — sus valores se aplican escalados ×0.6528 (4700/7200) para que se vean del mismo tamaño en pantalla.
+        </p>
+        ${FICHA2_OFFICIAL_DIMENSIONS.groups.map(g => `
+          <div class="mb-16">
+            <div class="text-xs mb-8" style="font-weight:700;">${safeText(g.title)}</div>
+            <table class="table">
+              <tbody>
+                ${g.rows.map(([label, value]) => `
+                  <tr><td>${safeText(label)}</td><td style="text-align:right;font-weight:600;">${safeText(value)}</td></tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `).join('')}
+        <p class="text-xs text-muted mt-16">
+          ⚠ Ficha 1 ya aplica estos valores escalados en <code>css/ficha1.css</code> (título/subheader/listas/círculo). Lo que no tiene equivalente en Ficha 1 (radar, GPS, plan de acción) no aplica.
         </p>
       </div>
     </div>
