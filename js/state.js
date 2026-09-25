@@ -6,10 +6,12 @@
 // ================================================
 
 import { APP_NAME, DEFAULT_SEASON, TEAMS, TABS, PROFILES, SEASONS } from './constants.js';
+import { saveDocument, readDocument } from './firebase-service.js';
+import { isFirebaseUnconfigured } from './firebase-config.js';
 
 function initialTab() {
   const hash = window.location.hash.replace('#', '');
-  return TABS.some(t => t.key === hash) ? hash : 'inicio';
+  return TABS.some(t => t.key === hash) ? hash : TABS[0].key;
 }
 
 // Colores de la ficha (fondo, cabeceras) — editable en Configuración,
@@ -71,6 +73,44 @@ const _state = {
 
 export const state = _state;
 
+// ── PERSISTENCIA EN FIRESTORE ─────────────────────
+// Un único documento (config/general) con todo lo editable en Configuración.
+// jugadores/informes NO van aquí (tendrán su propia colección más adelante).
+const CONFIG_COLLECTION = 'config';
+const CONFIG_DOC_ID = 'general';
+const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'seasons'];
+
+let _persistTimer = null;
+function schedulePersist() {
+  if (isFirebaseUnconfigured()) return; // sin credenciales: se queda solo en memoria, como hasta ahora
+  clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(() => {
+    const snapshot = {};
+    CONFIG_KEYS.forEach(k => { snapshot[k] = _state[k]; });
+    saveDocument(CONFIG_COLLECTION, CONFIG_DOC_ID, snapshot).catch(err => {
+      console.error('[Firestore] No se pudo guardar la configuración:', err);
+    });
+  }, 400); // agrupa cambios rápidos seguidos (ej. arrastrar un color) en un solo guardado
+}
+
+/**
+ * Carga config/general de Firestore ANTES del primer render (llamar en boot()).
+ * Si el documento no existe todavía (primera vez), se queda con la semilla local.
+ */
+export async function loadConfigFromFirestore() {
+  if (isFirebaseUnconfigured()) return;
+  try {
+    const doc = await readDocument(CONFIG_COLLECTION, CONFIG_DOC_ID);
+    if (!doc) return;
+    const patch = {};
+    CONFIG_KEYS.forEach(k => { if (doc[k] !== undefined) patch[k] = doc[k]; });
+    Object.assign(_state, patch);
+  } catch (err) {
+    console.error('[Firestore] No se pudo cargar la configuración:', err);
+  }
+}
+
 export function setState(patch) {
   Object.assign(_state, patch);
+  if (Object.keys(patch).some(k => CONFIG_KEYS.includes(k))) schedulePersist();
 }
