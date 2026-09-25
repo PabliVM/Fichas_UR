@@ -217,7 +217,7 @@
 }
 .gps-ok   { color: var(--score-green); }
 .gps-fail { color: var(--score-red); }
-.gps-label { color: #ffffff; }
+.gps-label { color: #ffffff; white-space: nowrap; } /* nunca 2 líneas — ver equalizeGpsLabelWidth en ficha-detalle.js */
 
 /* ── CÍRCULO CENTRAL ── */
 /* Posición fijada por JS (ver centerFichaCircle en ficha-detalle.js):
