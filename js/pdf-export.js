@@ -32,6 +32,31 @@ async function ensurePdfLibs() {
 }
 
 /**
+ * html2canvas no pinta bien el texto de un <input> (aparece descentrado,
+ * a veces duplicado) — se sustituye cada input por un span idéntico con
+ * su valor actual justo antes de capturar, y se restaura al terminar.
+ * @param {HTMLElement} fichaEl
+ * @returns {() => void} función para deshacer el cambio
+ */
+function swapInputsForStaticText(fichaEl) {
+  const inputs = Array.from(fichaEl.querySelectorAll('input.gps-input'));
+  const swapped = inputs.map(input => {
+    const span = document.createElement('span');
+    span.className = input.className.replace('gps-input', 'gps-input gps-input-static');
+    span.textContent = input.value ?? '';
+    input.insertAdjacentElement('afterend', span);
+    input.style.display = 'none';
+    return { input, span };
+  });
+  return () => {
+    swapped.forEach(({ input, span }) => {
+      span.remove();
+      input.style.display = '';
+    });
+  };
+}
+
+/**
  * Exporta el elemento .ficha-detalle a un PDF de una sola página,
  * A4 apaisado (297×210mm), con el mismo aspecto que se ve en pantalla.
  * @param {HTMLElement} fichaEl — el propio nodo .ficha-detalle
@@ -42,6 +67,7 @@ export async function exportFichaAsPDF(fichaEl, filename = 'ficha-jugador.pdf') 
 
   const prevTransform = fichaEl.style.transform;
   fichaEl.style.transform = 'none'; // capturar a tamaño natural, máxima calidad
+  const restoreInputs = swapInputsForStaticText(fichaEl);
 
   try {
     const canvas = await window.html2canvas(fichaEl, {
@@ -52,11 +78,6 @@ export async function exportFichaAsPDF(fichaEl, filename = 'ficha-jugador.pdf') 
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-
-    // Rellenar toda la hoja con el mismo color de fondo de la ficha,
-    // así si sobra margen queda integrado en vez de verse blanco.
-    doc.setFillColor(36, 49, 61); // #24313d
-    doc.rect(0, 0, 297, 210, 'F');
 
     const marginMm = 2;
     const pageW = 297 - marginMm * 2;
@@ -72,9 +93,15 @@ export async function exportFichaAsPDF(fichaEl, filename = 'ficha-jugador.pdf') 
     const x = (297 - w) / 2;
     const y = (210 - h) / 2;
 
-    doc.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, w, h);
+    // JPEG, no PNG: jsPDF incrusta la imagen sin re-comprimirla, y con
+    // PNG a este tamaño (7200×5014px) el PDF salía de ~144MB — un archivo
+    // así de pesado es lo que hacía que "se cortara" al abrirlo (muchos
+    // visores no aguantan una imagen de ese peso). JPEG calidad 0.92 se ve
+    // igual y pesa un par de MB.
+    doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', x, y, w, h);
     doc.save(filename);
   } finally {
     fichaEl.style.transform = prevTransform;
+    restoreInputs();
   }
 }
