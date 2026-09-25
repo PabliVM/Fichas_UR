@@ -65,13 +65,7 @@ function renderPanelRegistro(container) {
 
 let plantillasSelectedPlayerId = null; // navegación local lista ↔ perfil (no es estado global de la app)
 let configCriteriaPosition = null;      // qué posición se está editando en "Items a evaluar"
-let fichaTipoPosition = null;           // qué posición se está viendo en Configuración → Fichas tipo
-let fichaTipoView = 'individual';       // 'individual' | 'campograma' | 'mapa-nivel'
-const FICHA_TIPO_VIEWS = [
-  { key: 'individual',  label: 'Individual' },
-  { key: 'campograma',  label: 'Campograma' },
-  { key: 'mapa-nivel',  label: 'Mapa de nivel' },
-];
+let fichaTipoPosition = null;           // qué posición se está viendo en Configuración → Fichas tipo → Individual
 let configSubTab = 'posiciones';        // pestaña interna activa dentro de Configuración
 
 const CONFIG_GROUPS = [
@@ -86,7 +80,9 @@ const CONFIG_GROUPS = [
   {
     label: 'Fichas tipo',
     tabs: [
-      { key: 'fichas-tipo', label: 'Fichas tipo' },
+      { key: 'fichas-individual',  label: 'Individual' },
+      { key: 'fichas-campograma',  label: 'Campograma' },
+      { key: 'fichas-mapa-nivel',  label: 'Mapa de nivel' },
     ],
   },
   {
@@ -527,11 +523,7 @@ function renderPanelConfig(container) {
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="mb-16" style="border-bottom:1px solid var(--border-default);padding-bottom:8px;">
-      ${CONFIG_GROUPS.map(g => g.tabs.length === 1 ? `
-        <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
-          <button class="btn ${g.tabs[0].key === configSubTab ? 'btn-primary' : 'btn-sm'}" data-config-subtab="${g.tabs[0].key}" style="font-weight:700;text-transform:uppercase;">${g.label}</button>
-        </div>
-      ` : `
+      ${CONFIG_GROUPS.map(g => `
         <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
           <span class="text-xs text-muted" style="min-width:80px;font-weight:700;text-transform:uppercase;">${g.label}</span>
           ${g.tabs.map(t => `
@@ -709,25 +701,32 @@ function renderPanelConfig(container) {
     </div>
     `}
 
-    ${configSubTab !== 'fichas-tipo' ? '' : `
+    ${configSubTab !== 'fichas-individual' ? '' : `
     <div class="card mb-16">
-      <div class="card-title">Fichas tipo</div>
+      <div class="card-title">Fichas tipo — Individual</div>
       <div class="card-body">
-        <div class="flex gap-8 mb-16">
-          ${FICHA_TIPO_VIEWS.map(v => `<button class="btn ${v.key === fichaTipoView ? 'btn-primary' : 'btn-sm'}" data-ficha-tipo-view="${v.key}">${v.label}</button>`).join('')}
-        </div>
-        ${fichaTipoView !== 'individual' ? `
-          <p class="text-xs text-muted">${FICHA_TIPO_VIEWS.find(v => v.key === fichaTipoView).label} — pendiente de implementar.</p>
-        ` : `
-          <p class="text-sm text-muted mb-16">Vista previa de la Ficha 1 y Ficha 2 de cada posición, generadas desde Aspectos.</p>
-          ${state.positions.length === 0 ? '<p class="text-xs text-muted">Define primero al menos una posición en la pestaña Posiciones.</p>' : `
-            <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
-              ${state.positions.map(p => `<button class="btn ${p.key === fichaTipoPosition ? 'btn-primary' : 'btn-sm'}" data-ficha-tipo-pos="${p.key}">${safeText(p.label)}</button>`).join('')}
-            </div>
-            <div id="fichas-tipo-wrap"></div>
-          `}
+        <p class="text-sm text-muted mb-16">Vista previa de la Ficha 1 y Ficha 2 de cada posición, generadas desde Aspectos.</p>
+        ${state.positions.length === 0 ? '<p class="text-xs text-muted">Define primero al menos una posición en la pestaña Posiciones.</p>' : `
+          <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
+            ${state.positions.map(p => `<button class="btn ${p.key === fichaTipoPosition ? 'btn-primary' : 'btn-sm'}" data-ficha-tipo-pos="${p.key}">${safeText(p.label)}</button>`).join('')}
+          </div>
+          <div id="fichas-tipo-wrap"></div>
         `}
       </div>
+    </div>
+    `}
+
+    ${configSubTab !== 'fichas-campograma' ? '' : `
+    <div class="card mb-16">
+      <div class="card-title">Fichas tipo — Campograma</div>
+      <div class="card-body"><p class="text-xs text-muted">Pendiente de implementar.</p></div>
+    </div>
+    `}
+
+    ${configSubTab !== 'fichas-mapa-nivel' ? '' : `
+    <div class="card mb-16">
+      <div class="card-title">Fichas tipo — Mapa de nivel</div>
+      <div class="card-body"><p class="text-xs text-muted">Pendiente de implementar.</p></div>
     </div>
     `}
   `;
@@ -735,13 +734,6 @@ function renderPanelConfig(container) {
   container.querySelectorAll('[data-config-subtab]').forEach(btn => {
     btn.addEventListener('click', () => {
       configSubTab = btn.dataset.configSubtab;
-      renderPanelConfig(container);
-    });
-  });
-
-  container.querySelectorAll('[data-ficha-tipo-view]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      fichaTipoView = btn.dataset.fichaTipoView;
       renderPanelConfig(container);
     });
   });
@@ -754,7 +746,7 @@ function renderPanelConfig(container) {
   });
 
   const fichasTipoWrap = container.querySelector('#fichas-tipo-wrap');
-  if (fichasTipoWrap && fichaTipoView === 'individual') renderPanelFichas(fichasTipoWrap, fichaTipoPosition);
+  if (fichasTipoWrap) renderPanelFichas(fichasTipoWrap, fichaTipoPosition);
 
   const copyBtn = container.querySelector('#crit-copy-btn');
   if (copyBtn) {
