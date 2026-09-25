@@ -285,11 +285,31 @@ function recalcGpsRow(rowEl) {
 }
 
 /**
+ * El bloque CONDICIONAL ya no usa CSS Grid (display:contents rompía el
+ * PDF, ver ficha.css) — con flexbox cada fila mide su ancho por
+ * separado, y como la etiqueta ("• V.MAX.", "• Edad Madurativa."...)
+ * no mide igual en cada fila, las cajitas quedaban descuadradas
+ * (cada fila se centraba con un ancho total distinto). Se iguala
+ * aquí, en JS, el ancho de TODAS las etiquetas al de la más larga
+ * — así todas las filas miden lo mismo y las columnas quedan rectas.
+ */
+function equalizeGpsLabelWidth(container) {
+  const labels = container.querySelectorAll('.gps-label');
+  if (!labels.length) return;
+  labels.forEach(l => { l.style.width = ''; }); // reset antes de medir el ancho natural
+  let max = 0;
+  labels.forEach(l => { max = Math.max(max, l.scrollWidth); });
+  max += 12; // margen de seguridad — con white-space:nowrap (ficha.css) nunca debería hacer falta, es cinturón y tirantes
+  labels.forEach(l => { l.style.width = max + 'px'; });
+}
+
+/**
  * Conecta los inputs del bloque CONDICIONAL para que el ✔/✘
  * se recalcule solo al escribir. Llamar tras insertar el HTML
  * en el DOM (no persiste en Firestore todavía).
  */
 export function wireCondicionalInputs(container) {
+  equalizeGpsLabelWidth(container);
   container.querySelectorAll('.gps-row').forEach(rowEl => {
     recalcGpsRow(rowEl);
     rowEl.querySelectorAll('.gps-input').forEach(input => {
