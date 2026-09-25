@@ -308,6 +308,42 @@
   padding: 3px 12px;
 }
 
+/* Tabla "Datos condicionales" (Configuración) — primera columna fija (sticky)
+   al hacer scroll horizontal; posiciones agrupadas de 2 en 2 (col. 3 y 4). */
+.cond-refs-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.cond-refs-table th, .cond-refs-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-default);
+  border-right: 1px solid var(--border-default);
+}
+.cond-refs-table th {
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--bg-surface);
+}
+.cond-refs-table thead th { position: sticky; top: 0; z-index: 1; }
+.cond-refs-table td.cond-refs-sticky, .cond-refs-table th.cond-refs-sticky {
+  position: sticky;
+  left: 0;
+  background: var(--bg-surface);
+  z-index: 2;
+  text-align: left;
+}
+.cond-refs-table input {
+  width: 64px;
+  text-align: center;
+  padding: 3px 4px;
+  font-size: 12px;
+}
+
 /* CHIP (posiciones en Configuración, etiquetas sueltas) */
 .chip {
   display: inline-flex;
