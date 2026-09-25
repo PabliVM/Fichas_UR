@@ -145,19 +145,26 @@
 
 .ficha-item-label { color: var(--text-general, #ffffff); }
 
-/* ── CONDICIONAL (GPS) ── */
+/* ── CONDICIONAL (GPS) ──
+   Antes era CSS Grid + ".gps-row{display:contents}" para meter las celdas
+   de cada fila en una rejilla común. html2canvas (motor del PDF) NO
+   soporta bien display:contents — colapsaba todas las filas arriba y
+   dejaba las cajas vacías. Cambiado a flexbox anidado (misma anchura
+   fija por celda, mismo gap) — se ve igual y sí funciona en el PDF. */
 .gps-grid {
   padding: 60px 10px;
-  display: grid;
-  grid-template-columns: 230px 230px auto 230px 230px;
+  display: flex;
+  flex-direction: column;
   row-gap: 4px;
-  column-gap: 180px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
-  align-items: center;
-  justify-content: center; /* centra la rejilla en el ancho del cuadrante */
+  align-items: center; /* centra cada fila en el ancho del cuadrante */
   font-size: 55px;
   font-weight: 400;
 }
-.gps-row { display: contents; } /* las celdas de cada fila se insertan en la rejilla común de arriba */
+.gps-row {
+  display: flex;
+  align-items: center;
+  column-gap: 180px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
+}
 
 .ficha-condicional-body {
   flex: 1;
@@ -166,14 +173,20 @@
   justify-content: center;
 }
 .gps-val-cell, .gps-ref-cell {
+  flex: 0 0 230px;
+  width: 230px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 5px;
+  position: relative; /* para poder centrar el icono en el hueco de al lado (ver .gps-icon) */
 }
-.gps-input {
+.gps-label { flex: 0 0 auto; }
+.gps-input, .gps-input-static {
   width: 200px;
-  text-align: right;
+  box-sizing: border-box;
+  text-align: center;
   background: rgba(255,255,255,0.06);
   border: 1px solid var(--slate-line);
   border-radius: 4px;
@@ -183,7 +196,25 @@
   padding: 2px 4px;
 }
 .gps-input:focus { outline: none; border-color: var(--score-yellow); background: rgba(255,255,255,0.12); }
-.gps-icon { width: 40px; text-align: center; font-weight: 800; font-size: 40px; }
+/* Solo para la captura del PDF (ver pdf-export.js): html2canvas no pinta
+   bien el valor ni el centrado de un <input>, así que se sustituye por
+   este span idéntico visualmente justo antes de generar el PDF. */
+.gps-input-static { display: inline-block; }
+
+/* El icono ✔/✘ ya no ocupa hueco en la fila (position:absolute) — así
+   puede ser grande sin alterar la altura de la fila, y se centra en el
+   hueco entre esta cajita y la siguiente (mitad del column-gap: 180px/2). */
+.gps-icon {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translate(calc(90px - 50%), -50%);
+  text-align: center;
+  font-weight: 800;
+  font-size: 70px;
+  line-height: 1;
+  white-space: nowrap;
+}
 .gps-ok   { color: var(--score-green); }
 .gps-fail { color: var(--score-red); }
 .gps-label { color: #ffffff; }
