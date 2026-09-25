@@ -78,16 +78,16 @@ const CONFIG_GROUPS = [
     ],
   },
   {
+    label: 'Fichas tipo',
+    tabs: [
+      { key: 'fichas-tipo', label: 'Fichas tipo' },
+    ],
+  },
+  {
     label: 'Diseño',
     tabs: [
       { key: 'ficha-colores', label: 'Colores de la ficha' },
       { key: 'dimensiones',   label: 'Dimensiones' },
-    ],
-  },
-  {
-    label: 'Fichas tipo',
-    tabs: [
-      { key: 'fichas-tipo', label: 'Fichas tipo' },
     ],
   },
 ];
