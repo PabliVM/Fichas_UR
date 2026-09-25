@@ -78,9 +78,9 @@ const CONFIG_GROUPS = [
     ],
   },
   {
-    label: 'Fichas tipo',
+    label: 'Fichas tipo - Individual',
     tabs: [
-      { key: 'fichas-tipo', label: 'Fichas tipo' },
+      { key: 'fichas-tipo', label: 'Fichas tipo - Individual' },
     ],
   },
   {
@@ -455,8 +455,8 @@ function renderPanelFichas(container, positionKey = 'portero') {
     ${firebaseNotice()}
     <div class="mb-16 flex ficha-toolbar" style="justify-content:space-between;align-items:center;">
       <div class="flex gap-8">
-        <button class="btn ${fichasSubPage === 1 ? 'btn-primary' : 'btn-sm'}" data-ficha-page="1">Ficha 1</button>
-        <button class="btn ${fichasSubPage === 2 ? 'btn-primary' : 'btn-sm'}" data-ficha-page="2">Ficha 2</button>
+        <button class="btn ${fichasSubPage === 1 ? 'btn-primary' : 'btn-sm'}" data-ficha-page="1">Individual 1</button>
+        <button class="btn ${fichasSubPage === 2 ? 'btn-primary' : 'btn-sm'}" data-ficha-page="2">Individual 2</button>
       </div>
       <button class="btn btn-primary btn-print-ficha" id="btn-print-ficha">⬇ Descargar PDF</button>
     </div>
@@ -701,9 +701,9 @@ function renderPanelConfig(container) {
 
     ${configSubTab !== 'fichas-tipo' ? '' : `
     <div class="card mb-16">
-      <div class="card-title">Fichas tipo</div>
+      <div class="card-title">Fichas tipo - Individual</div>
       <div class="card-body">
-        <p class="text-sm text-muted mb-16">Vista previa de la Ficha 1 y Ficha 2 de cada posición, generadas desde Aspectos.</p>
+        <p class="text-sm text-muted mb-16">Vista previa de Individual 1 e Individual 2 de cada posición, generadas desde Aspectos.</p>
         ${state.positions.length === 0 ? '<p class="text-xs text-muted">Define primero al menos una posición en la pestaña Posiciones.</p>' : `
           <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
             ${state.positions.map(p => `<button class="btn ${p.key === fichaTipoPosition ? 'btn-primary' : 'btn-sm'}" data-ficha-tipo-pos="${p.key}">${safeText(p.label)}</button>`).join('')}
