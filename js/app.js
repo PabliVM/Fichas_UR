@@ -69,7 +69,7 @@ let configSubTab = 'posiciones';        // pestaña interna activa dentro de Con
 
 const CONFIG_SUBTABS = [
   { key: 'posiciones',    label: 'Posiciones' },
-  { key: 'items',         label: 'Items por posición' },
+  { key: 'items',         label: 'ASPECTOS' },
   { key: 'colores',       label: 'Rango de colores' },
   { key: 'ficha-colores', label: 'Colores de la ficha' },
   { key: 'temporadas',    label: 'Temporadas' },
@@ -96,7 +96,7 @@ function buildAspectoComunCategoryHTML(cat) {
   `).join('');
   return `
     <div class="mb-16">
-      <div class="text-xs mb-8" style="font-weight:700;">${safeText(cat.label)} <span class="text-muted" style="font-weight:400;">(común a todas las posiciones)</span></div>
+      <div class="mb-8" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">${safeText(cat.label)} <span class="text-muted" style="font-weight:400;text-transform:none;font-size:11px;">(común a todas las posiciones)</span></div>
       <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">
         ${chips || '<span class="text-xs text-muted">Sin items definidos.</span>'}
       </div>
@@ -108,7 +108,31 @@ function buildAspectoComunCategoryHTML(cat) {
   `;
 }
 
-// Táctico: varía por posición (configCriteriaPosition).
+// Selector de posición + copiar (Táctico/Ofensivas/Defensivas dependen de la posición).
+function buildPositionSelectorHTML() {
+  return `
+    <div class="flex gap-12 mb-16" style="align-items:flex-end;flex-wrap:wrap;">
+      <label style="display:block;max-width:280px;">
+        <div class="text-xs text-muted mb-8">Posición</div>
+        <select class="select" id="crit-position">
+          ${state.positions.map(p => `<option value="${p.key}" ${p.key === configCriteriaPosition ? 'selected' : ''}>${safeText(p.label)}</option>`).join('')}
+        </select>
+      </label>
+      ${state.positions.length > 1 ? `
+        <label style="display:block;max-width:280px;">
+          <div class="text-xs text-muted mb-8">Copiar Táctico/Ofensivas/Defensivas desde…</div>
+          <select class="select" id="crit-copy-from">
+            <option value="">—</option>
+            ${state.positions.filter(p => p.key !== configCriteriaPosition).map(p => `<option value="${p.key}">${safeText(p.label)}</option>`).join('')}
+          </select>
+        </label>
+        <button class="btn btn-sm" id="crit-copy-btn">Copiar</button>
+      ` : ''}
+    </div>
+  `;
+}
+
+// Táctico: varía por posición (configCriteriaPosition). Selector de posición debajo del título.
 function buildTacticoCategoryHTML() {
   const items = state.criteriaSchemas[configCriteriaPosition]?.tactico || [];
   const chips = items.map((label, i) => `
@@ -121,7 +145,8 @@ function buildTacticoCategoryHTML() {
   `).join('');
   return `
     <div class="mb-16">
-      <div class="text-xs mb-8" style="font-weight:700;">Táctico</div>
+      <div class="mb-8" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Táctico</div>
+      ${buildPositionSelectorHTML()}
       <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">
         ${chips || '<span class="text-xs text-muted">Sin items definidos.</span>'}
       </div>
@@ -518,28 +543,9 @@ function renderPanelConfig(container) {
             </div>
           `}
 
-          <div class="flex gap-12 mb-16" style="align-items:flex-end;flex-wrap:wrap;">
-            <label style="display:block;max-width:280px;">
-              <div class="text-xs text-muted mb-8">Posición</div>
-              <select class="select" id="crit-position">
-                ${state.positions.map(p => `<option value="${p.key}" ${p.key === configCriteriaPosition ? 'selected' : ''}>${safeText(p.label)}</option>`).join('')}
-              </select>
-            </label>
-            ${state.positions.length > 1 ? `
-              <label style="display:block;max-width:280px;">
-                <div class="text-xs text-muted mb-8">Copiar Táctico/Ofensivas/Defensivas desde…</div>
-                <select class="select" id="crit-copy-from">
-                  <option value="">—</option>
-                  ${state.positions.filter(p => p.key !== configCriteriaPosition).map(p => `<option value="${p.key}">${safeText(p.label)}</option>`).join('')}
-                </select>
-              </label>
-              <button class="btn btn-sm" id="crit-copy-btn">Copiar</button>
-            ` : ''}
-          </div>
-
           ${itemsConfigPage === 2
             ? buildTacticoCategoryHTML()
-            : buildOfenDefCheckboxesHTML('of', 'Competencias ofensivas') + buildOfenDefCheckboxesHTML('def', 'Competencias defensivas')}
+            : buildPositionSelectorHTML() + buildOfenDefCheckboxesHTML('of', 'Competencias ofensivas') + buildOfenDefCheckboxesHTML('def', 'Competencias defensivas')}
         `}
       </div>
     </div>
