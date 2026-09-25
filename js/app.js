@@ -72,9 +72,10 @@ const CONFIG_GROUPS = [
   {
     label: 'Contenido',
     tabs: [
-      { key: 'posiciones', label: 'Posiciones' },
-      { key: 'items',      label: 'Aspectos' },
-      { key: 'colores',    label: 'Rango de colores' },
+      { key: 'posiciones',       label: 'Posiciones' },
+      { key: 'items',            label: 'Aspectos' },
+      { key: 'colores',          label: 'Rango de colores' },
+      { key: 'condicional-refs', label: 'Datos condicionales' },
     ],
   },
   {
@@ -133,19 +134,19 @@ function buildPositionSelectorHTML() {
     <div class="flex gap-12 mb-16" style="align-items:flex-end;flex-wrap:wrap;">
       <label style="display:block;max-width:280px;">
         <div class="text-xs text-muted mb-8">Posición</div>
-        <select class="select" id="crit-position">
+        <select class="select" data-crit-position>
           ${state.positions.map(p => `<option value="${p.key}" ${p.key === configCriteriaPosition ? 'selected' : ''}>${safeText(p.label)}</option>`).join('')}
         </select>
       </label>
       ${state.positions.length > 1 ? `
         <label style="display:block;max-width:280px;">
           <div class="text-xs text-muted mb-8">Copiar Táctico/Ofensivas/Defensivas desde…</div>
-          <select class="select" id="crit-copy-from">
+          <select class="select" data-crit-copy-from>
             <option value="">—</option>
             ${state.positions.filter(p => p.key !== configCriteriaPosition).map(p => `<option value="${p.key}">${safeText(p.label)}</option>`).join('')}
           </select>
         </label>
-        <button class="btn btn-sm" id="crit-copy-btn">Copiar</button>
+        <button class="btn btn-sm" data-crit-copy-btn>Copiar</button>
       ` : ''}
     </div>
   `;
@@ -196,6 +197,69 @@ function buildOfenDefCheckboxesHTML(role, label) {
     <div style="flex:1;min-width:260px;">
       ${titleHTML}
       <div class="flex gap-8" style="flex-direction:column;">${boxes}</div>
+    </div>
+  `;
+}
+
+// Perfiles: lista libre por posición (nombre del perfil — sin competencias asociadas todavía).
+function buildPerfilesCategoryHTML() {
+  const items = state.criteriaSchemas[configCriteriaPosition]?.perfiles || [];
+  const chips = items.map((label, i) => `
+    <span class="chip">
+      ${i > 0 ? `<button data-move-crit data-cat="perfiles" data-idx="${i}" data-dir="-1" title="Subir">↑</button>` : ''}
+      ${i < items.length - 1 ? `<button data-move-crit data-cat="perfiles" data-idx="${i}" data-dir="1" title="Bajar">↓</button>` : ''}
+      ${safeText(label)}
+      <button data-del-crit data-cat="perfiles" data-idx="${i}" title="Quitar">×</button>
+    </span>
+  `).join('');
+  return `
+    <div class="mb-16">
+      <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">
+        ${chips || '<span class="text-xs text-muted">Sin perfiles definidos.</span>'}
+      </div>
+      <div class="flex gap-8">
+        <input class="input" type="text" data-crit-new data-cat="perfiles" placeholder="Nuevo perfil…" />
+        <button class="btn btn-sm" data-crit-add data-cat="perfiles">+ Añadir</button>
+      </div>
+    </div>
+  `;
+}
+
+// Tabla "Datos condicionales": filas = Aspectos → Condicional, columnas = Posiciones × (3, 4).
+// Nada hardcodeado: se genera de state.aspectosComunes.condicional y state.positions.
+function buildCondicionalRefsTableHTML() {
+  const items = state.aspectosComunes.condicional || [];
+  const positions = state.positions || [];
+  if (!items.length) return '<p class="text-xs text-muted">Define primero ítems en Aspectos → Condicional.</p>';
+  if (!positions.length) return '<p class="text-xs text-muted">Define primero al menos una posición.</p>';
+
+  const getVal = (posKey, item, col) => state.condicionalRefs?.[posKey]?.[item]?.[col] ?? '';
+
+  return `
+    <div style="overflow-x:auto;max-width:100%;">
+      <table class="cond-refs-table">
+        <thead>
+          <tr>
+            <th class="cond-refs-sticky">Ítem condicional</th>
+            ${positions.map(p => `<th colspan="2" style="text-align:center;">${safeText(p.label)}</th>`).join('')}
+          </tr>
+          <tr>
+            <th class="cond-refs-sticky"></th>
+            ${positions.map(() => `<th style="text-align:center;">3</th><th style="text-align:center;">4</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(item => `
+            <tr>
+              <td class="cond-refs-sticky">${safeText(item)}</td>
+              ${positions.map(p => `
+                <td><input type="text" data-condicional-ref data-pos="${p.key}" data-item="${safeText(item)}" data-col="col3" value="${getVal(p.key, item, 'col3')}" /></td>
+                <td><input type="text" data-condicional-ref data-pos="${p.key}" data-item="${safeText(item)}" data-col="col4" value="${getVal(p.key, item, 'col4')}" /></td>
+              `).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
     </div>
   `;
 }
@@ -412,9 +476,15 @@ let fichasSubPage = 1; // qué página de la ficha se muestra: 1 ó 2
 function buildFichaDemoFromSchema(positionKey) {
   const schema = state.criteriaSchemas[positionKey] || {};
   const rated = list => (list || []).map(label => ({ label, value: null }));
-  const condicional = (state.aspectosComunes.condicional || []).map(label => ({
-    label, valueA: null, valueAOk: null, valueB: null, valueBOk: null, refA: null, refB: null,
-  }));
+  // refA/refB (columnas 3/4) = valores fijos de Configuración → Datos condicionales
+  // para esta posición. valueA/valueB (columnas 1/2) son manuales — sin datos aún.
+  const condicional = (state.aspectosComunes.condicional || []).map(label => {
+    const ref = state.condicionalRefs?.[positionKey]?.[label] || {};
+    return {
+      label, valueA: null, valueB: null,
+      refA: ref.col3 ?? null, refB: ref.col4 ?? null,
+    };
+  });
 
   return {
     player: { name: 'Jugador de ejemplo', photoUrl: null },
@@ -577,7 +647,12 @@ function renderPanelConfig(container) {
 
           ${itemsConfigPage === 2
             ? buildTacticoCategoryHTML()
-            : buildPositionSelectorHTML() + `<div class="flex gap-24" style="flex-wrap:wrap;">${buildOfenDefCheckboxesHTML('of', 'Competencias ofensivas')}${buildOfenDefCheckboxesHTML('def', 'Competencias defensivas')}</div>`}
+            : `<div class="mb-8" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Competencias</div>`
+              + buildPositionSelectorHTML()
+              + `<div class="flex gap-24" style="flex-wrap:wrap;">${buildOfenDefCheckboxesHTML('of', 'Competencias ofensivas')}${buildOfenDefCheckboxesHTML('def', 'Competencias defensivas')}</div>`
+              + `<div class="mb-8 mt-16" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Perfiles</div>`
+              + buildPositionSelectorHTML()
+              + buildPerfilesCategoryHTML()}
         `}
       </div>
     </div>
@@ -623,9 +698,20 @@ function renderPanelConfig(container) {
           `).join('')}
         </div>
         <button class="btn mt-16" id="band-add">+ Añadir banda de color</button>
-        <p class="text-xs text-muted mt-16">
-          ⚠ Pendiente: nada de esta pantalla persiste todavía — falta guardarlo en Firestore.
+      </div>
+    </div>
+    `}
+
+    ${configSubTab !== 'condicional-refs' ? '' : `
+    <div class="card">
+      <div class="card-title">Datos condicionales</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">
+          Valores fijos de referencia por posición para la Ficha 2 (columnas 3 y 4 del bloque CONDICIONAL).
+          Columna 3 = media profesional de la posición · Columna 4 = máxima profesional (solo informativa, no compara).
+          Filas = Aspectos → Condicional. Columnas = Posiciones. Se guardan solas al salir del campo.
         </p>
+        ${buildCondicionalRefsTableHTML()}
       </div>
     </div>
     `}
@@ -748,16 +834,16 @@ function renderPanelConfig(container) {
   const fichasTipoWrap = container.querySelector('#fichas-tipo-wrap');
   if (fichasTipoWrap) renderPanelFichas(fichasTipoWrap, fichaTipoPosition);
 
-  const copyBtn = container.querySelector('#crit-copy-btn');
-  if (copyBtn) {
+  container.querySelectorAll('[data-crit-copy-btn]').forEach(copyBtn => {
     copyBtn.addEventListener('click', () => {
-      const from = container.querySelector('#crit-copy-from').value;
+      const from = copyBtn.parentElement.querySelector('[data-crit-copy-from]')?.value;
       if (!from) { showError('Elige de qué posición copiar.'); return; }
       const source = state.criteriaSchemas[from] || {};
       setState({
         criteriaSchemas: {
           ...state.criteriaSchemas,
           [configCriteriaPosition]: {
+            ...(state.criteriaSchemas[configCriteriaPosition] || {}),
             tactico: [...(source.tactico || [])],
             competenciasOfensivas: [...(source.competenciasOfensivas || [])],
             competenciasDefensivas: [...(source.competenciasDefensivas || [])],
@@ -768,7 +854,7 @@ function renderPanelConfig(container) {
       renderPanelConfig(container);
       showSuccess('Items copiados. Revísalos antes de dar por bueno el perfil.');
     });
-  }
+  });
 
   container.querySelectorAll('[data-band-color]').forEach(input => {
     input.addEventListener('change', () => {
@@ -815,6 +901,28 @@ function renderPanelConfig(container) {
     setState({ scoreBands: bands });
     document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
     renderPanelConfig(container);
+  });
+
+  // Datos condicionales: guarda al salir del campo (change), sin re-renderizar
+  // la tabla entera (perdería el foco/scroll en cada tecla).
+  container.querySelectorAll('[data-condicional-ref]').forEach(input => {
+    input.addEventListener('change', () => {
+      const pos = input.dataset.pos;
+      const item = input.dataset.item;
+      const col = input.dataset.col;
+      const raw = input.value.trim();
+      const num = raw === '' ? null : parseFloat(raw.replace(',', '.'));
+      const value = (num === null || Number.isNaN(num)) ? null : num;
+      const posRefs = state.condicionalRefs[pos] || {};
+      const itemRefs = posRefs[item] || {};
+      setState({
+        condicionalRefs: {
+          ...state.condicionalRefs,
+          [pos]: { ...posRefs, [item]: { ...itemRefs, [col]: value } },
+        },
+      });
+      document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
+    });
   });
 
   container.querySelector('#ficha-color-slate')?.addEventListener('change', e => {
@@ -879,13 +987,12 @@ function renderPanelConfig(container) {
     });
   });
 
-  const critSelect = container.querySelector('#crit-position');
-  if (critSelect) {
+  container.querySelectorAll('[data-crit-position]').forEach(critSelect => {
     critSelect.addEventListener('change', () => {
       configCriteriaPosition = critSelect.value;
       renderPanelConfig(container);
     });
-  }
+  });
 
   container.querySelectorAll('[data-items-page]').forEach(btn => {
     btn.addEventListener('click', () => {
