@@ -65,6 +65,7 @@ function renderPanelRegistro(container) {
 
 let plantillasSelectedPlayerId = null; // navegación local lista ↔ perfil (no es estado global de la app)
 let configCriteriaPosition = null;      // qué posición se está editando en "Items a evaluar"
+let fichaTipoPosition = null;           // qué posición se está viendo en Configuración → Fichas tipo
 let configSubTab = 'posiciones';        // pestaña interna activa dentro de Configuración
 
 const CONFIG_GROUPS = [
@@ -81,6 +82,12 @@ const CONFIG_GROUPS = [
     tabs: [
       { key: 'ficha-colores', label: 'Colores de la ficha' },
       { key: 'dimensiones',   label: 'Dimensiones' },
+    ],
+  },
+  {
+    label: 'Fichas tipo',
+    tabs: [
+      { key: 'fichas-tipo', label: 'Fichas tipo' },
     ],
   },
 ];
@@ -443,7 +450,7 @@ function buildFicha1DemoFromSchema(positionKey) {
   };
 }
 
-function renderPanelFichas(container) {
+function renderPanelFichas(container, positionKey = 'portero') {
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="mb-16 flex ficha-toolbar" style="justify-content:space-between;align-items:center;">
@@ -458,15 +465,15 @@ function renderPanelFichas(container) {
     <div id="ficha-demo-wrap" class="ficha-wrap ${fichasSubPage === 2 ? '' : 'hidden'}"></div>
   `;
   const wrap1 = container.querySelector('#ficha1-demo-wrap');
-  renderFichaPagina1(wrap1, buildFicha1DemoFromSchema('portero'), LOGO_PATH, state.fichaColors);
+  renderFichaPagina1(wrap1, buildFicha1DemoFromSchema(positionKey), LOGO_PATH, state.fichaColors);
 
   const wrap = container.querySelector('#ficha-demo-wrap');
-  renderFichaDetalle(wrap, buildFichaDemoFromSchema('portero'), LOGO_PATH, state.scoreBands, undefined, state.fichaColors);
+  renderFichaDetalle(wrap, buildFichaDemoFromSchema(positionKey), LOGO_PATH, state.scoreBands, undefined, state.fichaColors);
 
   container.querySelectorAll('[data-ficha-page]').forEach(btn => {
     btn.addEventListener('click', () => {
       fichasSubPage = Number(btn.dataset.fichaPage);
-      renderPanelFichas(container);
+      renderPanelFichas(container, positionKey);
     });
   });
 
@@ -478,7 +485,7 @@ function renderPanelFichas(container) {
     btnPrint.disabled = true;
     btnPrint.textContent = 'Generando PDF…';
     try {
-      await exportFichaAsPDF(fichaEl, `ficha-jugador-pagina${fichasSubPage}.pdf`);
+      await exportFichaAsPDF(fichaEl, `ficha-tipo-${positionKey}-pagina${fichasSubPage}.pdf`);
     } catch (err) {
       showError('No se pudo generar el PDF: ' + err.message);
     } finally {
@@ -502,6 +509,13 @@ function renderPanelConfig(container) {
   }
   if (!configCriteriaPosition && state.positions.length) {
     configCriteriaPosition = state.positions[0].key;
+  }
+
+  if (fichaTipoPosition && !state.positions.some(p => p.key === fichaTipoPosition)) {
+    fichaTipoPosition = null;
+  }
+  if (!fichaTipoPosition && state.positions.length) {
+    fichaTipoPosition = state.positions[0].key;
   }
 
   container.innerHTML = `
@@ -684,6 +698,21 @@ function renderPanelConfig(container) {
       </div>
     </div>
     `}
+
+    ${configSubTab !== 'fichas-tipo' ? '' : `
+    <div class="card mb-16">
+      <div class="card-title">Fichas tipo</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">Vista previa de la Ficha 1 y Ficha 2 de cada posición, generadas desde Aspectos.</p>
+        ${state.positions.length === 0 ? '<p class="text-xs text-muted">Define primero al menos una posición en la pestaña Posiciones.</p>' : `
+          <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
+            ${state.positions.map(p => `<button class="btn ${p.key === fichaTipoPosition ? 'btn-primary' : 'btn-sm'}" data-ficha-tipo-pos="${p.key}">${safeText(p.label)}</button>`).join('')}
+          </div>
+          <div id="fichas-tipo-wrap"></div>
+        `}
+      </div>
+    </div>
+    `}
   `;
 
   container.querySelectorAll('[data-config-subtab]').forEach(btn => {
@@ -692,6 +721,16 @@ function renderPanelConfig(container) {
       renderPanelConfig(container);
     });
   });
+
+  container.querySelectorAll('[data-ficha-tipo-pos]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      fichaTipoPosition = btn.dataset.fichaTipoPos;
+      renderPanelConfig(container);
+    });
+  });
+
+  const fichasTipoWrap = container.querySelector('#fichas-tipo-wrap');
+  if (fichasTipoWrap) renderPanelFichas(fichasTipoWrap, fichaTipoPosition);
 
   const copyBtn = container.querySelector('#crit-copy-btn');
   if (copyBtn) {
@@ -993,8 +1032,8 @@ function setupEvents() {
   });
 
   document.addEventListener('rm:thresholds-changed', () => {
-    const panel = document.querySelector('.tab-panel[data-tab="fichas"]');
-    if (panel) renderPanelFichas(panel);
+    const wrap = document.querySelector('#fichas-tipo-wrap');
+    if (wrap) renderPanelFichas(wrap, fichaTipoPosition);
   });
 
   document.addEventListener('rm:season-changed', () => {
@@ -1003,8 +1042,8 @@ function setupEvents() {
   });
 
   document.addEventListener('rm:criteria-changed', () => {
-    const panel = document.querySelector('.tab-panel[data-tab="fichas"]');
-    if (panel) renderPanelFichas(panel);
+    const wrap = document.querySelector('#fichas-tipo-wrap');
+    if (wrap) renderPanelFichas(wrap, fichaTipoPosition);
   });
 }
 
