@@ -2,13 +2,13 @@
 // APP.JS — Punto de entrada RM Perfiles
 // ================================================
 
-import { initFirebase }           from './firebase-service.js';
+import { initFirebase, addDocument, updateDocument, deleteDocument } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { renderHeader }  from './render-header.js';
 import { renderTabs, switchTab } from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
 import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS } from './constants.js';
-import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore } from './state.js';
+import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore, loadPlayersFromFirestore } from './state.js';
 import { renderFichaDetalle, setGpsTolerance } from './ficha-detalle.js';
 import { renderFichaPagina1 } from './ficha-pagina1.js';
 import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
@@ -64,6 +64,7 @@ function renderPanelRegistro(container) {
 }
 
 let plantillasSelectedPlayerId = null; // navegación local lista ↔ perfil (no es estado global de la app)
+let jugadorFormId = null; // null=formulario cerrado, 'new'=alta, <id>=editando ese jugador
 let configCriteriaPosition = null;      // qué posición se está editando en "Items a evaluar"
 let fichaTipoPosition = null;           // qué posición se está viendo en Configuración → Fichas tipo → Individual
 let configSubTab = 'posiciones';        // pestaña interna activa dentro de Configuración
@@ -456,14 +457,175 @@ function renderPlayerProfile(container, player) {
   });
 }
 
-function renderPanelJugadores(container) {
-  container.innerHTML = `
-    ${firebaseNotice()}
-    <div class="card">
-      <div class="card-title">Jugadores</div>
-      <div class="card-body">Listado de jugadores pendiente de implementar.</div>
+// Año y edad NUNCA se guardan — se calculan siempre de birthDate para que no se desincronicen.
+function calcAgeAndYear(birthDateStr) {
+  if (!birthDateStr) return { age: null, year: null };
+  const d = new Date(birthDateStr);
+  if (Number.isNaN(d.getTime())) return { age: null, year: null };
+  const year = d.getFullYear();
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  const hasHadBirthdayThisYear = (today.getMonth() > d.getMonth()) || (today.getMonth() === d.getMonth() && today.getDate() >= d.getDate());
+  if (!hasHadBirthdayThisYear) age -= 1;
+  return { age, year };
+}
+
+function buildJugadorFormHTML(player) {
+  const p = player || {};
+  return `
+    <div class="card mb-16">
+      <div class="card-title">${player ? 'Editar jugador' : 'Nuevo jugador'}</div>
+      <div class="card-body">
+        <div class="flex gap-12" style="flex-wrap:wrap;">
+          <div class="field-group" style="min-width:180px;">
+            <label class="label">Nombre</label>
+            <input class="input" type="text" id="jug-nombre" value="${safeText(p.nombre || '')}" />
+          </div>
+          <div class="field-group" style="min-width:180px;">
+            <label class="label">Apellidos</label>
+            <input class="input" type="text" id="jug-apellidos" value="${safeText(p.apellidos || '')}" />
+          </div>
+          <div class="field-group" style="min-width:160px;">
+            <label class="label">Fecha de nacimiento</label>
+            <input class="input" type="date" id="jug-birthdate" value="${p.birthDate || ''}" />
+          </div>
+          <div class="field-group" style="min-width:120px;">
+            <label class="label">Peso (kg)</label>
+            <input class="input" type="number" step="0.1" min="0" id="jug-weight" value="${p.weight ?? ''}" />
+          </div>
+          <div class="field-group" style="min-width:120px;">
+            <label class="label">Altura (m)</label>
+            <input class="input" type="number" step="0.01" min="0" id="jug-height" value="${p.height ?? ''}" />
+          </div>
+          <div class="field-group" style="min-width:150px;">
+            <label class="label">Lateralidad</label>
+            <select class="select" id="jug-foot">
+              <option value="">—</option>
+              <option value="Diestro" ${p.foot === 'Diestro' ? 'selected' : ''}>Diestro</option>
+              <option value="Zurdo" ${p.foot === 'Zurdo' ? 'selected' : ''}>Zurdo</option>
+              <option value="Ambidiestro" ${p.foot === 'Ambidiestro' ? 'selected' : ''}>Ambidiestro</option>
+            </select>
+          </div>
+          <div class="field-group" style="min-width:150px;">
+            <label class="label">Edad madurativa</label>
+            <input class="input" type="text" id="jug-maturational" value="${safeText(p.maturationalAge ?? '')}" />
+          </div>
+        </div>
+        <div class="flex gap-8 mt-16">
+          <button class="btn btn-primary" id="jug-save">${player ? 'Guardar cambios' : 'Añadir jugador'}</button>
+          <button class="btn btn-ghost" id="jug-cancel">Cancelar</button>
+        </div>
+      </div>
     </div>
   `;
+}
+
+function renderPanelJugadores(container) {
+  const editingPlayer = (jugadorFormId && jugadorFormId !== 'new')
+    ? state.players.find(p => p.id === jugadorFormId)
+    : null;
+  if (jugadorFormId && jugadorFormId !== 'new' && !editingPlayer) jugadorFormId = null; // se borró, cierra el form
+
+  const rows = state.players.map(p => {
+    const { age, year } = calcAgeAndYear(p.birthDate);
+    return `
+      <tr>
+        <td>${safeText(p.nombre || '')}</td>
+        <td>${safeText(p.apellidos || '')}</td>
+        <td>${p.birthDate || '-'}</td>
+        <td>${year ?? '-'}</td>
+        <td>${age ?? '-'}</td>
+        <td>${p.weight != null ? p.weight + ' kg' : '-'}</td>
+        <td>${p.height != null ? p.height + ' m' : '-'}</td>
+        <td>${safeText(p.foot || '-')}</td>
+        <td>${safeText(p.maturationalAge ?? '-')}</td>
+        <td>
+          <button class="btn btn-sm" data-jug-edit="${p.id}">Editar</button>
+          <button class="btn btn-sm" data-jug-del="${p.id}">Borrar</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    ${firebaseNotice()}
+    ${jugadorFormId ? buildJugadorFormHTML(editingPlayer) : ''}
+    <div class="card">
+      <div class="card-title">Jugadores (${state.players.length})</div>
+      <div class="card-body">
+        ${jugadorFormId ? '' : '<button class="btn btn-primary mb-16" id="jug-add">+ Añadir jugador</button>'}
+        <div style="overflow-x:auto;">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Nombre</th><th>Apellidos</th><th>F. nacimiento</th><th>Año</th><th>Edad</th>
+                <th>Peso</th><th>Altura</th><th>Lateralidad</th><th>E. madurativa</th><th></th>
+              </tr>
+            </thead>
+            <tbody>${rows || '<tr><td colspan="10" class="text-muted">Sin jugadores todavía.</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+
+  container.querySelector('#jug-add')?.addEventListener('click', () => {
+    jugadorFormId = 'new';
+    renderPanelJugadores(container);
+  });
+  container.querySelector('#jug-cancel')?.addEventListener('click', () => {
+    jugadorFormId = null;
+    renderPanelJugadores(container);
+  });
+  container.querySelectorAll('[data-jug-edit]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      jugadorFormId = btn.dataset.jugEdit;
+      renderPanelJugadores(container);
+    });
+  });
+  container.querySelectorAll('[data-jug-del]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.jugDel;
+      try {
+        if (!isFirebaseUnconfigured()) await deleteDocument('jugadores', id);
+        setState({ players: state.players.filter(p => p.id !== id) });
+        renderPanelJugadores(container);
+        showSuccess('Jugador borrado.');
+      } catch (err) {
+        console.error('[Firestore] No se pudo borrar el jugador:', err);
+        showError('No se pudo borrar el jugador (revisa las reglas de Firestore).');
+      }
+    });
+  });
+  container.querySelector('#jug-save')?.addEventListener('click', async () => {
+    const data = {
+      nombre: container.querySelector('#jug-nombre').value.trim(),
+      apellidos: container.querySelector('#jug-apellidos').value.trim(),
+      birthDate: container.querySelector('#jug-birthdate').value || null,
+      weight: container.querySelector('#jug-weight').value === '' ? null : parseFloat(container.querySelector('#jug-weight').value),
+      height: container.querySelector('#jug-height').value === '' ? null : parseFloat(container.querySelector('#jug-height').value),
+      foot: container.querySelector('#jug-foot').value,
+      maturationalAge: container.querySelector('#jug-maturational').value.trim(),
+    };
+    if (!data.nombre) { showError('El nombre es obligatorio.'); return; }
+    try {
+      if (jugadorFormId === 'new') {
+        let id = crypto.randomUUID();
+        if (!isFirebaseUnconfigured()) id = await addDocument('jugadores', data);
+        setState({ players: [...state.players, { id, ...data }] });
+        showSuccess('Jugador añadido.');
+      } else {
+        if (!isFirebaseUnconfigured()) await updateDocument('jugadores', jugadorFormId, data);
+        setState({ players: state.players.map(p => p.id === jugadorFormId ? { ...p, ...data } : p) });
+        showSuccess('Jugador actualizado.');
+      }
+      jugadorFormId = null;
+      renderPanelJugadores(container);
+    } catch (err) {
+      console.error('[Firestore] No se pudo guardar el jugador:', err);
+      showError('No se pudo guardar el jugador (revisa las reglas de Firestore o la conexión).');
+    }
+  });
 }
 
 let fichasSubPage = 1; // qué página de la ficha se muestra: 1 ó 2
@@ -726,7 +888,7 @@ function renderPanelConfig(container) {
       <div class="card-title">Colores de la ficha</div>
       <div class="card-body">
         <p class="text-sm text-muted mb-16">
-          El fondo general y el de las cabeceras (MENTAL/TÉCNICO/... y PLAN DE ACCIÓN) de la ficha 1 y la ficha 2. Empiezan con estos valores por defecto.
+          El fondo general y el de las cabeceras (MENTAL/TÉCNICO/... y PLAN DE ACCIÓN) de la ficha 1 y la ficha 2.
         </p>
         <div class="flex mb-16" style="gap:24px;flex-wrap:wrap;">
           <label class="flex gap-8" style="align-items:center;">
@@ -754,9 +916,12 @@ function renderPanelConfig(container) {
             <span class="text-xs text-muted">Texto de las cabeceras blancas del plan</span>
           </label>
         </div>
-        <button class="btn" id="ficha-colors-reset">Restaurar valores por defecto</button>
+        <div class="flex gap-8">
+          <button class="btn" id="ficha-colors-reset">Restaurar valores por defecto</button>
+          <button class="btn btn-primary" id="ficha-colors-save-default">Guardar como predeterminado</button>
+        </div>
         <p class="text-xs text-muted mt-16">
-          ⚠ Pendiente: nada de esta pantalla persiste todavía — falta guardarlo en Firestore.
+          "Restaurar" vuelve a lo último guardado como predeterminado (o a los de fábrica si nunca has guardado uno).
         </p>
       </div>
     </div>
@@ -964,10 +1129,14 @@ function renderPanelConfig(container) {
     document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
   });
   container.querySelector('#ficha-colors-reset')?.addEventListener('click', () => {
-    setState({ fichaColors: { ...DEFAULT_FICHA_COLORS } });
+    setState({ fichaColors: { ...(state.fichaColorsDefault || DEFAULT_FICHA_COLORS) } });
     document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
     renderPanelConfig(container);
-    showSuccess('Colores restaurados.');
+    showSuccess('Colores restaurados al predeterminado.');
+  });
+  container.querySelector('#ficha-colors-save-default')?.addEventListener('click', () => {
+    setState({ fichaColorsDefault: { ...state.fichaColors } });
+    showSuccess('Guardado como predeterminado. "Restaurar" volverá aquí a partir de ahora.');
   });
 
   container.querySelector('#pos-add')?.addEventListener('click', () => {
@@ -1189,6 +1358,7 @@ function setupEvents() {
 async function boot() {
   initFirebase();
   await loadConfigFromFirestore(); // trae Configuración guardada antes de pintar
+  await loadPlayersFromFirestore(); // trae la lista de jugadores
 
   renderFooter();
   renderHeader();
