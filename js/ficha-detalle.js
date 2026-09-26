@@ -169,7 +169,15 @@ function buildCondicionalBlock({ title, rp, items }) {
       <span class="gps-ref-cell gps-cell-a">3</span>
       <span class="gps-ref-cell">4</span>
     </div>
-    <p class="gps-legend">Columna 1: media del jugador &nbsp;·&nbsp; Columna 2: máxima del jugador &nbsp;·&nbsp; Columna 3: media por posición en fútbol profesional &nbsp;·&nbsp; Columna 4: máxima por posición en fútbol profesional</p>
+  `;
+
+  const legend = `
+    <p class="gps-legend">
+      1- media del jugador<br>
+      2- máxima del jugador<br>
+      3- media por posición en fútbol profesional<br>
+      4- máxima por posición en fútbol profesional
+    </p>
   `;
 
   const rows = items.map((item, i) => `
@@ -198,7 +206,7 @@ function buildCondicionalBlock({ title, rp, items }) {
         <span class="ficha-q-title">${safeText(title)}</span>
       </header>
       <div class="ficha-condicional-body">
-        <div class="gps-grid">${header}${rows}</div>
+        <div class="gps-grid">${header}${rows}${legend}</div>
       </div>
     </section>
   `;
