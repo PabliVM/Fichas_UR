@@ -117,3 +117,13 @@ export async function readDocument(collectionName, documentId) {
   const snap = await getDoc(doc(db, collectionName, documentId));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
+
+/**
+ * Lee TODOS los documentos de una colección una sola vez (sin listener).
+ * @returns {Array<Object>}
+ */
+export async function readCollection(collectionName) {
+  const db   = getDB();
+  const snap = await getDocs(collection(db, collectionName));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
