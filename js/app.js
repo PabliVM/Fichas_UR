@@ -236,7 +236,7 @@ function buildCondicionalRefsTableHTML() {
   const getVal = (posKey, item, col) => state.condicionalRefs?.[posKey]?.[item]?.[col] ?? '';
 
   return `
-    <div style="overflow-x:auto;max-width:100%;">
+    <div class="cond-refs-wrap" style="overflow-x:auto;max-width:100%;--cond-refs-bg:${state.fichaColors.slate};--cond-refs-header:${state.fichaColors.wine};">
       <table class="cond-refs-table">
         <thead>
           <tr>
@@ -245,7 +245,7 @@ function buildCondicionalRefsTableHTML() {
           </tr>
           <tr>
             <th class="cond-refs-sticky"></th>
-            ${positions.map(() => `<th style="text-align:center;">3</th><th style="text-align:center;">4</th>`).join('')}
+            ${positions.map(() => `<th style="text-align:center;">Med.</th><th style="text-align:center;">Máx.</th>`).join('')}
           </tr>
         </thead>
         <tbody>
