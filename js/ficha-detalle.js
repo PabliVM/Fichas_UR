@@ -25,7 +25,12 @@ function polar(cx, cy, r, deg) {
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
 }
 
-function buildCentralCircle(photoUrl, blockColors, rpTexts) {
+// Ángulo (en pantalla) de cada posición de la matriz — fijo, no depende
+// de qué bloque haya ahí: tl=270-360°, tr=0-90°, br=90-180°, bl=180-270°.
+const POS_ANGLES = { tl: [270, 360], tr: [0, 90], br: [90, 180], bl: [180, 270] };
+const BLOCK_TITLES = { mental: 'MENTAL', tecnico: 'TÉCNICO', tactico: 'TÁCTICO', condicional: 'CONDICIONAL' };
+
+function buildCentralCircle(photoUrl, blockColors, rpTexts, order) {
   const size = 1420;
   const cx = size / 2;
   const cy = size / 2;
@@ -69,32 +74,35 @@ function buildCentralCircle(photoUrl, blockColors, rpTexts) {
        <image href="${photoUrl}" x="${cx - rInner}" y="${cy - rInner}" width="${rInner * 2}" height="${rInner * 2}" clip-path="url(#ficha-photo-clip)" preserveAspectRatio="xMidYMid slice" />`
     : `<text x="${cx}" y="${cy}" font-size="78" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
 
+  // Cada posición (tl/tr/br/bl) toma el color/nombre/R-P del bloque que
+  // Configuración → Matriz haya puesto ahí (order[pos]) — el ángulo de
+  // pantalla de cada posición es fijo, el contenido no.
+  const POSITIONS = ['tl', 'tr', 'br', 'bl'];
+  const segs = POSITIONS.map(pos => {
+    const key = order[pos];
+    const [a, b] = POS_ANGLES[pos];
+    return seg(a, b, blockColors[key]);
+  }).join('');
+  const arcs = POSITIONS.map(pos => {
+    const [a, b] = POS_ANGLES[pos];
+    // mitad inferior (br/bl): arco al revés para que el texto no salga boca abajo.
+    const [aa, bb] = (pos === 'br' || pos === 'bl') ? [b, a] : [a, b];
+    return arcPath(`arc-${pos}`, aa, bb, midR) + arcPath(`rp-${pos}`, aa, bb, rpR);
+  }).join('');
+  const labels = POSITIONS.map(pos => {
+    const key = order[pos];
+    return curvedLabel(`arc-${pos}`, BLOCK_TITLES[key], blockColors[key]);
+  }).join('');
+  const rpLabels = POSITIONS.map(pos => rpLabel(`rp-${pos}`, rpTexts?.[order[pos]])).join('');
+
   return `
     <svg viewBox="0 0 ${size} ${size}" class="ficha-central-svg" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        ${arcPath('arc-mental', 270, 360, midR)}
-        ${arcPath('arc-tecnico', 0, 90, midR)}
-        ${arcPath('arc-tactico', 180, 90, midR)}
-        ${arcPath('arc-condicional', 270, 180, midR)}
-        ${arcPath('rp-mental', 270, 360, rpR)}
-        ${arcPath('rp-tecnico', 0, 90, rpR)}
-        ${arcPath('rp-tactico', 180, 90, rpR)}
-        ${arcPath('rp-condicional', 270, 180, rpR)}
-      </defs>
-      ${seg(270, 360, blockColors.mental)}
-      ${seg(0, 90, blockColors.tecnico)}
-      ${seg(90, 180, blockColors.tactico)}
-      ${seg(180, 270, blockColors.condicional)}
+      <defs>${arcs}</defs>
+      ${segs}
       <circle cx="${cx}" cy="${cy}" r="${rInner + 4}" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" />
       ${photo}
-      ${curvedLabel('arc-mental', 'MENTAL', blockColors.mental)}
-      ${curvedLabel('arc-tecnico', 'TÉCNICO', blockColors.tecnico)}
-      ${curvedLabel('arc-tactico', 'TÁCTICO', blockColors.tactico)}
-      ${curvedLabel('arc-condicional', 'CONDICIONAL', blockColors.condicional)}
-      ${rpLabel('rp-mental', rpTexts?.mental)}
-      ${rpLabel('rp-tecnico', rpTexts?.tecnico)}
-      ${rpLabel('rp-tactico', rpTexts?.tactico)}
-      ${rpLabel('rp-condicional', rpTexts?.condicional)}
+      ${labels}
+      ${rpLabels}
     </svg>
   `;
 }
@@ -105,21 +113,21 @@ function buildCentralCircle(photoUrl, blockColors, rpTexts) {
  * las alturas de MENTAL/TÉCNICO/CONDICIONAL/TÁCTICO).
  */
 function centerFichaCircle(root) {
-  const grid       = root.querySelector('.ficha-grid');
-  const mental     = root.querySelector('.q-mental');
-  const condHeader = root.querySelector('.q-condicional .ficha-q-header');
-  const circle     = root.querySelector('.ficha-central');
-  if (!grid || !mental || !condHeader || !circle) return;
+  const grid     = root.querySelector('.ficha-grid');
+  const topLeft  = root.querySelector('.pos-tl');
+  const botLeftHeader = root.querySelector('.pos-bl .ficha-q-header');
+  const circle   = root.querySelector('.ficha-central');
+  if (!grid || !topLeft || !botLeftHeader || !circle) return;
 
   root.style.transform = 'none'; // medir en tamaño real, no en el ya escalado
 
   const gridRect   = grid.getBoundingClientRect();
-  const mentalRect = mental.getBoundingClientRect();
+  const topLeftRect = topLeft.getBoundingClientRect();
 
-  const crossX = mentalRect.right - gridRect.left; // borde derecho de MENTAL = línea vertical
-  // línea horizontal: no el borde superior de la barra CONDICIONAL/TÁCTICO,
-  // sino su mitad — ahí es donde tiene que caer el ecuador del círculo.
-  const crossY = (mentalRect.bottom - gridRect.top) + condHeader.offsetHeight / 2;
+  const crossX = topLeftRect.right - gridRect.left; // borde derecho del cuadrante arriba-izq = línea vertical
+  // línea horizontal: no el borde superior de la barra de abajo,
+  // sino la mitad de su cabecera — ahí cae el ecuador del círculo.
+  const crossY = (topLeftRect.bottom - gridRect.top) + botLeftHeader.offsetHeight / 2;
   const half = circle.offsetWidth / 2;
 
   circle.style.left = `${crossX - half}px`;
@@ -128,7 +136,7 @@ function centerFichaCircle(root) {
 
 // ── BLOQUE CON RADAR (mental / técnico / táctico) ──
 
-function buildRatedBlock({ title, rp, items, side, bands, blockKey }) {
+function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos }) {
   // Con muchas items (ej. Táctico portero, 24) la lista lateral no cabe
   // en la altura fija de la ficha si mantiene el tamaño pensado para ~12.
   // A partir de 18 items se reduce letra/gap solo de esta lista, para no
@@ -154,7 +162,7 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey }) {
   const radarBlock = `<div class="ficha-radar">${radarSVG}</div>`;
 
   return `
-    <section class="ficha-quadrant q-${blockKey} ${side === 'left' ? 'q-left' : 'q-right'}">
+    <section class="ficha-quadrant q-${blockKey} pos-${pos} ${side === 'left' ? 'q-left' : 'q-right'}">
       <header class="ficha-q-header">
         <span class="ficha-q-title">${safeText(title)}</span>
       </header>
@@ -167,7 +175,7 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey }) {
 
 // ── BLOQUE CONDICIONAL (valores GPS, editable, sin radar) ──
 
-function buildCondicionalBlock({ title, rp, items }) {
+function buildCondicionalBlock({ title, rp, items, pos }) {
   const header = `
     <div class="gps-row gps-col-headers gps-header-row">
       <span class="gps-val-cell gps-cell-a">1</span>
@@ -208,7 +216,7 @@ function buildCondicionalBlock({ title, rp, items }) {
   `).join('');
 
   return `
-    <section class="ficha-quadrant q-condicional q-left ficha-condicional">
+    <section class="ficha-quadrant q-condicional pos-${pos} q-left ficha-condicional">
       <header class="ficha-q-header">
         <span class="ficha-q-title">${safeText(title)}</span>
       </header>
@@ -378,8 +386,11 @@ export function wireCondicionalInputs(container) {
  * @param {Array} bands — state.scoreBands: [{ color, min }, ...]
  * @param {string} [pageLabel] — indicador de página, ej. '2/2'. Vacío/omitido = no se muestra.
  */
-export function renderFichaDetalle(container, data, logoPath, bands, pageLabel = '2/2', colors) {
+const DEFAULT_GRID_ORDER = { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: 'tactico' };
+
+export function renderFichaDetalle(container, data, logoPath, bands, pageLabel = '2/2', colors, gridOrder) {
   const { player, blocks, plan } = data;
+  const order = gridOrder || DEFAULT_GRID_ORDER;
 
   const blockColors = {
     mental:      blockCircleColor(blocks.mental.rp,      bands),
@@ -398,16 +409,29 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
 
   const colorStyle = colors ? ` style="--slate:${colors.slate}; --wine:${colors.wine}; --text-general:${colors.textGeneral}; --text-header:${colors.textHeader}; --text-aspectos:${colors.textAspectos}; --text-subheader-white:${colors.textSubheaderWhite};"` : '';
 
+  // Cada bloque de contenido se puede colocar en cualquiera de las 4
+  // posiciones (order.tl/tr/bl/br) — Configuración → Matriz. El "side"
+  // (a qué lado va la lista respecto al radar) sigue la COLUMNA de la
+  // posición, no el bloque: izquierda en tl/bl, derecha en tr/br.
+  const sideForPos = pos => (pos === 'tl' || pos === 'bl') ? 'left' : 'right';
+  const buildBlockAt = pos => {
+    const key = order[pos];
+    if (key === 'condicional') {
+      return buildCondicionalBlock({ title: BLOCK_TITLES.condicional, rp: blocks.condicional.rp, items: blocks.condicional.items, pos });
+    }
+    return buildRatedBlock({ title: BLOCK_TITLES[key], rp: blocks[key].rp, items: blocks[key].items, side: sideForPos(pos), bands, blockKey: key, pos });
+  };
+
   container.innerHTML = `
     <div class="ficha-a4-frame">
       <div class="ficha-detalle"${colorStyle}>
         ${buildFichaHeader(logoPath, pageLabel)}
         <div class="ficha-grid">
-          ${buildRatedBlock({ title: 'MENTAL',  rp: blocks.mental.rp,  items: blocks.mental.items,  side: 'left',  bands, blockKey: 'mental'  })}
-          ${buildRatedBlock({ title: 'TÉCNICO', rp: blocks.tecnico.rp, items: blocks.tecnico.items, side: 'right', bands, blockKey: 'tecnico' })}
-          ${buildCondicionalBlock({ title: 'CONDICIONAL', rp: blocks.condicional.rp, items: blocks.condicional.items })}
-          ${buildRatedBlock({ title: 'TÁCTICO', rp: blocks.tactico.rp, items: blocks.tactico.items, side: 'right', bands, blockKey: 'tactico' })}
-          <div class="ficha-central">${buildCentralCircle(player?.photoUrl, blockColors, rpTexts)}</div>
+          ${buildBlockAt('tl')}
+          ${buildBlockAt('tr')}
+          ${buildBlockAt('bl')}
+          ${buildBlockAt('br')}
+          <div class="ficha-central">${buildCentralCircle(player?.photoUrl, blockColors, rpTexts, order)}</div>
         </div>
         ${buildPlanAccion(plan)}
       </div>
