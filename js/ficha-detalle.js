@@ -313,6 +313,21 @@ function recalcGpsRow(rowEl) {
  * aquí, en JS, el ancho de TODAS las etiquetas al de la más larga
  * — así todas las filas miden lo mismo y las columnas quedan rectas.
  */
+/**
+ * Alinea la leyenda (1-/2-/3-/4-) a la izquierda, a la misma altura horizontal
+ * donde empiezan las filas de datos (columna 1), en vez de centrada.
+ * Se mide en JS porque las filas están centradas dentro de .gps-grid y su
+ * ancho depende del contenido (ver equalizeGpsLabelWidth).
+ */
+function alignGpsLegend(container) {
+  const legend = container.querySelector('.gps-legend');
+  const grid = container.querySelector('.gps-grid');
+  const firstRow = container.querySelector('.gps-row:not(.gps-header-row)');
+  if (!legend || !grid || !firstRow) return;
+  const offset = firstRow.getBoundingClientRect().left - grid.getBoundingClientRect().left;
+  legend.style.marginLeft = Math.max(offset, 0) + 'px';
+}
+
 function equalizeGpsLabelWidth(container) {
   const labels = container.querySelectorAll('.gps-label');
   if (!labels.length) return;
@@ -330,6 +345,7 @@ function equalizeGpsLabelWidth(container) {
  */
 export function wireCondicionalInputs(container) {
   equalizeGpsLabelWidth(container);
+  alignGpsLegend(container);
   container.querySelectorAll('.gps-row:not(.gps-header-row)').forEach(rowEl => {
     recalcGpsRow(rowEl);
     rowEl.querySelectorAll('.gps-input').forEach(input => {
