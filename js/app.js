@@ -9,7 +9,7 @@ import { renderTabs, switchTab } from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
 import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS } from './constants.js';
 import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore } from './state.js';
-import { renderFichaDetalle } from './ficha-detalle.js';
+import { renderFichaDetalle, setGpsTolerance } from './ficha-detalle.js';
 import { renderFichaPagina1 } from './ficha-pagina1.js';
 import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
 import { exportFichaAsPDF } from './pdf-export.js';
@@ -540,6 +540,7 @@ function renderPanelFichas(container, positionKey = 'portero') {
   renderFichaPagina1(wrap1, buildFicha1DemoFromSchema(positionKey), LOGO_PATH, state.fichaColors);
 
   const wrap = container.querySelector('#ficha-demo-wrap');
+  setGpsTolerance(state.condicionalTolerance);
   renderFichaDetalle(wrap, buildFichaDemoFromSchema(positionKey), LOGO_PATH, state.scoreBands, undefined, state.fichaColors);
 
   container.querySelectorAll('[data-ficha-page]').forEach(btn => {
@@ -706,12 +707,16 @@ function renderPanelConfig(container) {
     <div class="card">
       <div class="card-title">Datos condicionales</div>
       <div class="card-body">
-        <p class="text-sm text-muted mb-16">
-          Valores fijos de referencia por posición para la Ficha 2 (columnas 3 y 4 del bloque CONDICIONAL).
-          Columna 3 = media profesional de la posición · Columna 4 = máxima profesional (solo informativa, no compara).
-          Filas = Aspectos → Condicional. Columnas = Posiciones. Se guardan solas al salir del campo.
-        </p>
-        ${buildCondicionalRefsTableHTML()}
+        <div class="flex gap-24" style="align-items:flex-start;flex-wrap:wrap;">
+          ${buildCondicionalRefsTableHTML()}
+          <div class="field-group" style="min-width:220px;">
+            <label class="label">Tolerancia (±) para el guion amarillo</label>
+            <input class="input" type="text" id="condicional-tolerance" value="${state.condicionalTolerance}" style="max-width:140px;" />
+            <p class="text-xs text-muted mt-8">
+              En Ficha 2, si el valor del jugador está dentro de ± esta cifra respecto a la media profesional (columna 3), sale guion amarillo. Por encima → check verde. Por debajo → X roja.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
     `}
@@ -923,6 +928,15 @@ function renderPanelConfig(container) {
       });
       document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
     });
+  });
+
+  container.querySelector('#condicional-tolerance')?.addEventListener('change', e => {
+    const raw = e.target.value.trim().replace(',', '.');
+    const num = parseFloat(raw);
+    const value = (raw === '' || Number.isNaN(num) || num < 0) ? state.condicionalTolerance : num;
+    e.target.value = value;
+    setState({ condicionalTolerance: value });
+    document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
   });
 
   container.querySelector('#ficha-color-slate')?.addEventListener('change', e => {
