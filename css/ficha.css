@@ -283,10 +283,10 @@
   background: var(--blue-800, #1e293b);
   color: var(--text-aspectos, #ffffff);
   text-align: center;
-  font-size: 82px;
+  font-size: 50px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  padding: 6px;
+  padding: 4px;
   border-bottom: 1px solid var(--slate-line);
 }
 .ficha-plan-grid {
@@ -316,7 +316,7 @@
 .plan-col-icon-mental       { width: auto; height: 140px; margin: -6px 0; } /* cerebro */
 .plan-col-list {
   list-style: none;
-  padding: 85px 18px;
+  padding: 59px 18px;
   margin: 0;
   min-height: 300px;
   display: flex;
