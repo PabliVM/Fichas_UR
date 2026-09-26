@@ -244,7 +244,7 @@ function buildCondicionalRefsTableHTML() {
             ${positions.map(p => `<th colspan="2" style="text-align:center;">${safeText(p.label)}</th>`).join('')}
           </tr>
           <tr>
-            <th class="cond-refs-sticky"></th>
+            <th class="cond-refs-sticky">Fútbol profesional</th>
             ${positions.map(() => `<th style="text-align:center;">Med.</th><th style="text-align:center;">Máx.</th>`).join('')}
           </tr>
         </thead>
