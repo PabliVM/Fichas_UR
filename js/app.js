@@ -183,7 +183,7 @@ function buildOfenDefCheckboxesHTML(role, label) {
   const key = role === 'of' ? 'competenciasOfensivas' : 'competenciasDefensivas';
   const tactico = state.criteriaSchemas[configCriteriaPosition]?.tactico || [];
   const selected = state.criteriaSchemas[configCriteriaPosition]?.[key] || [];
-  const titleHTML = `<div class="mb-8" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">${label}</div>`;
+  const titleHTML = `<div class="mb-8" style="font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.02em;color:var(--text-secondary);">${label}</div>`;
   if (!tactico.length) {
     return `<div style="flex:1;min-width:260px;">${titleHTML}<p class="text-xs text-muted">Define antes el Táctico de esta posición (pestaña Ficha 2).</p></div>`;
   }
@@ -649,7 +649,7 @@ function renderPanelConfig(container) {
             ? buildTacticoCategoryHTML()
             : `<div class="mb-8" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Competencias</div>`
               + buildPositionSelectorHTML()
-              + `<div class="flex gap-24" style="flex-wrap:wrap;">${buildOfenDefCheckboxesHTML('of', 'Competencias ofensivas')}${buildOfenDefCheckboxesHTML('def', 'Competencias defensivas')}</div>`
+              + `<div class="flex gap-24" style="flex-wrap:wrap;">${buildOfenDefCheckboxesHTML('of', 'Ofensivas')}${buildOfenDefCheckboxesHTML('def', 'Defensivas')}</div>`
               + `<div class="mb-8 mt-16" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Perfiles</div>`
               + buildPositionSelectorHTML()
               + buildPerfilesCategoryHTML()}
