@@ -68,9 +68,9 @@
 .p1-name-header {
   background: var(--wine);
   color: #ffffff;
-  font-size: 61px;          /* oficial ficha2: 94px × 0.6528 */
+  font-size: 49px;          /* oficial ficha2: 75px × 0.6528 */
   font-weight: 600;
-  padding: 12px 28px;       /* vertical oficial: 18px × 0.6528; horizontal sin tocar (layout space-between) */
+  padding: 8px 28px;        /* vertical oficial: 12px × 0.6528; horizontal sin tocar (layout space-between) */
   border-top: 3px solid rgba(255,255,255,0.65); /* como en ficha 2 */
   display: flex;
   align-items: center;
@@ -113,9 +113,9 @@
 .p1-subheader {
   background: var(--wine);
   color: #ffffff;
-  font-size: 61px;          /* oficial ficha2: 94px × 0.6528 */
+  font-size: 49px;          /* oficial ficha2: 75px × 0.6528 */
   font-weight: 600;
-  padding: 12px 20px;
+  padding: 8px 20px;
   border-top: 3px solid rgba(255,255,255,0.65); /* como en ficha 2 */
   text-align: center;
 }
@@ -135,9 +135,9 @@
 .p1-desc-header {
   background: var(--wine);
   color: #ffffff;
-  font-size: 61px;          /* oficial ficha2: 94px × 0.6528 */
+  font-size: 49px;          /* oficial ficha2: 75px × 0.6528 */
   font-weight: 600;
-  padding: 12px 20px;
+  padding: 8px 20px;
   border-top: 3px solid rgba(255,255,255,0.65); /* como en ficha 2 */
   text-align: center;
 }
