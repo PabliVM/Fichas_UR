@@ -32,23 +32,23 @@ export const FICHA2_OFFICIAL_DIMENSIONS = {
       title: 'Subheader granate (bloques)',
       rows: [
         ['Ancho', '100% de su columna (mitad de página, ~3600px)'],
-        ['Alto', '≈144px (no fijo: line-height del título 94px + padding 18px×2)'],
-        ['Título de bloque', '94px'],
-        ['Padding', '18px 16px'],
+        ['Alto', '≈114px (no fijo: line-height del título 75px + padding 12px×2)'],
+        ['Título de bloque', '75px'],
+        ['Padding', '12px 16px'],
       ],
     },
     {
       title: 'Radar',
       rows: [
         ['Ancho máx.', '1950px'],
-        ['Tamaño base (diámetro datos)', '300'],
-        ['Etiquetas', '13'],
+        ['Tamaño base (diámetro datos)', '300 (≤12 items) · 380 (13–18) · 460 (>18)'],
+        ['Etiquetas', 'variable según el bloque (ej. Táctico portero: 24)'],
       ],
     },
     {
       title: 'Listas de items',
       rows: [
-        ['Texto', '55px'],
+        ['Texto', '55px (≤18 items del bloque) · 38px (>18 items)'],
       ],
     },
     {
@@ -72,10 +72,10 @@ export const FICHA2_OFFICIAL_DIMENSIONS = {
       title: 'Plan de acción',
       rows: [
         ['Ancho (título / subheader)', '100% de la página (7200px)'],
-        ['Alto (título)', '≈144px (no fijo, según texto 94px)'],
-        ['Título', '94px'],
-        ['Alto (subheader aspectos)', '≈106px (no fijo, según texto 82px)'],
-        ['Subheader "Aspectos del jugador"', '82px'],
+        ['Alto (título)', '≈114px (no fijo, según texto 75px)'],
+        ['Título', '75px'],
+        ['Alto (subheader aspectos)', '≈68px (no fijo, según texto 50px)'],
+        ['Subheader "Aspectos del jugador"', '50px'],
         ['Ancho (cabecera blanca)', '100% de su columna (1/4 de página, ~1800px)'],
         ['Cabecera blanca (alto fijo)', '73px / 150px'],
         ['Icono balón', '88 × 88px'],
