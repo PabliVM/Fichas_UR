@@ -314,6 +314,8 @@
    Primera columna fija (sticky) al hacer scroll horizontal; posiciones
    agrupadas de 2 en 2 (Med./Máx.). */
 .cond-refs-wrap {
+  display: inline-block;
+  max-width: 100%;
   background: var(--cond-refs-bg, #24313d);
   border-radius: var(--radius-md);
   padding: 8px;
