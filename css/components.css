@@ -1,427 +1,404 @@
-// ================================================
-// FICHA-DETALLE.JS — Página 2 de la ficha individual
-// 4 bloques: MENTAL, TÉCNICO, CONDICIONAL, TÁCTICO
-// + círculo central + Plan de acción.
-//
-// Colores de media: usan state.scoreBands (Configuración) —
-// número de bandas y color de cada una, configurable.
-// El círculo central usa el MISMO color que la media del
-// bloque — en blanco cuando aún no hay dato.
-// ================================================
+/* ================================================
+   COMPONENTS.CSS — Componentes reutilizables
+   ================================================ */
 
-import { scoreColor, safeText } from './utils.js';
-import { buildRadarSVG } from './radar-chart.js';
-
-/** Color del cuarto del círculo para un bloque: el de su banda, o blanco si no hay dato. */
-function blockCircleColor(rp, bands) {
-  const avg = rp && rp[0] != null ? rp[0] : null;
-  return avg != null ? (scoreColor(avg, bands) || '#ffffff') : '#ffffff';
+/* ── HEADER INTERNO ── */
+.header-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid rgba(255,255,255,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.header-logo img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+.header-app-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--header-text);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.header-app-subtitle {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.header-season {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--rm-gold);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+}
+.header-actions .select {
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.header-actions .select:focus {
+  outline: none;
+  background: rgba(255,255,255,0.22);
+  box-shadow: none;
 }
 
-// ── CÍRCULO CENTRAL ──────────────────────────────
+/* ── BOTÓN TEMA ── */
+.btn-theme {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,0.22);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition: background var(--t-fast);
+  flex-shrink: 0;
+}
+.btn-theme:hover { background: rgba(0,0,0,0.32); }
 
-function polar(cx, cy, r, deg) {
-  const rad = ((deg - 90) * Math.PI) / 180;
-  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+/* ── TABS ── */
+.tab-btn {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  height: 100%;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all var(--t-fast);
+  white-space: nowrap;
+  font-family: var(--font-sans);
+}
+.tab-btn:hover  { color: var(--text-primary); background: var(--bg-hover); }
+.tab-btn.active { color: var(--blue-500); border-bottom-color: var(--blue-500); }
+
+/* ── BOTONES ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--t-fast);
+  white-space: nowrap;
+  line-height: 1;
+  text-decoration: none;
+}
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--blue-500);
+  color: #fff;
+  border-color: var(--blue-600);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--blue-400);
 }
 
-function buildCentralCircle(photoUrl, blockColors, rpTexts) {
-  const size = 1420;
-  const cx = size / 2;
-  const cy = size / 2;
-  const rOuter = 683;
-  const rInner = 378;
-  const midR = (rOuter + rInner) / 2;
-  const rpR  = midR + (rOuter - midR) * 0.6; // un poco más hacia fuera que el nombre, pegado a él
-
-  const seg = (startDeg, endDeg, color) => {
-    const p1 = polar(cx, cy, rOuter, startDeg);
-    const p2 = polar(cx, cy, rOuter, endDeg);
-    const p3 = polar(cx, cy, rInner, endDeg);
-    const p4 = polar(cx, cy, rInner, startDeg);
-    const large = endDeg - startDeg > 180 ? 1 : 0;
-    return `<path d="M ${p1.x} ${p1.y} A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y} Z" fill="${color}" stroke="#94a3b8" stroke-width="1.5" />`;
-  };
-
-  // Arco invisible por cuadrante (radio medio) para que el texto lo siga.
-  // En la mitad inferior (TÁCTICO/CONDICIONAL) se dibuja al revés,
-  // si no el texto saldría boca abajo.
-  const arcPath = (id, aDeg, bDeg, radius) => {
-    const p1 = polar(cx, cy, radius, aDeg);
-    const p2 = polar(cx, cy, radius, bDeg);
-    const large = Math.abs(bDeg - aDeg) > 180 ? 1 : 0;
-    const sweep = bDeg > aDeg ? 1 : 0;
-    return `<path id="${id}" d="M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${large} ${sweep} ${p2.x} ${p2.y}" fill="none" />`;
-  };
-
-  const curvedLabel = (id, text, color) => {
-    const fill = color === '#ffffff' ? '#334155' : '#0f1117';
-    return `<text font-size="79" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
-  };
-
-  // El R/P del bloque, pegado justo al lado del nombre (MENTAL/TÉCNICO/...).
-  const rpLabel = (id, text) => text
-    ? `<text font-size="42" font-weight="700" fill="#0f1117"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`
-    : '';
-
-  const photo = photoUrl
-    ? `<clipPath id="ficha-photo-clip"><circle cx="${cx}" cy="${cy}" r="${rInner - 4}" /></clipPath>
-       <image href="${photoUrl}" x="${cx - rInner}" y="${cy - rInner}" width="${rInner * 2}" height="${rInner * 2}" clip-path="url(#ficha-photo-clip)" preserveAspectRatio="xMidYMid slice" />`
-    : `<text x="${cx}" y="${cy}" font-size="78" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
-
-  return `
-    <svg viewBox="0 0 ${size} ${size}" class="ficha-central-svg" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        ${arcPath('arc-mental', 270, 360, midR)}
-        ${arcPath('arc-tecnico', 0, 90, midR)}
-        ${arcPath('arc-tactico', 180, 90, midR)}
-        ${arcPath('arc-condicional', 270, 180, midR)}
-        ${arcPath('rp-mental', 270, 360, rpR)}
-        ${arcPath('rp-tecnico', 0, 90, rpR)}
-        ${arcPath('rp-tactico', 180, 90, rpR)}
-        ${arcPath('rp-condicional', 270, 180, rpR)}
-      </defs>
-      ${seg(270, 360, blockColors.mental)}
-      ${seg(0, 90, blockColors.tecnico)}
-      ${seg(90, 180, blockColors.tactico)}
-      ${seg(180, 270, blockColors.condicional)}
-      <circle cx="${cx}" cy="${cy}" r="${rInner + 4}" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" />
-      ${photo}
-      ${curvedLabel('arc-mental', 'MENTAL', blockColors.mental)}
-      ${curvedLabel('arc-tecnico', 'TÉCNICO', blockColors.tecnico)}
-      ${curvedLabel('arc-tactico', 'TÁCTICO', blockColors.tactico)}
-      ${curvedLabel('arc-condicional', 'CONDICIONAL', blockColors.condicional)}
-      ${rpLabel('rp-mental', rpTexts?.mental)}
-      ${rpLabel('rp-tecnico', rpTexts?.tecnico)}
-      ${rpLabel('rp-tactico', rpTexts?.tactico)}
-      ${rpLabel('rp-condicional', rpTexts?.condicional)}
-    </svg>
-  `;
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border-default);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-emphasis);
 }
 
-/**
- * Coloca el círculo central exactamente en el cruce de los 4
- * cuadrantes, midiendo el DOM real (fiable pase lo que pase con
- * las alturas de MENTAL/TÉCNICO/CONDICIONAL/TÁCTICO).
- */
-function centerFichaCircle(root) {
-  const grid       = root.querySelector('.ficha-grid');
-  const mental     = root.querySelector('.q-mental');
-  const condHeader = root.querySelector('.q-condicional .ficha-q-header');
-  const circle     = root.querySelector('.ficha-central');
-  if (!grid || !mental || !condHeader || !circle) return;
-
-  root.style.transform = 'none'; // medir en tamaño real, no en el ya escalado
-
-  const gridRect   = grid.getBoundingClientRect();
-  const mentalRect = mental.getBoundingClientRect();
-
-  const crossX = mentalRect.right - gridRect.left; // borde derecho de MENTAL = línea vertical
-  // línea horizontal: no el borde superior de la barra CONDICIONAL/TÁCTICO,
-  // sino su mitad — ahí es donde tiene que caer el ecuador del círculo.
-  const crossY = (mentalRect.bottom - gridRect.top) + condHeader.offsetHeight / 2;
-  const half = circle.offsetWidth / 2;
-
-  circle.style.left = `${crossX - half}px`;
-  circle.style.top  = `${crossY - half}px`;
+.btn-gold {
+  background: transparent;
+  color: var(--rm-gold);
+  border-color: var(--rm-gold-dark);
+}
+.btn-gold:hover:not(:disabled) {
+  background: rgba(201,162,39,0.1);
+  border-color: var(--rm-gold);
 }
 
-// ── BLOQUE CON RADAR (mental / técnico / táctico) ──
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn-icon { padding: 6px; min-width: 30px; min-height: 30px; }
 
-function buildRatedBlock({ title, rp, items, side, bands, blockKey }) {
-  const listHTML = items.map(item => {
-    const color = scoreColor(item.value, bands); // hex de la banda, o null si no hay dato
-    const valueText = item.value == null ? '-' : formatNum(item.value);
-    const style = `style="color:${color || 'rgba(255,255,255,0.5)'}"`;
-    return side === 'left'
-      ? `<li><span class="ficha-score" ${style}>${valueText}</span><span class="ficha-item-label">${safeText(item.label)}</span></li>`
-      : `<li><span class="ficha-item-label">${safeText(item.label)}</span><span class="ficha-score" ${style}>${valueText}</span></li>`;
-  }).join('');
+/* ── CARDS ── */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+.card-lg { padding: 24px; }
+.card-sm { padding: 10px 12px; }
 
-  const radarSVG = buildRadarSVG(
-    items.map(i => ({ label: i.label, value: i.value })),
-    { size: 300 }
-  );
-
-  const listBlock  = `<ul class="ficha-item-list ${side === 'left' ? 'align-left' : 'align-right'}">${listHTML}</ul>`;
-  const radarBlock = `<div class="ficha-radar">${radarSVG}</div>`;
-
-  return `
-    <section class="ficha-quadrant q-${blockKey} ${side === 'left' ? 'q-left' : 'q-right'}">
-      <header class="ficha-q-header">
-        <span class="ficha-q-title">${safeText(title)}</span>
-      </header>
-      <div class="ficha-q-body">
-        ${side === 'left' ? listBlock + radarBlock : radarBlock + listBlock}
-      </div>
-    </section>
-  `;
+.card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.card-body {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
 }
 
-// ── BLOQUE CONDICIONAL (valores GPS, editable, sin radar) ──
+/* ── BADGES ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.badge-blue    { background: rgba(37,99,235,0.12);   color: var(--blue-400); }
+.badge-gold    { background: rgba(201,162,39,0.12);  color: var(--rm-gold); }
+.badge-green   { background: rgba(34,197,94,0.12);   color: #22c55e; }
+.badge-red     { background: rgba(239,68,68,0.12);   color: #ef4444; }
+.badge-gray    { background: rgba(107,114,128,0.15); color: #9ca3af; }
 
-function buildCondicionalBlock({ title, rp, items }) {
-  const header = `
-    <div class="gps-row gps-col-headers gps-header-row">
-      <span class="gps-val-cell gps-cell-a">1</span>
-      <span class="gps-val-cell">2</span>
-      <span class="gps-label"></span>
-      <span class="gps-ref-cell gps-cell-a">3</span>
-      <span class="gps-ref-cell">4</span>
-    </div>
-    <p class="gps-legend">Columna 1: media del jugador &nbsp;·&nbsp; Columna 2: máxima del jugador &nbsp;·&nbsp; Columna 3: media por posición en fútbol profesional &nbsp;·&nbsp; Columna 4: máxima por posición en fútbol profesional</p>
-  `;
+/* ── INPUTS ── */
+.input, .select, .textarea {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 7px 10px;
+  width: 100%;
+  outline: none;
+  transition: border-color var(--t-fast);
+}
+.input:focus, .select:focus, .textarea:focus {
+  border-color: var(--blue-500);
+  box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+}
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='%238b949e' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 26px;
+  cursor: pointer;
+}
+.textarea { resize: vertical; min-height: 72px; line-height: 1.5; }
 
-  const rows = items.map((item, i) => `
-    <div class="gps-row" data-row="${i}" data-ref-a="${item.refA ?? ''}">
-      <span class="gps-val-cell gps-cell-a">
-        <input class="gps-input" type="text" data-row="${i}" data-field="valueA" value="${item.valueA ?? ''}" />
-        <span class="gps-icon"></span>
-      </span>
-      <span class="gps-val-cell">
-        <input class="gps-input" type="text" data-row="${i}" data-field="valueB" value="${item.valueB ?? ''}" />
-        <span class="gps-icon"></span>
-      </span>
-      <span class="gps-label">• ${safeText(item.label)}</span>
-      <span class="gps-ref-cell gps-cell-a">
-        <span class="gps-ref-value">${formatNum(item.refA)}</span>
-      </span>
-      <span class="gps-ref-cell">
-        <span class="gps-ref-value">${formatNum(item.refB)}</span>
-      </span>
-    </div>
-  `).join('');
+.label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 5px;
+}
+.field-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 
-  return `
-    <section class="ficha-quadrant q-condicional q-left ficha-condicional">
-      <header class="ficha-q-header">
-        <span class="ficha-q-title">${safeText(title)}</span>
-      </header>
-      <div class="ficha-condicional-body">
-        <div class="gps-grid">${header}${rows}</div>
-      </div>
-    </section>
-  `;
+/* ── DIVISOR ── */
+.divider {
+  height: 1px;
+  background: var(--border-default);
+  border: none;
+  margin: 16px 0;
 }
 
-// ── PLAN DE ACCIÓN ────────────────────────────────
+/* ── EMPTY / LOADING STATE ── */
+.state-empty, .state-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 56px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.state-empty-icon { font-size: 36px; opacity: 0.35; }
+.state-empty p    { font-size: 13px; max-width: 280px; line-height: 1.5; }
 
-const PLAN_COLUMNS = [
-  { key: 'tecnico',     label: 'TÉCNICO',     icon: './balon.png'   },
-  { key: 'tactico',     label: 'TÁCTICO',     icon: './pizarra.jpg' },
-  { key: 'condicional', label: 'CONDICIONAL', icon: './cohete.png'  },
-  { key: 'mental',      label: 'MENTAL',      icon: './cerebro.png' },
-];
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--border-default);
+  border-top-color: var(--blue-400);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
-function buildPlanAccion(plan) {
-  const cols = PLAN_COLUMNS.map(col => {
-    const items = (plan?.[col.key] ?? ['', '', '', '', '', '', '']);
-    const lis = items.map(txt =>
-      `<li contenteditable="true" data-plan="${col.key}">${safeText(txt)}</li>`
-    ).join('');
-    return `
-      <div class="plan-col">
-        <div class="plan-col-header">
-          <span>${col.label}</span><img class="plan-col-icon plan-col-icon-${col.key}" src="${col.icon}" alt="" />
-        </div>
-        <ul class="plan-col-list">${lis}</ul>
-      </div>
-    `;
-  }).join('');
-
-  return `
-    <section class="ficha-plan">
-      <header class="ficha-plan-title">PLAN DE ACCIÓN</header>
-      <div class="ficha-plan-subheader">ASPECTOS DEL JUGADOR</div>
-      <div class="ficha-plan-grid">
-        ${cols}
-      </div>
-    </section>
-  `;
+/* ── FIREBASE NOTICE ── */
+.firebase-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.3);
+  border-radius: var(--radius-md);
+  color: #f59e0b;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 16px;
 }
 
-// ── HEADER DE LA FICHA (azul corporativo, arriba del todo) ──
-
-export function buildFichaHeader(logoPath, pageLabel) {
-  return `
-    <header class="ficha-header">
-      <img src="${logoPath}" alt="" class="ficha-header-crest" />
-      <span class="ficha-header-title">INFORME INDIVIDUAL DEL JUGADOR</span>
-      ${pageLabel ? `<span class="ficha-header-page">${safeText(pageLabel)}</span>` : ''}
-    </header>
-  `;
+/* TABLA GENÉRICA (Plantillas, Registro de datos, etc.) */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table th, .table td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-default);
+}
+.table th {
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-// ── FORMATEO ──────────────────────────────────────
-
-function formatNum(n) {
-  if (n == null) return '-';
-  return Number(n).toFixed(2).replace(/\.00$/, '').replace('.', ',');
+/* Variante compacta — solo para tablas de referencia/consulta (p.ej. Dimensiones oficiales) */
+.table-compact th, .table-compact td {
+  padding: 3px 12px;
 }
 
-function parseEsNumber(str) {
-  if (str == null || str === '') return null;
-  const n = parseFloat(String(str).replace(/\./g, '').replace(',', '.'));
-  return Number.isNaN(n) ? null : n;
+/* Tabla "Datos condicionales" (Configuración) — mismo formato/colores que el
+   bloque CONDICIONAL de la Ficha 2 (fondo/cabecera = state.fichaColors,
+   pasados por variables CSS inline en app.js, no hardcodeados aquí).
+   Primera columna fija (sticky) al hacer scroll horizontal; posiciones
+   agrupadas de 2 en 2 (Med./Máx.). */
+.cond-refs-wrap {
+  background: var(--cond-refs-bg, #24313d);
+  border-radius: var(--radius-md);
+  padding: 8px;
+}
+.cond-refs-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  white-space: nowrap;
+  color: #ffffff;
+}
+.cond-refs-table th, .cond-refs-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.14);
+  border-right: 1px solid rgba(255,255,255,0.14);
+}
+.cond-refs-table thead th {
+  font-weight: 700;
+  color: #ffffff;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--cond-refs-header, #7b3a52);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.cond-refs-table tbody { background: var(--cond-refs-bg, #24313d); }
+.cond-refs-table td.cond-refs-sticky, .cond-refs-table th.cond-refs-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  text-align: left;
+}
+.cond-refs-table th.cond-refs-sticky { background: var(--cond-refs-header, #7b3a52); }
+.cond-refs-table td.cond-refs-sticky { background: var(--cond-refs-bg, #24313d); }
+.cond-refs-table input {
+  width: 64px;
+  text-align: center;
+  padding: 3px 4px;
+  font-size: 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 4px;
+  color: #ffffff;
+}
+.cond-refs-table input:focus {
+  outline: none;
+  border-color: var(--score-yellow, #eab308);
+  background: rgba(255,255,255,0.14);
 }
 
-/**
- * Recalcula el icono de una fila GPS comparando valueA/valueB (columnas 1/2,
- * manuales) contra refA — la columna 3, fija por posición desde Configuración
- * → Datos condicionales (guardada en data-ref-a, NO es un input editable).
- * La columna 4 (refB) es solo informativa, nunca participa en la comparación.
- * diferencia = valor - refA:
- *   > +0.2  → ✔ verde
- *   < -0.2  → ✘ roja
- *   resto (incl. límites) → guion amarillo
- * Si falta valor o falta refA: sin icono (no se interpreta vacío como 0).
- */
-function recalcGpsRow(rowEl) {
-  const refARaw = rowEl.dataset.refA;
-  const refA = (refARaw === '' || refARaw == null || Number.isNaN(Number(refARaw))) ? null : Number(refARaw);
-
-  ['valueA', 'valueB'].forEach(field => {
-    const input = rowEl.querySelector(`[data-field="${field}"]`);
-    const iconSlot = input.parentElement.querySelector('.gps-icon');
-    const val = parseEsNumber(input.value);
-    let st = null; // null | 'ok' | 'fail' | 'dash'
-    if (val != null && refA != null) {
-      // redondeo a 2 decimales: 7.2 - 7.0 da 0.20000000000000018 en JS (float),
-      // y un valor justo en el límite (±0,2, que es inclusive) se colaría en verde/rojo.
-      const diff = Math.round((val - refA) * 100) / 100;
-      st = diff > 0.2 ? 'ok' : diff < -0.2 ? 'fail' : 'dash';
-    }
-    iconSlot.className = 'gps-icon' + (st ? ` gps-${st}` : '');
-    iconSlot.textContent = st === 'ok' ? '✔' : st === 'fail' ? '✘' : st === 'dash' ? '━' : '';
-  });
+/* CHIP (posiciones en Configuración, etiquetas sueltas) */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--blue-100, #dbeafe);
+  color: var(--blue-700, #1e3a5f);
+  border-radius: 999px;
+  padding: 4px 6px 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
 }
-
-/**
- * El bloque CONDICIONAL ya no usa CSS Grid (display:contents rompía el
- * PDF, ver ficha.css) — con flexbox cada fila mide su ancho por
- * separado, y como la etiqueta ("• V.MAX.", "• Edad Madurativa."...)
- * no mide igual en cada fila, las cajitas quedaban descuadradas
- * (cada fila se centraba con un ancho total distinto). Se iguala
- * aquí, en JS, el ancho de TODAS las etiquetas al de la más larga
- * — así todas las filas miden lo mismo y las columnas quedan rectas.
- */
-function equalizeGpsLabelWidth(container) {
-  const labels = container.querySelectorAll('.gps-label');
-  if (!labels.length) return;
-  labels.forEach(l => { l.style.width = ''; }); // reset antes de medir el ancho natural
-  let max = 0;
-  labels.forEach(l => { max = Math.max(max, l.scrollWidth); });
-  max += 12; // margen de seguridad — con white-space:nowrap (ficha.css) nunca debería hacer falta, es cinturón y tirantes
-  labels.forEach(l => { l.style.width = max + 'px'; });
+.chip button {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 50%;
 }
+.chip button:hover { background: rgba(0,0,0,0.1); }
 
-/**
- * Conecta los inputs del bloque CONDICIONAL para que el ✔/✘
- * se recalcule solo al escribir. Llamar tras insertar el HTML
- * en el DOM (no persiste en Firestore todavía).
- */
-export function wireCondicionalInputs(container) {
-  equalizeGpsLabelWidth(container);
-  container.querySelectorAll('.gps-row:not(.gps-header-row)').forEach(rowEl => {
-    recalcGpsRow(rowEl);
-    rowEl.querySelectorAll('.gps-input').forEach(input => {
-      input.addEventListener('input', () => recalcGpsRow(rowEl));
-    });
-  });
+/* BOTÓN CON PINTA DE ENLACE (nombre de jugador → perfil, etc.) */
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--blue-500, #2563eb);
+  font-weight: 600;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
 }
-
-// ── RENDER PRINCIPAL ──────────────────────────────
-
-/**
- * Renderiza la página de detalle (4 cuadrantes) dentro de `container`.
- * @param {HTMLElement} container
- * @param {Object} data — { player, blocks: {mental, tecnico, tactico, condicional}, plan }
- * @param {string} logoPath — ruta del escudo (LOGO_PATH de constants.js)
- * @param {Array} bands — state.scoreBands: [{ color, min }, ...]
- * @param {string} [pageLabel] — indicador de página, ej. '2/2'. Vacío/omitido = no se muestra.
- */
-export function renderFichaDetalle(container, data, logoPath, bands, pageLabel = '2/2', colors) {
-  const { player, blocks, plan } = data;
-
-  const blockColors = {
-    mental:      blockCircleColor(blocks.mental.rp,      bands),
-    tecnico:     blockCircleColor(blocks.tecnico.rp,      bands),
-    tactico:     blockCircleColor(blocks.tactico.rp,      bands),
-    condicional: blockCircleColor(blocks.condicional.rp,  bands),
-  };
-
-  const rpText = rp => (rp && rp[0] != null && rp[1] != null) ? `${formatNum(rp[0])}/${formatNum(rp[1])}` : null;
-  const rpTexts = {
-    mental:      rpText(blocks.mental.rp),
-    tecnico:     rpText(blocks.tecnico.rp),
-    tactico:     rpText(blocks.tactico.rp),
-    condicional: rpText(blocks.condicional.rp),
-  };
-
-  const colorStyle = colors ? ` style="--slate:${colors.slate}; --wine:${colors.wine}; --text-general:${colors.textGeneral}; --text-header:${colors.textHeader}; --text-aspectos:${colors.textAspectos}; --text-subheader-white:${colors.textSubheaderWhite};"` : '';
-
-  container.innerHTML = `
-    <div class="ficha-a4-frame">
-      <div class="ficha-detalle"${colorStyle}>
-        ${buildFichaHeader(logoPath, pageLabel)}
-        <div class="ficha-grid">
-          ${buildRatedBlock({ title: 'MENTAL',  rp: blocks.mental.rp,  items: blocks.mental.items,  side: 'left',  bands, blockKey: 'mental'  })}
-          ${buildRatedBlock({ title: 'TÉCNICO', rp: blocks.tecnico.rp, items: blocks.tecnico.items, side: 'right', bands, blockKey: 'tecnico' })}
-          ${buildCondicionalBlock({ title: 'CONDICIONAL', rp: blocks.condicional.rp, items: blocks.condicional.items })}
-          ${buildRatedBlock({ title: 'TÁCTICO', rp: blocks.tactico.rp, items: blocks.tactico.items, side: 'right', bands, blockKey: 'tactico' })}
-          <div class="ficha-central">${buildCentralCircle(player?.photoUrl, blockColors, rpTexts)}</div>
-        </div>
-        ${buildPlanAccion(plan)}
-      </div>
-    </div>
-  `;
-
-  wireCondicionalInputs(container);
-
-  const fichaRoot = container.querySelector('.ficha-detalle');
-  centerFichaCircle(fichaRoot);
-  fitFichaToFrame(container);
-
-  window.addEventListener('resize', () => {
-    centerFichaCircle(fichaRoot);
-    fitFichaToFrame(container);
-  });
-  window.addEventListener('beforeprint', () => {
-    // Al imprimir NO reescalamos por JS (los tiempos del navegador
-    // en beforeprint son poco fiables) — se deja la ficha a tamaño
-    // natural y es la opción "Ajustar al área de impresión" del
-    // propio diálogo de impresión la que la encoge a una página.
-    const ficha = container.querySelector('.ficha-detalle');
-    if (ficha) ficha.style.transform = 'none';
-  });
-  window.addEventListener('afterprint', () => fitFichaToFrame(container));
-}
-
-/**
- * Escala la ficha (tamaño de diseño fijo) para que ocupe el ancho
- * disponible en pantalla — SOLO por ancho, sin límite de alto, para
- * que la ficha 1 y la ficha 2 midan siempre el mismo ancho entre sí
- * (antes, la que tenía más contenido —más alta— se paraba antes por
- * el límite de alto y quedaba más estrecha). El marco se ajusta
- * exacto al resultado. Se recalcula solo, no hay que tocar nada a mano.
- */
-export function fitFichaToFrame(container) {
-  const frame = container.querySelector('.ficha-a4-frame');
-  const ficha = container.querySelector('.ficha-detalle');
-  if (!frame || !ficha) return;
-
-  frame.style.width  = '';
-  frame.style.height = '';
-  ficha.style.transform = 'none'; // medir tamaño real, sin escalar todavía
-
-  const maxW = Math.min(frame.parentElement?.clientWidth || 1700, 1700);
-
-  const fichaRect = ficha.getBoundingClientRect();
-  if (!fichaRect.width || !fichaRect.height) return;
-
-  const scale = maxW / fichaRect.width; // solo ancho, sin tope de alto
-  ficha.style.transform = `scale(${scale})`;
-
-  frame.style.width  = `${fichaRect.width * scale}px`;
-  frame.style.height = `${fichaRect.height * scale}px`;
-}
+.link-btn:hover { color: var(--blue-600, #1d4ed8); }
