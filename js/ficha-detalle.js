@@ -169,7 +169,7 @@ function buildCondicionalBlock({ title, rp, items }) {
       <span class="gps-ref-cell gps-cell-a">3</span>
       <span class="gps-ref-cell">4</span>
     </div>
-    <p class="gps-legend">1 Media del jugador &nbsp;·&nbsp; 2 Máxima del jugador &nbsp;·&nbsp; 3 Media profesional de la posición &nbsp;·&nbsp; 4 Máxima profesional de la posición</p>
+    <p class="gps-legend">Columna 1: media del jugador &nbsp;·&nbsp; Columna 2: máxima del jugador &nbsp;·&nbsp; Columna 3: media por posición en fútbol profesional &nbsp;·&nbsp; Columna 4: máxima por posición en fútbol profesional</p>
   `;
 
   const rows = items.map((item, i) => `
