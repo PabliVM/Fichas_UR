@@ -121,8 +121,8 @@ function buildAspectoComunCategoryHTML(cat) {
       <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">
         ${chips || '<span class="text-xs text-muted">Sin items definidos.</span>'}
       </div>
-      <div class="flex gap-8">
-        <input class="input" type="text" data-crit-new data-scope="comun" data-cat="${cat.key}" placeholder="Nuevo item…" />
+      <div class="flex gap-8" style="align-items:flex-start;">
+        <textarea class="input" data-crit-new data-scope="comun" data-cat="${cat.key}" rows="1" style="min-height:36px;resize:vertical;" placeholder="Nuevo item… (o pega varios, uno por línea)"></textarea>
         <button class="btn btn-sm" data-crit-add data-scope="comun" data-cat="${cat.key}">+ Añadir</button>
       </div>
     </div>
@@ -171,8 +171,8 @@ function buildTacticoCategoryHTML() {
       <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">
         ${chips || '<span class="text-xs text-muted">Sin items definidos.</span>'}
       </div>
-      <div class="flex gap-8">
-        <input class="input" type="text" data-crit-new data-cat="tactico" placeholder="Nuevo item…" />
+      <div class="flex gap-8" style="align-items:flex-start;">
+        <textarea class="input" data-crit-new data-cat="tactico" rows="1" style="min-height:36px;resize:vertical;" placeholder="Nuevo item… (o pega varios, uno por línea)"></textarea>
         <button class="btn btn-sm" data-crit-add data-cat="tactico">+ Añadir</button>
       </div>
     </div>
@@ -218,8 +218,8 @@ function buildPerfilesCategoryHTML() {
       <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">
         ${chips || '<span class="text-xs text-muted">Sin perfiles definidos.</span>'}
       </div>
-      <div class="flex gap-8">
-        <input class="input" type="text" data-crit-new data-cat="perfiles" placeholder="Nuevo perfil…" />
+      <div class="flex gap-8" style="align-items:flex-start;">
+        <textarea class="input" data-crit-new data-cat="perfiles" rows="1" style="min-height:36px;resize:vertical;" placeholder="Nuevo perfil… (o pega varios, uno por línea)"></textarea>
         <button class="btn btn-sm" data-crit-add data-cat="perfiles">+ Añadir</button>
       </div>
     </div>
@@ -1189,18 +1189,32 @@ function renderPanelConfig(container) {
       const cat = btn.dataset.cat;
       const isComun = btn.dataset.scope === 'comun';
       const input = container.querySelector(`[data-crit-new][data-cat="${cat}"]${isComun ? '[data-scope="comun"]' : ''}`);
-      const label = input.value.trim();
-      if (!label) { showError('Escribe el nombre del item.'); return; }
+      // Admite pegar/escribir varias líneas: una por item. Se descartan vacías
+      // y duplicados (contra lo ya existente y entre sí, sin distinguir mayúsculas).
+      const rawLines = input.value.split('\n').map(l => l.trim()).filter(Boolean);
+      if (!rawLines.length) { showError('Escribe el nombre del item (uno por línea si son varios).'); return; }
+      const existingItems = isComun
+        ? (state.aspectosComunes[cat] || [])
+        : ((state.criteriaSchemas[configCriteriaPosition] || {})[cat] || []);
+      const existingLower = existingItems.map(l => l.toLowerCase());
+      const toAdd = [];
+      const skipped = [];
+      rawLines.forEach(line => {
+        const lower = line.toLowerCase();
+        if (existingLower.includes(lower) || toAdd.some(a => a.toLowerCase() === lower)) {
+          skipped.push(line);
+        } else {
+          toAdd.push(line);
+        }
+      });
+      if (!toAdd.length) { showError('Ese item ya existe en este bloque.'); return; }
       if (isComun) {
-        const items = state.aspectosComunes[cat] || [];
-        if (items.includes(label)) { showError('Ese item ya existe en este bloque.'); return; }
-        setState({ aspectosComunes: { ...state.aspectosComunes, [cat]: [...items, label] } });
+        setState({ aspectosComunes: { ...state.aspectosComunes, [cat]: [...existingItems, ...toAdd] } });
       } else {
         const schema = state.criteriaSchemas[configCriteriaPosition] || {};
-        const items = schema[cat] || [];
-        if (items.includes(label)) { showError('Ese item ya existe en este bloque.'); return; }
-        setState({ criteriaSchemas: { ...state.criteriaSchemas, [configCriteriaPosition]: { ...schema, [cat]: [...items, label] } } });
+        setState({ criteriaSchemas: { ...state.criteriaSchemas, [configCriteriaPosition]: { ...schema, [cat]: [...existingItems, ...toAdd] } } });
       }
+      if (skipped.length) showSuccess(`${toAdd.length} añadido(s). ${skipped.length} ya existían y se han ignorado.`);
       document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
       renderPanelConfig(container);
     });
