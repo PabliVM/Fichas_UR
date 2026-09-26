@@ -8,6 +8,7 @@
 import { APP_NAME, DEFAULT_SEASON, TEAMS, TABS, PROFILES, SEASONS } from './constants.js';
 import { saveDocument, readDocument } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
+import { showError } from './utils.js';
 
 function initialTab() {
   const hash = window.location.hash.replace('#', '');
@@ -94,6 +95,7 @@ function schedulePersist() {
     CONFIG_KEYS.forEach(k => { snapshot[k] = _state[k]; });
     saveDocument(CONFIG_COLLECTION, CONFIG_DOC_ID, snapshot).catch(err => {
       console.error('[Firestore] No se pudo guardar la configuración:', err);
+      showError('No se ha guardado en la nube (revisa las reglas de Firestore o la conexión).', 6000);
     });
   }, 400); // agrupa cambios rápidos seguidos (ej. arrastrar un color) en un solo guardado
 }
@@ -112,6 +114,7 @@ export async function loadConfigFromFirestore() {
     Object.assign(_state, patch);
   } catch (err) {
     console.error('[Firestore] No se pudo cargar la configuración:', err);
+    showError('No se pudo cargar la configuración guardada (revisa las reglas de Firestore o la conexión).', 6000);
   }
 }
 
