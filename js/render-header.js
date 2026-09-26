@@ -3,7 +3,7 @@
 // ================================================
 
 import { state, setState }   from './state.js';
-import { LOGO_PATH, SEASONS, TEAMS } from './constants.js';
+import { LOGO_PATH } from './constants.js';
 import { safeText }          from './utils.js';
 
 export function renderHeader() {
@@ -20,10 +20,7 @@ export function renderHeader() {
     </div>
     <div class="header-actions" style="display:flex;align-items:center;gap:8px;">
       <select class="select" id="sel-season">
-        ${SEASONS.map(s => `<option value="${s}" ${s === state.season ? 'selected' : ''}>${s}</option>`).join('')}
-      </select>
-      <select class="select" id="sel-team">
-        ${TEAMS.map(t => `<option value="${t.key}" ${t.key === state.activeTeam ? 'selected' : ''}>${t.label}</option>`).join('')}
+        ${state.seasons.map(s => `<option value="${s}" ${s === state.season ? 'selected' : ''}>${s}</option>`).join('')}
       </select>
       <button class="btn-theme" id="btn-theme" title="Cambiar modo">
         ${state.darkMode ? '☀️' : '🌙'}
@@ -38,10 +35,6 @@ export function renderHeader() {
     document.dispatchEvent(new CustomEvent('rm:season-changed', { detail: e.target.value }));
   });
 
-  document.getElementById('sel-team').addEventListener('change', e => {
-    setState({ activeTeam: e.target.value });
-    document.dispatchEvent(new CustomEvent('rm:team-changed', { detail: e.target.value }));
-  });
 }
 
 function toggleTheme() {
