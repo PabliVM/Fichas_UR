@@ -6,7 +6,7 @@
 // ================================================
 
 import { APP_NAME, DEFAULT_SEASON, TEAMS, TABS, PROFILES, SEASONS } from './constants.js';
-import { saveDocument, readDocument } from './firebase-service.js';
+import { saveDocument, readDocument, readCollection } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { showError } from './utils.js';
 
@@ -32,7 +32,12 @@ const _state = {
   activeTeam:      TEAMS[0].key,
   activeTab:       initialTab(),
   darkMode:        false,
-  fichaColors:     { ...DEFAULT_FICHA_COLORS }, // editable desde Configuración
+  fichaColors:     { ...DEFAULT_FICHA_COLORS }, // colores ACTIVOS ahora mismo (los que se ven en la ficha)
+  // Colores "por defecto" que usa el botón Restaurar — el usuario los fija
+  // pulsando "Guardar como predeterminado" (copia fichaColors aquí). Si
+  // nunca lo ha pulsado, queda null y Restaurar cae en DEFAULT_FICHA_COLORS
+  // (los de fábrica del código).
+  fichaColorsDefault: null,
   // Bandas de color para las medias — editable en Configuración: cuántas
   // haya (2, 3, 4...) y qué color/umbral tiene cada una. Semilla: 3 bandas
   // (verde/amarillo/rojo), igual que el criterio que ya usábamos.
@@ -88,7 +93,7 @@ export const state = _state;
 // jugadores/informes NO van aquí (tendrán su propia colección más adelante).
 const CONFIG_COLLECTION = 'config';
 const CONFIG_DOC_ID = 'general';
-const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'seasons', 'condicionalRefs', 'condicionalTolerance'];
+const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'condicionalTolerance'];
 
 let _persistTimer = null;
 function schedulePersist() {
@@ -119,6 +124,22 @@ export async function loadConfigFromFirestore() {
   } catch (err) {
     console.error('[Firestore] No se pudo cargar la configuración:', err);
     showError('No se pudo cargar la configuración guardada (revisa las reglas de Firestore o la conexión).', 6000);
+  }
+}
+
+/**
+ * Carga la colección 'jugadores' completa de Firestore ANTES del primer
+ * render (llamar en boot(), junto a loadConfigFromFirestore). Colección
+ * aparte del doc config/general — cada jugador es su propio documento.
+ */
+export async function loadPlayersFromFirestore() {
+  if (isFirebaseUnconfigured()) return;
+  try {
+    const players = await readCollection('jugadores');
+    Object.assign(_state, { players });
+  } catch (err) {
+    console.error('[Firestore] No se pudieron cargar los jugadores:', err);
+    showError('No se pudieron cargar los jugadores (revisa las reglas de Firestore o la conexión).', 6000);
   }
 }
 
