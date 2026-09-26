@@ -230,7 +230,7 @@ const PLAN_COLUMNS = [
 
 function buildPlanAccion(plan) {
   const cols = PLAN_COLUMNS.map(col => {
-    const items = (plan?.[col.key] ?? ['', '', '', '', '', '', '']);
+    const items = (plan?.[col.key] ?? ['', '', '', '', '', '', '', '']);
     const lis = items.map(txt =>
       `<li contenteditable="true" data-plan="${col.key}">${safeText(txt)}</li>`
     ).join('');
