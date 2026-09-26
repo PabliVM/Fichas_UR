@@ -19,6 +19,8 @@
   position: absolute;
   top: 0;
   left: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── HEADER PROPIO (no comparte CSS con .ficha-header de la ficha 2) ──
@@ -149,7 +151,7 @@
   outline: none;
 }
 .p1-desc-text:focus { background: rgba(255,255,255,0.06); }
-.p1-comp-grid { display: grid; column-gap: 16px; padding: 20px 24px; min-height: 200px; }
+.p1-comp-grid { display: grid; column-gap: 16px; padding: 20px 24px; min-height: 110px; }
 .p1-comp-cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; }
 .p1-comp-label { font-size: 26px; font-weight: 600; min-height: 90px; }
 .p1-status-box { display: inline-block; width: 36px; height: 36px; border-radius: 4px; }
@@ -192,7 +194,7 @@
   flex-direction: column;
   gap: 24px;
   font-size: 36px;          /* oficial ficha2 (listas): 55px × 0.6528 */
-  min-height: 327px;
+  min-height: 150px;
   background: rgba(255,255,255,0.03);
 }
 .p1-editable-list li {
@@ -204,10 +206,10 @@
 .p1-editable-list li:focus { background: rgba(255,255,255,0.06); }
 
 /* ── CAMPO + LEYENDA ── */
-.p1-bottom { display: flex; border-top: 3px solid rgba(255,255,255,0.65); }
+.p1-bottom { display: flex; flex: 1 1 auto; min-height: 0; border-top: 3px solid rgba(255,255,255,0.65); }
 .p1-pitch {
   flex: 2;
-  min-height: 367px;
+  min-height: 0;
   background-image: url('./campo.jpg');
   background-size: cover;
   background-position: center;
