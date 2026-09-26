@@ -91,6 +91,7 @@ const CONFIG_GROUPS = [
     label: 'Diseño',
     tabs: [
       { key: 'ficha-colores', label: 'Colores de la ficha' },
+      { key: 'ficha-matriz',  label: 'Matriz' },
       { key: 'dimensiones',   label: 'Dimensiones' },
     ],
   },
@@ -703,7 +704,7 @@ function renderPanelFichas(container, positionKey = 'portero') {
 
   const wrap = container.querySelector('#ficha-demo-wrap');
   setGpsTolerance(state.condicionalTolerance);
-  renderFichaDetalle(wrap, buildFichaDemoFromSchema(positionKey), LOGO_PATH, state.scoreBands, undefined, state.fichaColors);
+  renderFichaDetalle(wrap, buildFichaDemoFromSchema(positionKey), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
 
   container.querySelectorAll('[data-ficha-page]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -927,6 +928,33 @@ function renderPanelConfig(container) {
     </div>
     `}
 
+    ${configSubTab !== 'ficha-matriz' ? '' : `
+    <div class="card">
+      <div class="card-title">Matriz de la ficha 2</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">
+          Elige qué bloque va en cada hueco de la matriz 2×2. Tamaños y contenido de cada bloque no cambian, solo dónde cae cada uno.
+        </p>
+        <div class="grid-2" style="max-width:520px;gap:16px;">
+          ${['tl', 'tr', 'bl', 'br'].map(pos => `
+            <div class="field-group">
+              <label class="label">${{ tl: 'Arriba izquierda', tr: 'Arriba derecha', bl: 'Abajo izquierda', br: 'Abajo derecha' }[pos]}</label>
+              <select class="select" data-matrix-pos="${pos}">
+                ${['mental', 'tecnico', 'condicional', 'tactico'].map(key => `
+                  <option value="${key}" ${state.fichaGridOrder[pos] === key ? 'selected' : ''}>${{ mental: 'Mental', tecnico: 'Técnico', condicional: 'Condicional', tactico: 'Táctico' }[key]}</option>
+                `).join('')}
+              </select>
+            </div>
+          `).join('')}
+        </div>
+        <p class="text-xs text-muted mt-16" id="matriz-error" style="display:none;color:var(--score-red,#ef4444);">
+          Los 4 huecos deben tener bloques distintos — no se ha guardado.
+        </p>
+        <button class="btn mt-16" id="matriz-reset">Restaurar orden de fábrica</button>
+      </div>
+    </div>
+    `}
+
     ${configSubTab !== 'dimensiones' ? '' : `
     <div class="card">
       <div class="card-title">Dimensiones oficiales — Ficha 2</div>
@@ -1137,6 +1165,31 @@ function renderPanelConfig(container) {
   container.querySelector('#ficha-colors-save-default')?.addEventListener('click', () => {
     setState({ fichaColorsDefault: { ...state.fichaColors } });
     showSuccess('Guardado como predeterminado. "Restaurar" volverá aquí a partir de ahora.');
+  });
+
+  container.querySelectorAll('[data-matrix-pos]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const order = { ...state.fichaGridOrder };
+      container.querySelectorAll('[data-matrix-pos]').forEach(s => {
+        order[s.dataset.matrixPos] = s.value;
+      });
+      const values = Object.values(order);
+      const hasDuplicates = new Set(values).size !== values.length;
+      const errorMsg = container.querySelector('#matriz-error');
+      if (hasDuplicates) {
+        if (errorMsg) errorMsg.style.display = '';
+        return;
+      }
+      if (errorMsg) errorMsg.style.display = 'none';
+      setState({ fichaGridOrder: order });
+      document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
+    });
+  });
+  container.querySelector('#matriz-reset')?.addEventListener('click', () => {
+    setState({ fichaGridOrder: { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: 'tactico' } });
+    document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
+    renderPanelConfig(container);
+    showSuccess('Matriz restaurada al orden de fábrica.');
   });
 
   container.querySelector('#pos-add')?.addEventListener('click', () => {
