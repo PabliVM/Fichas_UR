@@ -38,6 +38,13 @@ const _state = {
   // nunca lo ha pulsado, queda null y Restaurar cae en DEFAULT_FICHA_COLORS
   // (los de fábrica del código).
   fichaColorsDefault: null,
+  // Orden de los 4 bloques en la matriz 2x2 de la Ficha 2 — editable en
+  // Configuración → Matriz. Claves = posición fija en pantalla (tl=arriba
+  // izq, tr=arriba der, bl=abajo izq, br=abajo der); valores = qué bloque
+  // va ahí. Semilla = el orden de siempre (mental/tecnico arriba,
+  // condicional/tactico abajo). Tamaños y contenido no cambian, solo el
+  // hueco donde cae cada bloque.
+  fichaGridOrder: { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: 'tactico' },
   // Bandas de color para las medias — editable en Configuración: cuántas
   // haya (2, 3, 4...) y qué color/umbral tiene cada una. Semilla: 3 bandas
   // (verde/amarillo/rojo), igual que el criterio que ya usábamos.
@@ -93,7 +100,7 @@ export const state = _state;
 // jugadores/informes NO van aquí (tendrán su propia colección más adelante).
 const CONFIG_COLLECTION = 'config';
 const CONFIG_DOC_ID = 'general';
-const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'condicionalTolerance'];
+const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'condicionalTolerance', 'fichaGridOrder'];
 
 let _persistTimer = null;
 function schedulePersist() {
