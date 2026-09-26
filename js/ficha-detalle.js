@@ -284,6 +284,13 @@ function parseEsNumber(str) {
  *   resto (incl. límites) → guion amarillo
  * Si falta valor o falta refA: sin icono (no se interpreta vacío como 0).
  */
+let _gpsTolerance = 0.2;
+/** Fija la tolerancia (±) para el guion amarillo — viene de Configuración → Datos condicionales. */
+export function setGpsTolerance(value) {
+  const n = Number(value);
+  _gpsTolerance = (Number.isFinite(n) && n >= 0) ? n : 0.2;
+}
+
 function recalcGpsRow(rowEl) {
   const refARaw = rowEl.dataset.refA;
   const refA = (refARaw === '' || refARaw == null || Number.isNaN(Number(refARaw))) ? null : Number(refARaw);
@@ -295,9 +302,9 @@ function recalcGpsRow(rowEl) {
     let st = null; // null | 'ok' | 'fail' | 'dash'
     if (val != null && refA != null) {
       // redondeo a 2 decimales: 7.2 - 7.0 da 0.20000000000000018 en JS (float),
-      // y un valor justo en el límite (±0,2, que es inclusive) se colaría en verde/rojo.
+      // y un valor justo en el límite (±tolerancia, que es inclusive) se colaría en verde/rojo.
       const diff = Math.round((val - refA) * 100) / 100;
-      st = diff > 0.2 ? 'ok' : diff < -0.2 ? 'fail' : 'dash';
+      st = diff > _gpsTolerance ? 'ok' : diff < -_gpsTolerance ? 'fail' : 'dash';
     }
     iconSlot.className = 'gps-icon' + (st ? ` gps-${st}` : '');
     iconSlot.textContent = st === 'ok' ? '✔' : st === 'fail' ? '✘' : st === 'dash' ? '━' : '';
