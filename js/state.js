@@ -75,6 +75,10 @@ const _state = {
   // condicionales. Sin semilla — no hay datos reales todavía.
   // Forma: { [posKey]: { [itemCondicional]: { col3: number|null, col4: number|null } } }
   condicionalRefs: {},
+  // Tolerancia (±) para el guion amarillo del bloque CONDICIONAL (Ficha 2):
+  // si |valor - refA| <= esto, sale guion; si no, check verde o X roja.
+  // Editable en Configuración → Datos condicionales.
+  condicionalTolerance: 0.2,
 };
 
 export const state = _state;
@@ -84,7 +88,7 @@ export const state = _state;
 // jugadores/informes NO van aquí (tendrán su propia colección más adelante).
 const CONFIG_COLLECTION = 'config';
 const CONFIG_DOC_ID = 'general';
-const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'seasons', 'condicionalRefs'];
+const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'seasons', 'condicionalRefs', 'condicionalTolerance'];
 
 let _persistTimer = null;
 function schedulePersist() {
