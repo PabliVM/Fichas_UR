@@ -241,18 +241,18 @@
    flex que .gps-row para que las columnas queden alineadas). */
 .gps-col-headers {
   font-weight: 800;
-  font-size: 40px;
+  font-size: 62px;
   color: rgba(255,255,255,0.85);
 }
 .gps-col-headers .gps-val-cell,
 .gps-col-headers .gps-ref-cell { justify-content: center; }
 .gps-legend {
-  font-size: 26px;
+  font-size: 32px;
   font-weight: 400;
   color: rgba(255,255,255,0.55);
   text-align: center;
-  margin: 0 0 8px;
-  line-height: 1.3;
+  margin: 16px 0 0;
+  line-height: 1.5;
 }
 
 /* ── CÍRCULO CENTRAL ── */
