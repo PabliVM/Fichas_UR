@@ -77,14 +77,14 @@
   flex-direction: column;
   border: 1px solid var(--slate-line);
 }
-.q-mental      { border-top: none; border-left: none; }
-.q-tecnico     { border-top: none; border-right: none; }
-.q-condicional { border-bottom: none; border-left: none; }
-.q-tactico     { border-bottom: none; border-right: none; }
-.q-mental      { grid-row: 1; grid-column: 1; }
-.q-tecnico     { grid-row: 1; grid-column: 2; }
-.q-condicional { grid-row: 2; grid-column: 1; border-top: 3px solid rgba(255,255,255,0.65); }
-.q-tactico     { grid-row: 2; grid-column: 2; border-top: 3px solid rgba(255,255,255,0.65); }
+/* Posición en la matriz 2x2 — FIJA en pantalla (no depende de qué bloque
+   contenga: el orden de los bloques es configurable en Configuración →
+   Matriz, ver state.fichaGridOrder). tl=arriba izq, tr=arriba der,
+   bl=abajo izq, br=abajo der. */
+.pos-tl { border-top: none; border-left: none; grid-row: 1; grid-column: 1; }
+.pos-tr { border-top: none; border-right: none; grid-row: 1; grid-column: 2; }
+.pos-bl { border-bottom: none; border-left: none; grid-row: 2; grid-column: 1; border-top: 3px solid rgba(255,255,255,0.65); }
+.pos-br { border-bottom: none; border-right: none; grid-row: 2; grid-column: 2; border-top: 3px solid rgba(255,255,255,0.65); }
 
 .ficha-q-header {
   background: var(--wine);
