@@ -129,6 +129,14 @@ function centerFichaCircle(root) {
 // ── BLOQUE CON RADAR (mental / técnico / táctico) ──
 
 function buildRatedBlock({ title, rp, items, side, bands, blockKey }) {
+  // Con muchas items (ej. Táctico portero, 24) la lista lateral no cabe
+  // en la altura fija de la ficha si mantiene el tamaño pensado para ~12.
+  // A partir de 18 items se reduce letra/gap solo de esta lista, para no
+  // desbordar el alto fijo (7200x5014, nunca cambia).
+  const many = items.length > 18;
+  const listFontSize = many ? 38 : 55;
+  const listGap      = many ? 3  : 6;
+
   const listHTML = items.map(item => {
     const color = scoreColor(item.value, bands); // hex de la banda, o null si no hay dato
     const valueText = item.value == null ? '-' : formatNum(item.value);
@@ -139,11 +147,10 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey }) {
   }).join('');
 
   const radarSVG = buildRadarSVG(
-    items.map(i => ({ label: i.label, value: i.value })),
-    { size: 300 }
+    items.map(i => ({ label: i.label, value: i.value }))
   );
 
-  const listBlock  = `<ul class="ficha-item-list ${side === 'left' ? 'align-left' : 'align-right'}">${listHTML}</ul>`;
+  const listBlock  = `<ul class="ficha-item-list ${side === 'left' ? 'align-left' : 'align-right'}" style="font-size:${listFontSize}px;gap:${listGap}px;">${listHTML}</ul>`;
   const radarBlock = `<div class="ficha-radar">${radarSVG}</div>`;
 
   return `
