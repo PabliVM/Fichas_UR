@@ -132,8 +132,12 @@
 .p1-plain-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 24px; font-size: 36px; } /* oficial ficha2: 55px × 0.6528 */
 .p1-plain-list li::before { content: "• "; color: rgba(255,255,255,0.5); }
 
-/* ── COLUMNA DERECHA: descripción + competencias ── */
+/* ── COLUMNA DERECHA: descripción + competencias ──
+   3 cajones iguales (descripción / comp. ofensivas / comp. defensivas),
+   cada uno se reparte 1/3 del alto disponible. */
 .p1-right { display: flex; flex-direction: column; }
+.p1-right > .p1-section { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+/* nota: no hace falta borde extra entre secciones — cada header ya trae su propio border-top */
 .p1-desc-header {
   background: var(--wine);
   color: #ffffff;
@@ -146,12 +150,14 @@
 .p1-desc-text {
   padding: 20px 28px;
   font-size: 36px;          /* oficial ficha2 (listas): 55px × 0.6528 */
-  min-height: 100px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
   background: rgba(255,255,255,0.03);
   outline: none;
 }
 .p1-desc-text:focus { background: rgba(255,255,255,0.06); }
-.p1-comp-grid { display: grid; column-gap: 16px; padding: 20px 24px; min-height: 110px; }
+.p1-comp-grid { display: grid; column-gap: 16px; padding: 20px 24px; flex: 1 1 auto; min-height: 0; }
 .p1-comp-cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; }
 .p1-comp-label { font-size: 26px; font-weight: 600; min-height: 90px; }
 .p1-status-box { display: inline-block; width: 36px; height: 36px; border-radius: 4px; }
@@ -243,21 +249,11 @@
   flex: 1 1 auto;
   min-height: 0;
   background-image: url('../campo.jpg');
-  background-size: cover;
+  background-size: contain;     /* campo entero visible, sin recortar (antes: cover) */
+  background-repeat: no-repeat;
   background-position: center;
-  background-color: #2f7a3d; /* fallback si campo.jpg no carga */
+  background-color: var(--slate); /* relleno cuando el campo no llena el cajón (antes: verde) */
   position: relative;
-}
-.p1-pitch-marker {
-  position: absolute;
-  left: 12%;
-  top: 50%;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: 3px solid #0f1117;
-  transform: translate(-50%, -50%);
 }
 .p1-legend {
   flex: 0 0 auto;
