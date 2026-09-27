@@ -14,7 +14,7 @@ export function renderHeader() {
     <div class="header-logo">
       <img src="${LOGO_PATH}" alt="RM" />
     </div>
-    <div style="display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden;">
+    <div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;overflow:hidden;">
       <span class="header-app-name">${safeText(state.appName)}</span>
       <span class="header-app-subtitle">Real Madrid · Cantera</span>
     </div>
@@ -26,7 +26,6 @@ export function renderHeader() {
         ${state.darkMode ? '☀️' : '🌙'}
       </button>
     </div>
-    <div style="flex:1;"></div>
   `;
 
   document.getElementById('btn-theme').addEventListener('click', toggleTheme);
