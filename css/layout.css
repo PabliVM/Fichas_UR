@@ -59,7 +59,7 @@ body {
 #rm-main {
   flex: 1;
   padding: 20px 16px;
-  max-width: 1800px;
+  max-width: 2200px;  /* antes 1800px — margen ~1/3 más pequeño en pantallas anchas */
   width: 100%;
   margin: 0 auto;    /* centrado: mismo margen a ambos lados en pantallas anchas */
 }
