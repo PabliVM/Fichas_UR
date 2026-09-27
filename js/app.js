@@ -7,7 +7,7 @@ import { isFirebaseUnconfigured } from './firebase-config.js';
 import { renderHeader }  from './render-header.js';
 import { renderTabs, switchTab } from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
-import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS } from './constants.js';
+import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS, PROFILES } from './constants.js';
 import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore, loadPlayersFromFirestore } from './state.js';
 import { renderFichaDetalle, setGpsTolerance } from './ficha-detalle.js';
 import { renderFichaPagina1 } from './ficha-pagina1.js';
@@ -223,6 +223,37 @@ function buildPerfilesCategoryHTML() {
         <textarea class="input" data-crit-new data-cat="perfiles" rows="1" style="min-height:36px;resize:vertical;" placeholder="Nuevo perfil… (o pega varios, uno por línea)"></textarea>
         <button class="btn btn-sm" data-crit-add data-cat="perfiles">+ Añadir</button>
       </div>
+    </div>
+  `;
+}
+
+// Perfiles: para CADA perfil de esta posición, checkboxes sobre el Táctico
+// ya creado (igual patrón que Ofensivas/Defensivas) — qué competencias
+// entran en la media de ese perfil. Se guarda en criteriaSchemas[pos].perfilCompetencias[nombrePerfil].
+function buildPerfilCompetenciasHTML() {
+  const schema = state.criteriaSchemas[configCriteriaPosition] || {};
+  const perfiles = schema.perfiles || [];
+  const tactico = schema.tactico || [];
+  if (!perfiles.length) return '<p class="text-xs text-muted">Define antes al menos un perfil (arriba).</p>';
+  if (!tactico.length) return '<p class="text-xs text-muted">Define antes el Táctico de esta posición (pestaña Ficha 2).</p>';
+  const perfilCompetencias = schema.perfilCompetencias || {};
+  return `
+    <div class="flex gap-24" style="flex-wrap:wrap;">
+      ${perfiles.map(perfil => {
+        const selected = perfilCompetencias[perfil] || [];
+        const boxes = tactico.map(label => `
+          <label class="flex gap-8" style="align-items:center;">
+            <input type="checkbox" data-toggle-perfil-comp data-perfil="${safeText(perfil)}" data-label="${safeText(label)}" ${selected.includes(label) ? 'checked' : ''} />
+            <span class="text-xs">${safeText(label)}</span>
+          </label>
+        `).join('');
+        return `
+          <div style="flex:1;min-width:260px;">
+            <div class="mb-8" style="font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.02em;color:var(--text-secondary);">${safeText(perfil)}</div>
+            <div class="flex gap-8" style="flex-direction:column;">${boxes}</div>
+          </div>
+        `;
+      }).join('')}
     </div>
   `;
 }
@@ -674,8 +705,10 @@ function buildFicha1DemoFromSchema(positionKey) {
   const schema = state.criteriaSchemas[positionKey] || {};
   const mental = state.aspectosComunes.mental || [];
   const mid = Math.ceil(mental.length / 2);
+  const positionLabel = PROFILES.find(p => p.key === positionKey)?.label || FICHA1_DEMO_DATA.player.position;
   return {
     ...FICHA1_DEMO_DATA,
+    player: { ...FICHA1_DEMO_DATA.player, position: positionLabel },
     personalidad: {
       col1: mental.slice(0, mid).map(label => ({ label, status: null })),
       col2: mental.slice(mid).map(label => ({ label, status: null })),
@@ -816,7 +849,9 @@ function renderPanelConfig(container) {
               + `<div class="flex gap-24" style="flex-wrap:wrap;">${buildOfenDefCheckboxesHTML('of', 'Ofensivas')}${buildOfenDefCheckboxesHTML('def', 'Defensivas')}</div>`
               + `<div class="mb-8 mt-16" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Perfiles</div>`
               + buildPositionSelectorHTML()
-              + buildPerfilesCategoryHTML()}
+              + buildPerfilesCategoryHTML()
+              + `<div class="mb-8 mt-16" style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:0.02em;color:var(--text-secondary);">Competencias de cada perfil (para la media)</div>`
+              + buildPerfilCompetenciasHTML()}
         `}
       </div>
     </div>
@@ -1320,6 +1355,24 @@ function renderPanelConfig(container) {
       const current = schema[key] || [];
       const next = box.checked ? [...current, label] : current.filter(l => l !== label);
       setState({ criteriaSchemas: { ...state.criteriaSchemas, [configCriteriaPosition]: { ...schema, [key]: next } } });
+      document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
+    });
+  });
+
+  container.querySelectorAll('[data-toggle-perfil-comp]').forEach(box => {
+    box.addEventListener('change', () => {
+      const perfil = box.dataset.perfil;
+      const label = box.dataset.label;
+      const schema = state.criteriaSchemas[configCriteriaPosition] || {};
+      const perfilCompetencias = schema.perfilCompetencias || {};
+      const current = perfilCompetencias[perfil] || [];
+      const next = box.checked ? [...current, label] : current.filter(l => l !== label);
+      setState({
+        criteriaSchemas: {
+          ...state.criteriaSchemas,
+          [configCriteriaPosition]: { ...schema, perfilCompetencias: { ...perfilCompetencias, [perfil]: next } },
+        },
+      });
       document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
     });
   });
