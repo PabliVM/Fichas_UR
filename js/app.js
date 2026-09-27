@@ -67,7 +67,7 @@ let plantillasSelectedPlayerId = null; // navegación local lista ↔ perfil (no
 let jugadorFormId = null; // null=formulario cerrado, 'new'=alta, <id>=editando ese jugador
 let configCriteriaPosition = null;      // qué posición se está editando en "Items a evaluar"
 let fichaTipoPosition = null;           // qué posición se está viendo en Configuración → Fichas tipo → Individual
-let configSubTab = 'posiciones';        // pestaña interna activa dentro de Configuración
+let configSubTab = localStorage.getItem('rm-config-subtab') || 'posiciones'; // pestaña interna activa dentro de Configuración — persiste al refrescar
 
 const CONFIG_GROUPS = [
   {
@@ -792,7 +792,7 @@ function renderPanelConfig(container) {
     <div class="mb-16" style="border-bottom:1px solid var(--border-default);padding-bottom:8px;">
       ${CONFIG_GROUPS.map(g => `
         <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
-          <span class="text-xs text-muted" style="min-width:80px;font-weight:700;text-transform:uppercase;">${g.label}</span>
+          <span class="text-xs text-muted" style="width:112px;flex-shrink:0;font-weight:700;text-transform:uppercase;">${g.label}</span>
           ${g.tabs.map(t => `
             <button class="btn ${t.key === configSubTab ? 'btn-primary' : 'btn-sm'}" data-config-subtab="${t.key}">${t.label}</button>
           `).join('')}
@@ -1053,6 +1053,7 @@ function renderPanelConfig(container) {
   container.querySelectorAll('[data-config-subtab]').forEach(btn => {
     btn.addEventListener('click', () => {
       configSubTab = btn.dataset.configSubtab;
+      localStorage.setItem('rm-config-subtab', configSubTab);
       renderPanelConfig(container);
     });
   });
