@@ -18,29 +18,7 @@ export function renderHeader() {
       <span class="header-app-name">${safeText(state.appName)}</span>
       <span class="header-app-subtitle">Real Madrid · Cantera</span>
     </div>
-    <div class="header-actions" style="display:flex;align-items:center;gap:8px;">
-      <select class="select" id="sel-season">
-        ${state.seasons.map(s => `<option value="${s}" ${s === state.season ? 'selected' : ''}>${s}</option>`).join('')}
-      </select>
-      <button class="btn-theme" id="btn-theme" title="Cambiar modo">
-        ${state.darkMode ? '☀️' : '🌙'}
-      </button>
-    </div>
   `;
-
-  document.getElementById('btn-theme').addEventListener('click', toggleTheme);
-
-  document.getElementById('sel-season').addEventListener('change', e => {
-    setState({ season: e.target.value });
-    document.dispatchEvent(new CustomEvent('rm:season-changed', { detail: e.target.value }));
-  });
-
-}
-
-function toggleTheme() {
-  const isDark = document.body.classList.toggle('dark');
-  setState({ darkMode: isDark });
-
-  const btn = document.getElementById('btn-theme');
-  if (btn) btn.textContent = isDark ? '☀️' : '🌙';
+  // Temporada + modo oscuro: movidos a la fila de pestañas (#rm-tabs),
+  // ver render-tabs.js — menos información apretada en el header.
 }
