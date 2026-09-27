@@ -38,7 +38,12 @@ function statusMarkup(status) {
 }
 
 function barColorHex(color) {
-  return color ? STATUS_HEX[color] : '#475569'; // gris si no hay dato
+  return color ? STATUS_HEX[color] : '#475569'; // gris si no hay dato (status bars)
+}
+
+// Círculo central: en blanco cuando no hay dato de bloque (antes gris).
+function circleColorHex(color) {
+  return color ? STATUS_HEX[color] : '#ffffff';
 }
 
 // ── CÍRCULO MINI (mismo concepto que la página 2, más pequeño) ──
@@ -56,7 +61,7 @@ function buildMiniCircle(photoUrl, blockRp) {
   const rInner = 236;
   const midR = (rOuter + rInner) / 2;
 
-  const colorFor = key => barColorHex(blockRp[key]);
+  const colorFor = key => circleColorHex(blockRp[key]);
 
   const seg = (a, b, color) => {
     const p1 = polar(cx, cy, rOuter, a);
@@ -193,13 +198,13 @@ function buildAspectos(title, data) {
 // Campo + leyenda — antes ocupaban una fila a todo el ancho debajo de
 // aspectos; ahora van apilados en la columna izquierda (p1-lower-left),
 // alineados bajo Personalidad (ver renderFichaPagina1 → .p1-lower).
-function buildPitchAndLegend(logoPath) {
+// Sin escudo (quitado a petición) — logoPath ya no se usa aquí.
+function buildPitchAndLegend() {
   return `
     <div class="p1-pitch">
       <div class="p1-pitch-marker" title="Posición del jugador (sin dato aún)"></div>
     </div>
     <div class="p1-legend">
-      <img class="p1-legend-crest" src="${logoPath}" alt="" />
       <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.green}"></span>POTENCIAR</div>
       <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.yellow}"></span>DESARROLLAR</div>
       <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.red}"></span>MEJORAR</div>
@@ -243,7 +248,7 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
         </div>
         <div class="p1-lower">
           <div class="p1-lower-left">
-            ${buildPitchAndLegend(logoPath)}
+            ${buildPitchAndLegend()}
           </div>
           <div class="p1-lower-right">
             ${buildAspectos('ASPECTOS INDIVIDUALES OFENSIVOS', data.aspectosOfensivos)}
