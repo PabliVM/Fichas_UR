@@ -203,13 +203,77 @@ function buildAspectos(title, data) {
 // Sin escudo (quitado a petición) — logoPath ya no se usa aquí.
 function buildPitchAndLegend() {
   return `
-    <div class="p1-pitch"></div>
+    <div class="p1-pitch">
+      <div class="p1-jersey-tray">
+        <img class="p1-jersey-icon" src="../camiseta.jpg" data-jersey="jugador" draggable="true" alt="Camiseta jugador" title="Arrastra al campo" />
+        <img class="p1-jersey-icon" src="../camiseta%20portero.jpg" data-jersey="portero" draggable="true" alt="Camiseta portero" title="Arrastra al campo" />
+      </div>
+    </div>
     <div class="p1-legend">
       <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.green}"></span>POTENCIAR</div>
       <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.yellow}"></span>DESARROLLAR</div>
       <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.red}"></span>MEJORAR</div>
     </div>
   `;
+}
+
+// ── CAMISETA ARRASTRABLE (posición del jugador en el campo) ──
+// Una sola camiseta colocada a la vez (arrastrar la otra la sustituye).
+// No persiste aquí — emite 'p1:pitch-marker-changed' con {type, xPct, yPct}
+// para que el código que guarda cada ficha de jugador (aún no existe) lo
+// enganche a Firestore. Si `data.pitchMarker` viene ya informado, se
+// pinta colocada desde el principio (para cuando sí se cargue guardada).
+function renderPitchMarker(pitchEl, marker) {
+  let img = pitchEl.querySelector('.p1-jersey-marker');
+  if (!marker) {
+    if (img) img.remove();
+    return;
+  }
+  if (!img) {
+    img = document.createElement('img');
+    img.className = 'p1-jersey-marker';
+    img.draggable = true;
+    img.alt = 'Posición del jugador';
+    pitchEl.appendChild(img);
+  }
+  img.src = marker.type === 'portero' ? '../camiseta%20portero.jpg' : '../camiseta.jpg';
+  img.dataset.jersey = marker.type;
+  img.style.left = `${marker.xPct}%`;
+  img.style.top = `${marker.yPct}%`;
+}
+
+function initPitchDragDrop(container, data) {
+  const pitchEl = container.querySelector('.p1-pitch');
+  if (!pitchEl) return;
+  let marker = data.pitchMarker || null;
+  renderPitchMarker(pitchEl, marker);
+
+  pitchEl.addEventListener('dragstart', e => {
+    const jersey = e.target?.dataset?.jersey;
+    if (!jersey) return;
+    e.dataTransfer.setData('text/plain', jersey);
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  pitchEl.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  });
+
+  pitchEl.addEventListener('drop', e => {
+    e.preventDefault();
+    const type = e.dataTransfer.getData('text/plain');
+    if (type !== 'jugador' && type !== 'portero') return;
+    const rect = pitchEl.getBoundingClientRect();
+    const xPct = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+    const yPct = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
+    marker = { type, xPct, yPct };
+    renderPitchMarker(pitchEl, marker);
+    container.dispatchEvent(new CustomEvent('p1:pitch-marker-changed', {
+      detail: { ...marker },
+      bubbles: true,
+    }));
+  });
 }
 
 // ── RENDER PRINCIPAL ──────────────────────────────
@@ -265,4 +329,5 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
 
   fitFichaToFrame(container);
   window.addEventListener('resize', () => fitFichaToFrame(container));
+  initPitchDragDrop(container, data);
 }
