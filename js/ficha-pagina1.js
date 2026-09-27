@@ -190,18 +190,19 @@ function buildAspectos(title, data) {
   `;
 }
 
-function buildBottom(logoPath) {
+// Campo + leyenda — antes ocupaban una fila a todo el ancho debajo de
+// aspectos; ahora van apilados en la columna izquierda (p1-lower-left),
+// alineados bajo Personalidad (ver renderFichaPagina1 → .p1-lower).
+function buildPitchAndLegend(logoPath) {
   return `
-    <div class="p1-bottom">
-      <div class="p1-pitch">
-        <div class="p1-pitch-marker" title="Posición del jugador (sin dato aún)"></div>
-      </div>
-      <div class="p1-legend">
-        <img class="p1-legend-crest" src="${logoPath}" alt="" />
-        <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.green}"></span>POTENCIAR</div>
-        <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.yellow}"></span>DESARROLLAR</div>
-        <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.red}"></span>MEJORAR</div>
-      </div>
+    <div class="p1-pitch">
+      <div class="p1-pitch-marker" title="Posición del jugador (sin dato aún)"></div>
+    </div>
+    <div class="p1-legend">
+      <img class="p1-legend-crest" src="${logoPath}" alt="" />
+      <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.green}"></span>POTENCIAR</div>
+      <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.yellow}"></span>DESARROLLAR</div>
+      <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.red}"></span>MEJORAR</div>
     </div>
   `;
 }
@@ -240,9 +241,15 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
           </div>
           <div class="p1-central">${buildMiniCircle(player.photoUrl, data.blockRp)}</div>
         </div>
-        ${buildAspectos('ASPECTOS INDIVIDUALES OFENSIVOS', data.aspectosOfensivos)}
-        ${buildAspectos('ASPECTOS INDIVIDUALES DEFENSIVOS', data.aspectosDefensivos)}
-        ${buildBottom(logoPath)}
+        <div class="p1-lower">
+          <div class="p1-lower-left">
+            ${buildPitchAndLegend(logoPath)}
+          </div>
+          <div class="p1-lower-right">
+            ${buildAspectos('ASPECTOS INDIVIDUALES OFENSIVOS', data.aspectosOfensivos)}
+            ${buildAspectos('ASPECTOS INDIVIDUALES DEFENSIVOS', data.aspectosDefensivos)}
+          </div>
+        </div>
       </div>
     </div>
   `;
