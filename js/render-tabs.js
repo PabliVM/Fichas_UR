@@ -15,35 +15,11 @@ export function renderTabs() {
       data-tab="${tab.key}">
       ${tab.label}
     </button>
-  `).join('') + `
-    <div class="header-actions" style="display:flex;align-items:center;gap:8px;margin-left:auto;align-self:center;">
-      <select class="select" id="sel-season">
-        ${state.seasons.map(s => `<option value="${s}" ${s === state.season ? 'selected' : ''}>${s}</option>`).join('')}
-      </select>
-      <button class="btn-theme" id="btn-theme" title="Cambiar modo">
-        ${state.darkMode ? '☀️' : '🌙'}
-      </button>
-    </div>
-  `;
+  `).join('');
 
   nav.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
-
-  document.getElementById('btn-theme').addEventListener('click', toggleTheme);
-
-  document.getElementById('sel-season').addEventListener('change', e => {
-    setState({ season: e.target.value });
-    document.dispatchEvent(new CustomEvent('rm:season-changed', { detail: e.target.value }));
-  });
-}
-
-function toggleTheme() {
-  const isDark = document.body.classList.toggle('dark');
-  setState({ darkMode: isDark });
-
-  const btn = document.getElementById('btn-theme');
-  if (btn) btn.textContent = isDark ? '☀️' : '🌙';
 }
 
 export function switchTab(tabKey) {
