@@ -231,10 +231,10 @@ let nextMarkerId = 1;
 const POSITION_DEFAULT_XY = {
   portero:     { x: 8,  y: 50 }, // portería izquierda
   central:     { x: 18, y: 50 }, // centro línea del área propia
-  lateral:     { x: 25, y: 82 }, // lateral derecho
+  lateral:     { x: 25, y: 68 }, // lateral derecho
   mediocentro: { x: 50, y: 50 }, // centro del campo
-  interior:    { x: 58, y: 80 }, // derecha del centro del campo, abajo
-  extremo:     { x: 75, y: 82 }, // como lateral, en el otro área
+  interior:    { x: 58, y: 66 }, // derecha del centro del campo, abajo
+  extremo:     { x: 85, y: 68 }, // como lateral, en el otro área (más a la derecha)
   delantero:   { x: 92, y: 50 }, // como portero, en el otro área
 };
 
