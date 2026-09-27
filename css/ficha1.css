@@ -78,6 +78,7 @@
   align-items: center;
   justify-content: space-between;
 }
+.p1-identity-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .p1-facts {
   list-style: none;
   margin: 0;
@@ -90,20 +91,23 @@
 .p1-facts li::before { content: "• "; color: rgba(255,255,255,0.5); }
 .p1-check { color: var(--score-green); font-weight: 800; margin-left: 10px; }
 
-.p1-rp-row { display: flex; gap: 24px; padding: 0 28px; margin-bottom: 16px; }
+/* R/P: reubicados junto a los datos (antes debajo), tamaño ×2 */
+.p1-rp-group { display: flex; flex-direction: column; padding: 24px 24px 0 0; }
+.p1-rp-row { display: flex; gap: 20px; margin-bottom: 16px; }
 .p1-rp-badge {
-  width: 96px; height: 96px;
+  width: 192px; height: 192px;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 42px; font-weight: 800;
-  border: 4px solid #0f1117;
+  font-size: 84px; font-weight: 800;
+  border: 8px solid #0f1117;
+  flex-shrink: 0;
 }
 .p1-rp-badge-r { background: var(--score-yellow); color: #0f1117; }
 .p1-rp-badge-p { background: #ffffff; color: #0f1117; }
 .p1-rp-box {
-  width: 96px; height: 76px;
+  width: 192px; height: 152px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 42px; font-weight: 800;
+  font-size: 84px; font-weight: 800;
   border-radius: 6px;
 }
 .p1-rp-box-r { background: var(--score-yellow); color: #0f1117; }
