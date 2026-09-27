@@ -225,10 +225,25 @@ function buildPitchAndLegend(isGoalkeeper) {
 // posición por defecto.
 let nextMarkerId = 1;
 
-function defaultMarkers(isGoalkeeper) {
+// Posición por defecto en el campo según la posición del jugador (clave de
+// PROFILES en constants.js). El TIPO de camiseta (imagen) sigue siendo
+// binario: solo hay 2 imágenes (portero / resto).
+const POSITION_DEFAULT_XY = {
+  portero:     { x: 8,  y: 50 }, // portería izquierda
+  central:     { x: 18, y: 50 }, // centro línea del área propia
+  lateral:     { x: 25, y: 82 }, // lateral derecho
+  mediocentro: { x: 50, y: 50 }, // centro del campo
+  interior:    { x: 58, y: 80 }, // derecha del centro del campo, abajo
+  extremo:     { x: 75, y: 82 }, // como lateral, en el otro área
+  delantero:   { x: 92, y: 50 }, // como portero, en el otro área
+};
+
+function defaultMarkers(positionKey) {
+  const isGoalkeeper = positionKey === 'portero';
+  const xy = POSITION_DEFAULT_XY[positionKey] || POSITION_DEFAULT_XY.mediocentro;
   return isGoalkeeper
-    ? [{ id: nextMarkerId++, type: 'portero', xPct: 8, yPct: 50 }]
-    : [{ id: nextMarkerId++, type: 'jugador', xPct: 50, yPct: 50 }];
+    ? [{ id: nextMarkerId++, type: 'portero', xPct: xy.x, yPct: xy.y }]
+    : [{ id: nextMarkerId++, type: 'jugador', xPct: xy.x, yPct: xy.y }];
 }
 
 function renderMarkers(pitchEl, markers) {
@@ -251,11 +266,11 @@ function renderMarkers(pitchEl, markers) {
   });
 }
 
-function initPitchDragDrop(container, data, isGoalkeeper) {
+function initPitchDragDrop(container, data, positionKey) {
   const pitchEl = container.querySelector('.p1-pitch');
   if (!pitchEl) return;
   const addBtn = container.querySelector('.p1-jersey-add');
-  let markers = data.pitchMarkers || defaultMarkers(isGoalkeeper);
+  let markers = data.pitchMarkers || defaultMarkers(positionKey);
   renderMarkers(pitchEl, markers);
 
   const emitChange = () => {
@@ -320,6 +335,7 @@ function initPitchDragDrop(container, data, isGoalkeeper) {
 export function renderFichaPagina1(container, data, logoPath, colors) {
   const { player } = data;
   const isGoalkeeper = /porter[oa]/i.test(player.position || '');
+  const positionKey = (player.position || '').toLowerCase().trim(); // coincide con las keys de PROFILES (constants.js)
 
   const colorStyle = colors ? ` style="--slate:${colors.slate}; --wine:${colors.wine}; --text-general:${colors.textGeneral}; --text-header:${colors.textHeader}; --text-aspectos:${colors.textAspectos}; --text-subheader-white:${colors.textSubheaderWhite};"` : '';
 
@@ -362,5 +378,5 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
 
   fitFichaToFrame(container);
   window.addEventListener('resize', () => fitFichaToFrame(container));
-  initPitchDragDrop(container, data, isGoalkeeper);
+  initPitchDragDrop(container, data, positionKey);
 }
