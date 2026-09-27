@@ -1,394 +1,300 @@
 /* ================================================
-   FICHA.CSS — Página de detalle de la ficha individual
-   Paleta propia (vino/pizarra), aislada del resto de la app.
-   No usa --header-bg, --bg-app, etc. — es un documento
-   con identidad fija, igual en claro y oscuro.
+   FICHA1.CSS — Página 1 de la ficha individual
+   Comparte paleta y tokens con ficha.css (--wine, --slate,
+   --score-*), pero es una plantilla distinta a la de la
+   página 2 (identidad + competencias, no 4 cuadrantes).
    ================================================ */
 
-/* El marco se ajusta EXACTO al contenido ya escalado (fitFichaToFrame
-   en JS) — así no queda ningún margen sobrante, de ningún color.
-   Consecuencia: la ficha 1 y la ficha 2 pueden medir ligeramente
-   distinto entre sí si su contenido no tiene la misma proporción. */
-.ficha-a4-frame {
-  margin: 0 auto;
-  overflow: hidden;
-  position: relative;
-  background: #24313d;
-  border-radius: var(--radius-md);
-  box-shadow: 0 2px 16px rgba(0,0,0,0.25);
-}
-
-.ficha-detalle {
+.p1-detalle {
   --wine:        #7b3a52;
   --slate:       #24313d;
   --slate-line:  rgba(255,255,255,0.12);
   background: var(--slate);
-  color: var(--text-general, #ffffff);
+  color: #ffffff;
   font-family: var(--font-sans);
-  width: 7200px;          /* más ancha que alta → más rectangular al imprimir */
-  height: 5014px;         /* forzado: = 1183.9px en pantalla, NUNCA cambia */
+  width: 4700px;          /* mismo ancho de diseño que la página 2 */
+  height: 3246px;         /* forzado: = 1174px en pantalla (igual que la ficha 2) */
   overflow: hidden;
   transform-origin: top left;
   position: absolute;
   top: 0;
   left: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.ficha-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: auto auto;
-  border-top: 3px solid rgba(255,255,255,0.65);
-  position: relative;
-}
-
-/* ── HEADER DE LA FICHA (azul RM, arriba del todo) ── */
-.ficha-header {
+/* ── HEADER PROPIO (no comparte CSS con .ficha-header de la ficha 2) ──
+   Valores oficiales ficha2 escalados ×0.6528 (4700/7200):
+   escudo 260→170, título 104→68, badge 72→47, padding 10px 22px→7px 14px. */
+.p1-header {
   background: var(--blue-600, #1d4ed8);
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 10px 22px;
+  gap: 9px;
+  padding: 7px 14px;
 }
-.ficha-header-crest { width: 260px; height: 260px; object-fit: contain; flex-shrink: 0; }
-.ficha-header-title {
+.p1-header-crest { width: 170px; height: 170px; object-fit: contain; flex-shrink: 0; }
+.p1-header-title {
   flex: 1;
   text-align: center;
   color: var(--text-header, #ffffff);
   font-weight: 600;
-  font-size: 104px;
+  font-size: 68px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
-.ficha-header-page {
+.p1-header-page {
   color: var(--text-header, #ffffff);
   font-weight: 700;
-  font-size: 72px;
+  font-size: 47px;
   background: rgba(255,255,255,0.18);
-  padding: 8px 22px;
+  padding: 5px 14px;
   border-radius: 999px;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-/* ── CUADRANTE ── */
-.ficha-quadrant {
+.p1-top {
+  display: grid;
+  grid-template-columns: 1692px 1fr; /* 36% del ancho — proporción del diseño objetivo (antes 1080px/23%) */
+  position: relative;
+  border-bottom: 3px solid rgba(255,255,255,0.65);
+}
+
+/* ── COLUMNA IZQUIERDA: identidad ── */
+.p1-left {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--slate-line);
+  border-right: 3px solid rgba(255,255,255,0.65);
 }
-/* Posición en la matriz 2x2 — FIJA en pantalla (no depende de qué bloque
-   contenga: el orden de los bloques es configurable en Configuración →
-   Matriz, ver state.fichaGridOrder). tl=arriba izq, tr=arriba der,
-   bl=abajo izq, br=abajo der. */
-.pos-tl { border-top: none; border-left: none; grid-row: 1; grid-column: 1; }
-.pos-tr { border-top: none; border-right: none; grid-row: 1; grid-column: 2; }
-.pos-bl { border-bottom: none; border-left: none; grid-row: 2; grid-column: 1; border-top: 3px solid rgba(255,255,255,0.65); }
-.pos-br { border-bottom: none; border-right: none; grid-row: 2; grid-column: 2; border-top: 3px solid rgba(255,255,255,0.65); }
-
-.ficha-q-header {
+.p1-name-header {
   background: var(--wine);
+  color: #ffffff;
+  font-size: 49px;          /* oficial ficha2: 75px × 0.6528 */
+  font-weight: 600;
+  padding: 8px 28px;        /* vertical oficial: 12px × 0.6528; horizontal sin tocar (layout space-between) */
+  border-top: 3px solid rgba(255,255,255,0.65); /* como en ficha 2 */
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  min-height: 44px;
 }
-.ficha-q-title {
-  font-size: 75px;
-  color: var(--text-header, #ffffff);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  flex: 1;
-  text-align: center;
-  text-transform: uppercase;
-}
-.ficha-q-rp {
-  font-size: 22px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.ficha-q-body {
-  display: flex;
-  flex: 1;
-  min-height: 300px;
-  gap: 35px;
-}
-.q-right .ficha-q-body { flex-direction: row; }
-.q-left  .ficha-q-body { flex-direction: row; }
-
-.ficha-radar { flex: 1; max-width: 1950px; padding: 10px 30px; display: flex; align-items: center; min-width: 0; margin: 0 auto; }
-.ficha-item-list {
-  flex: 0 0 auto;
-  width: 460px;
+.p1-identity-row { display: flex; align-items: flex-start; justify-content: flex-start; gap: 40px; } /* flex-start: que no se acerque al borde donde entra el círculo */
+.p1-facts {
   list-style: none;
-  padding: 6px 30px;
+  margin: 0;
+  padding: 42px 28px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  justify-content: center;
-  font-size: 55px;
-  font-weight: 400;
+  gap: 22px;
+  font-size: 36px;          /* oficial ficha2 (listas): 55px × 0.6528 */
 }
-.ficha-item-list li { display: flex; align-items: center; gap: 8px; }
-.ficha-item-list.align-left  li { justify-content: flex-start; }
-.ficha-item-list.align-right li { justify-content: flex-end; flex-direction: row-reverse; }
-.ficha-item-list.align-left  { width: 900px; padding-left: 110px; }
-.ficha-item-list.align-right { width: 1100px; padding-right: 110px; }
+.p1-facts li::before { content: "• "; color: rgba(255,255,255,0.5); }
+.p1-check { color: var(--score-green); font-weight: 800; margin-left: 10px; }
 
-.ficha-score {
-  min-width: 70px;
-  text-align: center;
-  font-weight: 800;
+/* R/P: reubicados junto a los datos, tamaño ×2 × 0.8 = ×1.6 sobre el
+   original; desplazados un poco a la derecha (sin llegar al círculo). */
+.p1-rp-group { display: flex; flex-direction: column; padding: 24px 0 0 0; margin-left: 70px; }
+.p1-rp-row { display: flex; gap: 16px; margin-bottom: 13px; }
+.p1-rp-badge {
+  width: 154px; height: 154px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 67px; font-weight: 800;
+  border: 6px solid #0f1117;
+  flex-shrink: 0;
 }
+.p1-rp-badge-r { background: var(--score-yellow); color: #0f1117; }
+.p1-rp-badge-p { background: #ffffff; color: #0f1117; }
+.p1-rp-box {
+  width: 154px; height: 122px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 67px; font-weight: 800;
+  border-radius: 6px;
+}
+.p1-rp-box-r { background: var(--score-yellow); color: #0f1117; }
+.p1-rp-box-p { background: #dbeafe; color: #0f1117; }
 
-.ficha-item-label { color: var(--text-general, #ffffff); }
+.p1-status-bars { display: flex; flex-direction: column; margin-top: 10px; }
+.p1-status-bar { color: #0f1117; font-weight: 700; font-size: 36px; padding: 16px 28px; } /* oficial ficha2: 55px × 0.6528 */
 
-/* ── CONDICIONAL (GPS) ──
-   Antes era CSS Grid + ".gps-row{display:contents}" para meter las celdas
-   de cada fila en una rejilla común. html2canvas (motor del PDF) NO
-   soporta bien display:contents — colapsaba todas las filas arriba y
-   dejaba las cajas vacías. Cambiado a flexbox anidado (misma anchura
-   fija por celda, mismo gap) — se ve igual y sí funciona en el PDF. */
-.gps-grid {
-  padding: 60px 10px;
-  display: flex;
-  flex-direction: column;
-  row-gap: 4px;
-  align-items: center; /* centra cada fila en el ancho del cuadrante */
-  font-size: 55px;
-  font-weight: 400;
-}
-.gps-row {
-  display: flex;
-  align-items: center;
-  column-gap: 180px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
-}
-
-.ficha-condicional-body {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.gps-val-cell, .gps-ref-cell {
-  flex: 0 0 230px;
-  width: 230px;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 5px;
-  position: relative; /* para poder centrar el icono en el hueco de al lado (ver .gps-icon) */
-}
-.gps-label { flex: 0 0 auto; }
-.gps-input, .gps-input-static {
-  width: 200px;
-  box-sizing: border-box;
-  text-align: center;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid var(--slate-line);
-  border-radius: 4px;
+.p1-subheader {
+  background: var(--wine);
   color: #ffffff;
-  font-size: 55px;
+  font-size: 49px;          /* oficial ficha2: 75px × 0.6528 */
   font-weight: 600;
-  padding: 2px 4px;
-}
-.gps-input:focus { outline: none; border-color: var(--score-yellow); background: rgba(255,255,255,0.12); }
-/* Solo para la captura del PDF (ver pdf-export.js): html2canvas no pinta
-   bien el valor ni el centrado de un <input>, así que se sustituye por
-   este span idéntico visualmente justo antes de generar el PDF. */
-.gps-input-static { display: inline-block; }
-
-/* El icono ✔/✘ ya no ocupa hueco en la fila (position:absolute) — así
-   puede ser grande sin alterar la altura de la fila, y se centra en el
-   hueco entre esta cajita y la siguiente (mitad del column-gap: 180px/2). */
-.gps-icon {
-  position: absolute;
-  left: 100%;
-  top: 50%;
-  transform: translate(calc(90px - 50%), -50%);
+  padding: 8px 20px;
+  border-top: 3px solid rgba(255,255,255,0.65); /* como en ficha 2 */
   text-align: center;
-  font-weight: 800;
-  font-size: 70px;
-  line-height: 1;
-  white-space: nowrap;
 }
-.gps-ok   { color: var(--score-green); }
-.gps-fail { color: var(--score-red); }
-.gps-dash { color: var(--score-yellow); } /* dentro de ±0,2 respecto a la columna 3 */
-.gps-label { color: #ffffff; white-space: nowrap; } /* nunca 2 líneas — ver equalizeGpsLabelWidth en ficha-detalle.js */
+.p1-personalidad-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 20px 28px;
+  gap: 18px 44px;
+  flex: 1;
+  min-height: 200px;
+}
+.p1-plain-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 24px; font-size: 43px; } /* 36px × 1.2 */
+.p1-plain-list li::before { content: "• "; color: rgba(255,255,255,0.5); }
 
-/* Columnas 3/4: valores fijos de Configuración → Datos condicionales.
-   Ya NO son <input> (no editables desde la ficha) — mismo aspecto que
-   .gps-input pero de solo lectura. */
-.gps-ref-value {
-  display: inline-block;
-  width: 200px;
-  box-sizing: border-box;
+/* ── COLUMNA DERECHA: descripción + competencias ──
+   3 cajones iguales (descripción / comp. ofensivas / comp. defensivas),
+   cada uno se reparte 1/3 del alto disponible. */
+.p1-right { display: flex; flex-direction: column; }
+.p1-right > .p1-section { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+/* nota: no hace falta borde extra entre secciones — cada header ya trae su propio border-top */
+.p1-desc-header {
+  background: var(--wine);
+  color: #ffffff;
+  font-size: 49px;          /* oficial ficha2: 75px × 0.6528 */
+  font-weight: 600;
+  padding: 8px 20px;
+  border-top: 3px solid rgba(255,255,255,0.65); /* como en ficha 2 */
   text-align: center;
+}
+.p1-desc-text {
+  padding: 20px 28px;
+  font-size: 36px;          /* oficial ficha2 (listas): 55px × 0.6528 */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
   background: rgba(255,255,255,0.03);
-  border: 1px solid var(--slate-line);
-  border-radius: 4px;
-  color: rgba(255,255,255,0.7);
-  font-size: 55px;
-  font-weight: 600;
-  padding: 2px 4px;
+  outline: none;
 }
+.p1-desc-text:focus { background: rgba(255,255,255,0.06); }
+.p1-comp-grid { display: grid; column-gap: 16px; padding: 20px 24px; flex: 1 1 auto; min-height: 0; }
+.p1-comp-cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; }
+.p1-comp-label { font-size: 26px; font-weight: 600; min-height: 90px; }
+.p1-status-box { display: inline-block; width: 36px; height: 36px; border-radius: 4px; }
+.p1-status-none { background: rgba(255,255,255,0.15); }
 
-/* Cabecera 1|2|3|4 + leyenda, dentro del propio .gps-grid (misma fila
-   flex que .gps-row para que las columnas queden alineadas). */
-.gps-col-headers {
-  font-weight: 800;
-  font-size: 62px;
-  color: rgba(255,255,255,0.85);
-}
-.gps-col-headers .gps-val-cell,
-.gps-col-headers .gps-ref-cell {
-  /* Centrado sobre la CAJA de 200px (input/valor), no sobre toda la celda
-     de 230px — la caja va pegada a la izquierda (ver .gps-val-cell,
-     .gps-ref-cell) dejando 30px libres a la derecha para el icono ✔/✘.
-     Antes se centraba en los 230px enteros y el número quedaba
-     desplazado a la derecha respecto a la caja de abajo. */
-  flex: 0 0 200px;
-  width: 200px;
-  margin-right: 30px;
-  justify-content: center;
-}
-.gps-legend {
-  font-size: 55px;
-  font-weight: 400;
-  color: rgba(255,255,255,0.55);
-  text-align: left;
-  align-self: flex-start;
-  margin: 180px 0 0 0;
-  line-height: 1.3;
-}
-
-/* ── CÍRCULO CENTRAL ── */
-/* Posición fijada por JS (ver centerFichaCircle en ficha-detalle.js):
-   mide el borde real de MENTAL/CONDICIONAL y coloca el círculo
-   exactamente en el cruce, sin depender de trucos de CSS. */
-.ficha-central {
+/* ── CÍRCULO MINI (posición fija según el ancho de .p1-left) ── */
+.p1-central {
   position: absolute;
-  width: 1420px;
-  height: 1420px;
+  top: 50%;
+  left: 1692px;          /* sigue el borde de .p1-left (ver .p1-top) */
+  width: 927px;          /* oficial ficha2: 1420px × 0.6528 */
+  height: 927px;
+  transform: translate(-50%, -50%);
   z-index: 5;
 }
-.ficha-central-svg { width: 100%; height: 100%; }
+.p1-central-svg { width: 100%; height: 100%; }
 
-/* ── PLAN DE ACCIÓN ── */
-.ficha-plan-title {
-  background: var(--wine);
-  text-align: center;
-  font-size: 75px;
-  color: var(--text-header, #ffffff);
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  padding: 12px 70px;
-  border-top: 3px solid rgba(255,255,255,0.65);
-}
-.ficha-plan-subheader {
-  background: var(--blue-800, #1e293b);
-  color: var(--text-aspectos, #ffffff);
-  text-align: center;
-  font-size: 50px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  padding: 4px;
-  border-bottom: 1px solid var(--slate-line);
-}
-.ficha-plan-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr); /* iguales: la línea central coincide con la de los cuadrantes de arriba */
-  border-bottom: 3px solid rgba(255,255,255,0.65);
-}
-.plan-col { border: 1px solid var(--slate-line); display: flex; flex-direction: column; min-width: 0; }
-.plan-col-header {
+/* ── ASPECTOS INDIVIDUALES (potenciar / mejorar, editable) ── */
+.p1-aspectos-grid { display: grid; grid-template-columns: 1fr 1fr; flex: 1 1 auto; min-height: 0; }
+.p1-aspectos-col { border: 1px solid var(--slate-line); display: flex; flex-direction: column; min-height: 0; }
+.p1-aspectos-col-header {
   background: #ffffff;
-  color: var(--text-subheader-white, #0f1117);
+  color: #0f1117;
+  text-align: center;
+  font-weight: 700;
+  font-size: 48px;          /* oficial ficha2: 73px × 0.6528 */
+  padding: 4px 9px;         /* oficial ficha2: 6px 14px × 0.6528 */
+  height: 98px;             /* oficial ficha2: 150px × 0.6528, alto fijo igual que plan-col-header */
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 6px 14px;
-  font-size: 73px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  height: 150px;           /* grosor fijo: ningún icono lo puede cambiar */
   box-sizing: border-box;
   overflow: hidden;
 }
-.plan-col-icon { width: 88px; height: 88px; object-fit: contain; }
-.plan-col-icon-tactico     { width: auto; height: 100px; margin: -2px 0; }
-.plan-col-icon-condicional { width: auto; height: 140px; margin: -6px 0; } /* cohete */
-.plan-col-icon-mental       { width: auto; height: 140px; margin: -6px 0; } /* cerebro */
-.plan-col-list {
+.p1-editable-list {
   list-style: none;
-  padding: 59px 18px;
   margin: 0;
-  min-height: 300px;
+  padding: 30px 24px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  color: #e6edf3;
+  gap: 24px;
+  font-size: 36px;          /* oficial ficha2 (listas): 55px × 0.6528 */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
   background: rgba(255,255,255,0.03);
-  font-size: 62px;
-  font-weight: 400;
 }
-.plan-col-list li {
+.p1-editable-list li {
   border-bottom: 1px dashed var(--slate-line);
   padding-bottom: 8px;
-  min-height: 34px;
   outline: none;
   overflow-wrap: break-word;
-  word-break: break-word;
-  white-space: normal;
 }
-.plan-col-list li:focus { background: rgba(255,255,255,0.06); }
+.p1-editable-list li:focus { background: rgba(255,255,255,0.06); }
 
-
-/* ================================================
-   IMPRESIÓN — A4 SIN tocar nada a mano
-   El driver de algunas impresoras (p.ej. "Adobe PDF") ignora el
-   "landscape" que le pedíamos en @page y siempre arranca en
-   Vertical. En vez de depender de que el usuario cambie esa
-   opción, dejamos la página en Vertical (su valor por defecto)
-   y GIRAMOS el contenido 90° con CSS para que salga apaisado
-   igualmente. Cero pasos manuales.
-   ================================================ */
-/* ================================================
-   IMPRESIÓN — A4 apaisado (297×210mm)
-   Requiere 2 clics en el diálogo de impresión (ver aviso más abajo):
-   "Horizontal" y "Ajustar al área de impresión". No hay forma
-   fiable de forzar esto desde CSS en todos los navegadores/
-   impresoras — lo he intentado con @page:landscape (el driver
-   "Adobe PDF" lo ignora) y con un giro por CSS (empeoró el
-   resultado). Esta es la versión que sí ha funcionado en pruebas.
-   ================================================ */
-@media print {
-  @page { size: A4 landscape; margin: 8mm; }
-
-  .ficha-a4-frame {
-    width: auto !important;
-    height: auto !important;
-    max-width: none;
-    aspect-ratio: auto;
-    overflow: visible;   /* no recortar: Chrome necesita ver todo el contenido para poder ajustarlo */
-    box-shadow: none;
-    border-radius: 0;
-  }
-
-  .ficha-detalle {
-    position: static;    /* vuelve al flujo normal, ya no hace falta posicionarla dentro del marco */
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  /* La regla de móvil (@media max-width:900px) puede activarse también
-     al imprimir según el navegador — la anulamos aquí explícitamente. */
-  .ficha-grid { grid-template-columns: 1fr 1fr !important; }
-  .ficha-central { display: block !important; }
-  .ficha-plan-grid { grid-template-columns: 110px repeat(4, minmax(0, 1fr)) !important; }
+/* ── FILA INFERIOR: campo+leyenda (columna izq) | aspectos individuales
+   (columna der) — mismas 2 columnas que .p1-top (1692px/1fr), para que la
+   línea divisoria quede continua de arriba a abajo. ── */
+.p1-lower {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-top: 3px solid rgba(255,255,255,0.65);
 }
+.p1-lower-left {
+  flex: 0 0 1692px;
+  display: flex;
+  flex-direction: column;
+  border-right: 3px solid rgba(255,255,255,0.65);
+}
+.p1-lower-right {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.p1-lower-right > .p1-section {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.p1-lower-right > .p1-section + .p1-section {
+  border-top: 3px solid rgba(255,255,255,0.65);
+}
+
+/* ── CAMPO + LEYENDA (apilados, columna izquierda) ── */
+.p1-pitch {
+  flex: 1 1 auto;
+  min-height: 0;
+  background-image: url('../campo.jpg');
+  background-size: contain;     /* campo entero visible, sin recortar (antes: cover) */
+  background-repeat: no-repeat;
+  background-position: center;
+  background-color: var(--slate); /* relleno cuando el campo no llena el cajón (antes: verde) */
+  position: relative;
+}
+/* Bandeja de camisetas (esquina, no invade el campo) — arrastrar al campo
+   coloca el marcador de posición; arrastrar el marcador ya puesto lo mueve. */
+.p1-jersey-tray {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 10px;
+  z-index: 5;
+}
+.p1-jersey-icon {
+  width: 130px;
+  height: 130px;
+  object-fit: contain;
+  cursor: grab;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+}
+.p1-jersey-marker {
+  position: absolute;
+  width: 130px;
+  height: 130px;
+  object-fit: contain;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 3px 5px rgba(0,0,0,0.6));
+  cursor: grab;
+  z-index: 6;
+}
+.p1-legend {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
+  padding: 28px 32px;
+  background: var(--slate);
+}
+.p1-legend-item { display: flex; align-items: center; gap: 16px; font-weight: 700; font-size: 42px; }
+.p1-legend-dot { width: 34px; height: 34px; border-radius: 6px; display: inline-block; }
