@@ -242,7 +242,7 @@
 .p1-pitch {
   flex: 1 1 auto;
   min-height: 0;
-  background-image: url('./campo.jpg');
+  background-image: url('../campo.jpg');
   background-size: cover;
   background-position: center;
   background-color: #2f7a3d; /* fallback si campo.jpg no carga */
