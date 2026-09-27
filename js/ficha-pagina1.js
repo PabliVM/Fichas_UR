@@ -245,7 +245,7 @@ function renderMarkers(pitchEl, markers) {
       img.dataset.markerId = String(m.id);
       pitchEl.appendChild(img);
     }
-    img.src = m.type === 'portero' ? '../camisetaportero.jpg' : '../camiseta.jpg';
+    img.src = m.type === 'portero' ? '../camisetaportero.png' : '../camiseta.png';
     img.style.left = `${m.xPct}%`;
     img.style.top = `${m.yPct}%`;
   });
