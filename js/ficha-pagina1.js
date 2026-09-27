@@ -201,13 +201,16 @@ function buildAspectos(title, data) {
 // aspectos; ahora van apilados en la columna izquierda (p1-lower-left),
 // alineados bajo Personalidad (ver renderFichaPagina1 → .p1-lower).
 // Sin escudo (quitado a petición) — logoPath ya no se usa aquí.
-function buildPitchAndLegend() {
+// Portero: la camiseta de portero se coloca sola en la portería (no hace
+// falta bandeja). Cualquier otra posición: bandeja con la camiseta de
+// jugador para arrastrarla al campo.
+function buildPitchAndLegend(isGoalkeeper) {
   return `
     <div class="p1-pitch">
+      ${isGoalkeeper ? '' : `
       <div class="p1-jersey-tray">
         <img class="p1-jersey-icon" src="../camiseta.jpg" data-jersey="jugador" draggable="true" alt="Camiseta jugador" title="Arrastra al campo" />
-        <img class="p1-jersey-icon" src="../camiseta%20portero.jpg" data-jersey="portero" draggable="true" alt="Camiseta portero" title="Arrastra al campo" />
-      </div>
+      </div>`}
     </div>
     <div class="p1-legend">
       <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.green}"></span>POTENCIAR</div>
@@ -236,16 +239,18 @@ function renderPitchMarker(pitchEl, marker) {
     img.alt = 'Posición del jugador';
     pitchEl.appendChild(img);
   }
-  img.src = marker.type === 'portero' ? '../camiseta%20portero.jpg' : '../camiseta.jpg';
+  img.src = marker.type === 'portero' ? '../camisetaportero.jpg' : '../camiseta.jpg';
   img.dataset.jersey = marker.type;
   img.style.left = `${marker.xPct}%`;
   img.style.top = `${marker.yPct}%`;
 }
 
-function initPitchDragDrop(container, data) {
+// Portero: se coloca solo, en la portería izquierda, salvo que ya haya
+// una posición guardada (data.pitchMarker) — esa manda siempre.
+function initPitchDragDrop(container, data, isGoalkeeper) {
   const pitchEl = container.querySelector('.p1-pitch');
   if (!pitchEl) return;
-  let marker = data.pitchMarker || null;
+  let marker = data.pitchMarker || (isGoalkeeper ? { type: 'portero', xPct: 8, yPct: 50 } : null);
   renderPitchMarker(pitchEl, marker);
 
   pitchEl.addEventListener('dragstart', e => {
@@ -287,6 +292,7 @@ function initPitchDragDrop(container, data) {
  */
 export function renderFichaPagina1(container, data, logoPath, colors) {
   const { player } = data;
+  const isGoalkeeper = /porter[oa]/i.test(player.position || '');
 
   const colorStyle = colors ? ` style="--slate:${colors.slate}; --wine:${colors.wine}; --text-general:${colors.textGeneral}; --text-header:${colors.textHeader}; --text-aspectos:${colors.textAspectos}; --text-subheader-white:${colors.textSubheaderWhite};"` : '';
 
@@ -316,7 +322,7 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
         </div>
         <div class="p1-lower">
           <div class="p1-lower-left">
-            ${buildPitchAndLegend()}
+            ${buildPitchAndLegend(isGoalkeeper)}
           </div>
           <div class="p1-lower-right">
             ${buildAspectos('ASPECTOS INDIVIDUALES OFENSIVOS', data.aspectosOfensivos)}
@@ -329,5 +335,5 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
 
   fitFichaToFrame(container);
   window.addEventListener('resize', () => fitFichaToFrame(container));
-  initPitchDragDrop(container, data);
+  initPitchDragDrop(container, data, isGoalkeeper);
 }
