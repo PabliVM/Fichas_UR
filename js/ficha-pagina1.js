@@ -125,13 +125,15 @@ function buildFacts(player) {
 
 function buildRpBadges(player) {
   return `
-    <div class="p1-rp-row">
-      <div class="p1-rp-badge p1-rp-badge-r">R</div>
-      <div class="p1-rp-badge p1-rp-badge-p">P</div>
-    </div>
-    <div class="p1-rp-row">
-      <div class="p1-rp-box p1-rp-box-r">${player.rValue ?? '-'}</div>
-      <div class="p1-rp-box p1-rp-box-p">${player.pValue ?? '-'}</div>
+    <div class="p1-rp-group">
+      <div class="p1-rp-row">
+        <div class="p1-rp-badge p1-rp-badge-r">R</div>
+        <div class="p1-rp-badge p1-rp-badge-p">P</div>
+      </div>
+      <div class="p1-rp-row">
+        <div class="p1-rp-box p1-rp-box-r">${player.rValue ?? '-'}</div>
+        <div class="p1-rp-box p1-rp-box-p">${player.pValue ?? '-'}</div>
+      </div>
     </div>
   `;
 }
@@ -231,8 +233,10 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
         <div class="p1-top">
           <div class="p1-left">
             <header class="p1-name-header">${safeText(player.name) || '&nbsp;'}</header>
-            ${buildFacts(player)}
-            ${buildRpBadges(player)}
+            <div class="p1-identity-row">
+              ${buildFacts(player)}
+              ${buildRpBadges(player)}
+            </div>
             ${buildStatusBars(data.statusBars)}
             ${buildPersonalidad(data.personalidad)}
           </div>
