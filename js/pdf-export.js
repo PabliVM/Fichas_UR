@@ -57,6 +57,51 @@ function swapInputsForStaticText(fichaEl) {
 }
 
 /**
+ * html2canvas no soporta <textPath> (el texto curvo de MENTAL/TÉCNICO/
+ * CONDICIONAL/TÁCTICO y R/P en el círculo central de la ficha 2): en el
+ * PDF sale sin curvar y todo amontonado en el mismo punto. Se sustituye
+ * cada <text><textPath> por un <text> plano posicionado y rotado en el
+ * punto medio real del arco (calculado con getPointAtLength, que sí
+ * conoce el DOM), y se restaura al terminar.
+ * @param {HTMLElement} fichaEl
+ * @returns {() => void} función para deshacer el cambio
+ */
+function flattenTextPaths(fichaEl) {
+  const restores = [];
+  fichaEl.querySelectorAll('svg text > textPath').forEach(textPath => {
+    const oldText = textPath.parentElement;
+    const href = (textPath.getAttribute('href') || textPath.getAttribute('xlink:href') || '').replace('#', '');
+    const svg = oldText.closest('svg');
+    const pathEl = href ? svg.querySelector(`#${CSS.escape(href)}`) : null;
+    if (!pathEl || typeof pathEl.getTotalLength !== 'function') return;
+
+    const len = pathEl.getTotalLength();
+    const frac = parseFloat(textPath.getAttribute('startOffset') || '0') / 100;
+    const mid = len * frac;
+    const p0 = pathEl.getPointAtLength(Math.max(0, mid - 1));
+    const p1 = pathEl.getPointAtLength(Math.min(len, mid + 1));
+    const point = pathEl.getPointAtLength(mid);
+    let angle = Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180 / Math.PI;
+    if (angle > 90) angle -= 180;
+    if (angle < -90) angle += 180;
+
+    const newText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    Array.from(oldText.attributes).forEach(attr => newText.setAttribute(attr.name, attr.value));
+    newText.setAttribute('x', point.x);
+    newText.setAttribute('y', point.y);
+    newText.setAttribute('text-anchor', 'middle');
+    newText.setAttribute('dominant-baseline', 'middle');
+    newText.setAttribute('transform', `rotate(${angle} ${point.x} ${point.y})`);
+    newText.textContent = textPath.textContent;
+    oldText.replaceWith(newText);
+    restores.push({ newText, oldText });
+  });
+  return () => {
+    restores.forEach(({ newText, oldText }) => newText.replaceWith(oldText));
+  };
+}
+
+/**
  * Exporta el elemento .ficha-detalle a un PDF de una sola página,
  * A4 apaisado (297×210mm), con el mismo aspecto que se ve en pantalla.
  * @param {HTMLElement} fichaEl — el propio nodo .ficha-detalle
@@ -68,6 +113,7 @@ export async function exportFichaAsPDF(fichaEl, filename = 'ficha-jugador.pdf') 
   const prevTransform = fichaEl.style.transform;
   fichaEl.style.transform = 'none'; // capturar a tamaño natural, máxima calidad
   const restoreInputs = swapInputsForStaticText(fichaEl);
+  const restoreTextPaths = flattenTextPaths(fichaEl);
 
   try {
     const canvas = await window.html2canvas(fichaEl, {
@@ -103,5 +149,6 @@ export async function exportFichaAsPDF(fichaEl, filename = 'ficha-jugador.pdf') 
   } finally {
     fichaEl.style.transform = prevTransform;
     restoreInputs();
+    restoreTextPaths();
   }
 }
