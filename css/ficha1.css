@@ -170,8 +170,8 @@
 .p1-central-svg { width: 100%; height: 100%; }
 
 /* ── ASPECTOS INDIVIDUALES (potenciar / mejorar, editable) ── */
-.p1-aspectos-grid { display: grid; grid-template-columns: 1fr 1fr; }
-.p1-aspectos-col { border: 1px solid var(--slate-line); display: flex; flex-direction: column; }
+.p1-aspectos-grid { display: grid; grid-template-columns: 1fr 1fr; flex: 1 1 auto; min-height: 0; }
+.p1-aspectos-col { border: 1px solid var(--slate-line); display: flex; flex-direction: column; min-height: 0; }
 .p1-aspectos-col-header {
   background: #ffffff;
   color: #0f1117;
@@ -194,7 +194,9 @@
   flex-direction: column;
   gap: 24px;
   font-size: 36px;          /* oficial ficha2 (listas): 55px × 0.6528 */
-  min-height: 150px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
   background: rgba(255,255,255,0.03);
 }
 .p1-editable-list li {
@@ -205,10 +207,40 @@
 }
 .p1-editable-list li:focus { background: rgba(255,255,255,0.06); }
 
-/* ── CAMPO + LEYENDA ── */
-.p1-bottom { display: flex; flex: 1 1 auto; min-height: 0; border-top: 3px solid rgba(255,255,255,0.65); }
+/* ── FILA INFERIOR: campo+leyenda (columna izq) | aspectos individuales
+   (columna der) — mismas 2 columnas que .p1-top (1692px/1fr), para que la
+   línea divisoria quede continua de arriba a abajo. ── */
+.p1-lower {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-top: 3px solid rgba(255,255,255,0.65);
+}
+.p1-lower-left {
+  flex: 0 0 1692px;
+  display: flex;
+  flex-direction: column;
+  border-right: 3px solid rgba(255,255,255,0.65);
+}
+.p1-lower-right {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.p1-lower-right > .p1-section {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.p1-lower-right > .p1-section + .p1-section {
+  border-top: 3px solid rgba(255,255,255,0.65);
+}
+
+/* ── CAMPO + LEYENDA (apilados, columna izquierda) ── */
 .p1-pitch {
-  flex: 2;
+  flex: 1 1 auto;
   min-height: 0;
   background-image: url('./campo.jpg');
   background-size: cover;
@@ -228,11 +260,11 @@
   transform: translate(-50%, -50%);
 }
 .p1-legend {
-  flex: 1;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 28px;
-  padding: 0 32px;
+  padding: 20px 32px;
   background: var(--slate);
 }
 .p1-legend-crest { width: 80px; height: 80px; object-fit: contain; }
