@@ -56,7 +56,7 @@
 
 .p1-top {
   display: grid;
-  grid-template-columns: 1080px 1fr;
+  grid-template-columns: 1692px 1fr; /* 36% del ancho — proporción del diseño objetivo (antes 1080px/23%) */
   position: relative;
   border-bottom: 3px solid rgba(255,255,255,0.65);
 }
@@ -161,7 +161,7 @@
 .p1-central {
   position: absolute;
   top: 50%;
-  left: 1080px;
+  left: 1692px;          /* sigue el borde de .p1-left (ver .p1-top) */
   width: 927px;          /* oficial ficha2: 1420px × 0.6528 */
   height: 927px;
   transform: translate(-50%, -50%);
