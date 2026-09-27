@@ -201,9 +201,7 @@ function buildAspectos(title, data) {
 // Sin escudo (quitado a petición) — logoPath ya no se usa aquí.
 function buildPitchAndLegend() {
   return `
-    <div class="p1-pitch">
-      <div class="p1-pitch-marker" title="Posición del jugador (sin dato aún)"></div>
-    </div>
+    <div class="p1-pitch"></div>
     <div class="p1-legend">
       <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.green}"></span>POTENCIAR</div>
       <div class="p1-legend-item"><span class="p1-legend-dot" style="background:${STATUS_HEX.yellow}"></span>DESARROLLAR</div>
@@ -239,8 +237,10 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
             ${buildPersonalidad(data.personalidad)}
           </div>
           <div class="p1-right">
-            <header class="p1-desc-header">DESCRIPCIÓN DEL JUGADOR</header>
-            <div class="p1-desc-text" contenteditable="true">${safeText(data.description)}</div>
+            <section class="p1-section">
+              <header class="p1-desc-header">DESCRIPCIÓN DEL JUGADOR</header>
+              <div class="p1-desc-text" contenteditable="true">${safeText(data.description)}</div>
+            </section>
             ${buildCompetencias('COMPETENCIAS OFENSIVAS', data.competenciasOfensivas)}
             ${buildCompetencias('COMPETENCIAS DEFENSIVAS', data.competenciasDefensivas)}
           </div>
