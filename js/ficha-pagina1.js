@@ -246,23 +246,33 @@ function defaultMarkers(positionKey) {
     : [{ id: nextMarkerId++, type: 'jugador', xPct: xy.x, yPct: xy.y }];
 }
 
-function renderMarkers(pitchEl, markers) {
+function renderMarkers(pitchEl, markers, onRemove) {
   pitchEl.querySelectorAll('.p1-jersey-marker').forEach(el => {
     if (!markers.some(m => String(m.id) === el.dataset.markerId)) el.remove();
   });
+  const jugadorCount = markers.filter(m => m.type === 'jugador').length;
   markers.forEach(m => {
-    let img = pitchEl.querySelector(`.p1-jersey-marker[data-marker-id="${m.id}"]`);
-    if (!img) {
-      img = document.createElement('img');
-      img.className = 'p1-jersey-marker';
-      img.draggable = true;
-      img.alt = 'Posición del jugador';
-      img.dataset.markerId = String(m.id);
-      pitchEl.appendChild(img);
+    let wrap = pitchEl.querySelector(`.p1-jersey-marker[data-marker-id="${m.id}"]`);
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.className = 'p1-jersey-marker';
+      wrap.draggable = true;
+      wrap.dataset.markerId = String(m.id);
+      wrap.innerHTML = `
+        <img class="p1-jersey-img" alt="Posición del jugador" />
+        <button type="button" class="p1-jersey-remove" title="Quitar camiseta">×</button>
+      `;
+      pitchEl.appendChild(wrap);
+      wrap.querySelector('.p1-jersey-remove').addEventListener('click', e => {
+        e.stopPropagation();
+        onRemove(m.id);
+      });
     }
-    img.src = m.type === 'portero' ? '../camisetaportero.png' : '../camiseta.png';
-    img.style.left = `${m.xPct}%`;
-    img.style.top = `${m.yPct}%`;
+    wrap.querySelector('.p1-jersey-img').src = m.type === 'portero' ? '../camisetaportero.png' : '../camiseta.png';
+    wrap.style.left = `${m.xPct}%`;
+    wrap.style.top = `${m.yPct}%`;
+    // Solo se puede quitar una camiseta de jugador cuando hay 2 puestas (la extra).
+    wrap.querySelector('.p1-jersey-remove').style.display = (m.type === 'jugador' && jugadorCount > 1) ? '' : 'none';
   });
 }
 
@@ -271,7 +281,6 @@ function initPitchDragDrop(container, data, positionKey) {
   if (!pitchEl) return;
   const addBtn = container.querySelector('.p1-jersey-add');
   let markers = data.pitchMarkers || defaultMarkers(positionKey);
-  renderMarkers(pitchEl, markers);
 
   const emitChange = () => {
     container.dispatchEvent(new CustomEvent('p1:pitch-markers-changed', {
@@ -285,13 +294,22 @@ function initPitchDragDrop(container, data, positionKey) {
     const count = markers.filter(m => m.type === 'jugador').length;
     addBtn.style.display = count >= 2 ? 'none' : '';
   };
+
+  const removeMarker = id => {
+    markers = markers.filter(m => m.id !== id);
+    renderMarkers(pitchEl, markers, removeMarker);
+    syncAddBtn();
+    emitChange();
+  };
+
+  renderMarkers(pitchEl, markers, removeMarker);
   syncAddBtn();
 
   if (addBtn) {
     addBtn.addEventListener('click', () => {
       if (markers.filter(m => m.type === 'jugador').length >= 2) return;
       markers.push({ id: nextMarkerId++, type: 'jugador', xPct: 60, yPct: 65 });
-      renderMarkers(pitchEl, markers);
+      renderMarkers(pitchEl, markers, removeMarker);
       syncAddBtn();
       emitChange();
     });
@@ -299,7 +317,7 @@ function initPitchDragDrop(container, data, positionKey) {
 
   // Arrastrar una camiseta ya puesta para reposicionarla.
   pitchEl.addEventListener('dragstart', e => {
-    const id = e.target?.dataset?.markerId;
+    const id = e.target?.closest?.('.p1-jersey-marker')?.dataset?.markerId;
     if (!id) return;
     e.dataTransfer.setData('text/plain', id);
     e.dataTransfer.effectAllowed = 'move';
@@ -318,7 +336,7 @@ function initPitchDragDrop(container, data, positionKey) {
     const rect = pitchEl.getBoundingClientRect();
     m.xPct = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
     m.yPct = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
-    renderMarkers(pitchEl, markers);
+    renderMarkers(pitchEl, markers, removeMarker);
     emitChange();
   });
 }
