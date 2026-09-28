@@ -640,6 +640,12 @@ function buildFicha1DemoFromSchema(positionKey) {
   const mental = state.aspectosComunes.mental || [];
   const mid = Math.ceil(mental.length / 2);
   const positionLabel = PROFILES.find(p => p.key === positionKey)?.label || FICHA1_DEMO_DATA.player.position;
+  // Ofensivas/Defensivas se guardan en el orden en que se van marcando los
+  // checkboxes (histórico de clics), no en el orden del Táctico que se ve
+  // en pantalla. Aquí se reordenan siguiendo el Táctico, para que la ficha
+  // coincida siempre con el orden visual de Aspectos.
+  const tactico = schema.tactico || [];
+  const orderByTactico = selected => tactico.filter(t => (selected || []).includes(t));
   return {
     ...FICHA1_DEMO_DATA,
     player: { ...FICHA1_DEMO_DATA.player, position: positionLabel },
@@ -647,8 +653,8 @@ function buildFicha1DemoFromSchema(positionKey) {
       col1: mental.slice(0, mid).map(label => ({ label, status: null })),
       col2: mental.slice(mid).map(label => ({ label, status: null })),
     },
-    competenciasOfensivas: (schema.competenciasOfensivas || []).map(label => ({ label, status: null })),
-    competenciasDefensivas: (schema.competenciasDefensivas || []).map(label => ({ label, status: null })),
+    competenciasOfensivas: orderByTactico(schema.competenciasOfensivas).map(label => ({ label, status: null })),
+    competenciasDefensivas: orderByTactico(schema.competenciasDefensivas).map(label => ({ label, status: null })),
   };
 }
 
