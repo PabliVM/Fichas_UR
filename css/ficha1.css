@@ -117,7 +117,7 @@
 .p1-rp-box-p { background: #dbeafe; color: #0f1117; }
 
 .p1-status-bars { display: flex; flex-direction: column; margin-top: 10px; gap: 10px; }
-.p1-status-bar { color: #0f1117; font-weight: 700; font-size: 70px; padding: 32px 28px; } /* filas "Perfil 1/2/3" — 40px × 1.75 */
+.p1-status-bar { color: #0f1117; font-weight: 400; font-size: 43px; text-transform: uppercase; padding: 32px 28px; } /* filas "Perfil 1/2/3" — igual que el círculo, sin negrita, mayúsculas */
 
 .p1-subheader {
   background: var(--wine);
@@ -137,8 +137,8 @@
   flex: 1;
   min-height: 200px;
 }
-.p1-plain-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 24px; font-size: 43px; } /* 36px × 1.2 */
-.p1-plain-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; } /* checkbox siempre pegado al mismo borde derecho → alineados en columna */
+.p1-plain-list { list-style: none; margin: 0; padding: 0 160px 0 0; display: flex; flex-direction: column; gap: 24px; font-size: 43px; } /* 36px × 1.2; padding-right mueve la columna de checks a la izquierda del borde */
+.p1-plain-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; } /* checkbox alineado en columna (borde del padding-right de arriba) */
 .p1-item-label::before { content: "• "; color: rgba(255,255,255,0.5); }
 
 /* ── COLUMNA DERECHA: descripción + competencias ──
@@ -170,7 +170,7 @@
 .p1-comp-cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; }
 .p1-comp-label {
   font-size: 43px;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.15;
   height: 170px;           /* fija (no min-height): cabe hasta 3 líneas, así el check/cuadro de abajo siempre arranca en el mismo punto */
   display: flex;
