@@ -86,7 +86,7 @@
   display: flex;
   flex-direction: column;
   gap: 22px;
-  font-size: 36px;          /* oficial ficha2 (listas): 55px × 0.6528 */
+  font-size: 43px;          /* igual que personalidad */
 }
 .p1-facts li::before { content: "• "; color: rgba(255,255,255,0.5); }
 .p1-check { color: var(--score-green); font-weight: 800; margin-left: 10px; }
@@ -94,28 +94,28 @@
 /* R/P: reubicados junto a los datos, tamaño ×2 × 0.8 = ×1.6 sobre el
    original; desplazados un poco a la derecha (sin llegar al círculo). */
 .p1-rp-group { display: flex; flex-direction: column; padding: 24px 0 0 0; margin-left: 220px; }
-.p1-rp-row { display: flex; gap: 28px; margin-bottom: 18px; }
+.p1-rp-row { display: flex; gap: 22px; margin-bottom: 14px; }
 .p1-rp-badge {
-  width: 220px; height: 220px;
+  width: 176px; height: 176px;      /* 220px × 0.8 */
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 90px; font-weight: 800;
+  font-size: 72px; font-weight: 800; /* 90px × 0.8 */
   border: 6px solid #0f1117;
   flex-shrink: 0;
 }
 .p1-rp-badge-r { background: var(--score-yellow); color: #0f1117; }
 .p1-rp-badge-p { background: #ffffff; color: #0f1117; }
 .p1-rp-box {
-  width: 220px; height: 160px;
+  width: 176px; height: 128px;      /* 220px/160px × 0.8 */
   display: flex; align-items: center; justify-content: center;
-  font-size: 90px; font-weight: 800;
+  font-size: 72px; font-weight: 800; /* 90px × 0.8 */
   border-radius: 6px;
 }
 .p1-rp-box-r { background: var(--score-yellow); color: #0f1117; }
 .p1-rp-box-p { background: #dbeafe; color: #0f1117; }
 
 .p1-status-bars { display: flex; flex-direction: column; margin-top: 10px; gap: 10px; }
-.p1-status-bar { color: #0f1117; font-weight: 700; font-size: 40px; padding: 32px 28px; } /* filas "Perfil 1/2/3" — más altura a petición */
+.p1-status-bar { color: #0f1117; font-weight: 700; font-size: 70px; padding: 32px 28px; } /* filas "Perfil 1/2/3" — 40px × 1.75 */
 
 .p1-subheader {
   background: var(--wine);
