@@ -80,7 +80,7 @@ function buildMiniCircle(photoUrl, blockRp) {
   };
   const label = (id, text, color) => {
     const fill = color ? '#0f1117' : '#334155';
-    return `<text font-size="50" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
+    return `<text font-size="43" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
   };
   const photo = photoUrl
     ? `<clipPath id="p1-photo-clip"><circle cx="${cx}" cy="${cy}" r="${rInner - 4}" /></clipPath>
