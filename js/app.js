@@ -62,14 +62,34 @@ function renderPanelSucesion(container) {
   `;
 }
 
+let registroSubTab = localStorage.getItem('rm-registro-subtab') || 'registro'; // 'registro' | 'bbdd'
+
 function renderPanelRegistro(container) {
   container.innerHTML = `
     ${firebaseNotice()}
-    <div class="card">
-      <div class="card-title">Registro de datos</div>
-      <div class="card-body">Tabla editable pendiente de implementar.</div>
+    <div class="mb-16 flex gap-8">
+      <button class="btn ${registroSubTab === 'registro' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="registro">Registro</button>
+      <button class="btn ${registroSubTab === 'bbdd' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="bbdd">BBDD</button>
     </div>
+    ${registroSubTab === 'registro' ? `
+      <div class="card">
+        <div class="card-title">Registro</div>
+        <div class="card-body">Tabla editable pendiente de implementar.</div>
+      </div>
+    ` : `
+      <div class="card">
+        <div class="card-title">BBDD</div>
+        <div class="card-body">Pendiente de definir.</div>
+      </div>
+    `}
   `;
+  container.querySelectorAll('[data-registro-subtab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      registroSubTab = btn.dataset.registroSubtab;
+      localStorage.setItem('rm-registro-subtab', registroSubTab);
+      renderPanelRegistro(container);
+    });
+  });
 }
 
 let jugadorFormId = null; // null=formulario cerrado, 'new'=alta, <id>=editando ese jugador
@@ -197,7 +217,9 @@ function buildTecnicoCategoryHTML() {
 }
 
 // Selector de posición + copiar (Táctico/Ofensivas/Defensivas dependen de la posición).
-function buildPositionSelectorHTML() {
+// withCopy=false quita el selector "Copiar desde…" (se deja solo en Competencias,
+// que es lo único que ese botón copia de verdad — en Táctico y Perfiles sobraba/confundía).
+function buildPositionSelectorHTML(withCopy = true) {
   return `
     <div class="flex gap-12 mb-16" style="align-items:flex-end;flex-wrap:wrap;">
       <label style="display:block;max-width:280px;">
@@ -206,7 +228,7 @@ function buildPositionSelectorHTML() {
           ${state.positions.map(p => `<option value="${p.key}" ${p.key === configCriteriaPosition ? 'selected' : ''}>${safeText(p.label)}</option>`).join('')}
         </select>
       </label>
-      ${state.positions.length > 1 ? `
+      ${(withCopy && state.positions.length > 1) ? `
         <label style="display:block;max-width:280px;">
           <div class="text-xs text-muted mb-8">Copiar Táctico/Ofensivas/Defensivas desde…</div>
           <select class="select" data-crit-copy-from>
@@ -234,7 +256,7 @@ function buildTacticoCategoryHTML() {
   return `
     <div class="mb-16">
       <div class="mb-8" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Táctico</div>
-      ${buildPositionSelectorHTML()}
+      ${buildPositionSelectorHTML(false)}
       <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">
         ${chips || '<span class="text-xs text-muted">Sin items definidos.</span>'}
       </div>
@@ -854,7 +876,7 @@ function renderPanelConfig(container) {
               + buildPositionSelectorHTML()
               + `<div class="flex gap-24" style="flex-wrap:wrap;">${buildOfenDefCheckboxesHTML('of', 'Ofensivas')}${buildOfenDefCheckboxesHTML('def', 'Defensivas')}</div>`
               + `<div class="mb-8 mt-16" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Perfiles</div>`
-              + buildPositionSelectorHTML()
+              + buildPositionSelectorHTML(false)
               + buildPerfilesCategoryHTML()
               + `<div class="mb-8 mt-16" style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:0.02em;color:var(--text-secondary);">Competencias de cada perfil (para la media)</div>`
               + buildPerfilCompetenciasHTML()}
