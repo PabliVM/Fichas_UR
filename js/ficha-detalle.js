@@ -283,8 +283,18 @@ function formatNum(n) {
 }
 
 function parseEsNumber(str) {
-  if (str == null || str === '') return null;
-  const n = parseFloat(String(str).replace(/\./g, '').replace(',', '.'));
+  if (str == null) return null;
+  let s = String(str).trim();
+  if (s === '') return null;
+  if (s.includes(',') && s.includes('.')) {
+    // formato español completo (miles.decimal): "1.234,56" → quitar puntos, coma a punto
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (s.includes(',')) {
+    // solo coma → es el decimal: "1,8" → "1.8"
+    s = s.replace(',', '.');
+  }
+  // solo punto (o ninguno) → se deja tal cual, es decimal: "1.8" NO son 18
+  const n = parseFloat(s);
   return Number.isNaN(n) ? null : n;
 }
 
