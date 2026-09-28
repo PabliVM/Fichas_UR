@@ -148,7 +148,7 @@ function buildStatusBars(bars) {
 
 function buildPersonalidad(personalidad) {
   const col = items => items.map(it =>
-    `<li>${safeText(it.label)} ${statusMarkup(it.status)}</li>`
+    `<li><span class="p1-item-label">${safeText(it.label)}</span>${statusMarkup(it.status)}</li>`
   ).join('');
   return `
     <section class="p1-section">
