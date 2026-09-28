@@ -2,10 +2,10 @@
 // APP.JS — Punto de entrada RM Perfiles
 // ================================================
 
-import { initFirebase, addDocument, updateDocument, deleteDocument } from './firebase-service.js';
+import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, uploadPlayerPhoto } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { renderHeader }  from './render-header.js';
-import { renderTabs, switchTab } from './render-tabs.js';
+import { renderTabs } from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
 import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS, PROFILES } from './constants.js';
 import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore, loadPlayersFromFirestore } from './state.js';
@@ -63,7 +63,6 @@ function renderPanelRegistro(container) {
   `;
 }
 
-let plantillasSelectedPlayerId = null; // navegación local lista ↔ perfil (no es estado global de la app)
 let jugadorFormId = null; // null=formulario cerrado, 'new'=alta, <id>=editando ese jugador
 let configCriteriaPosition = null;      // qué posición se está editando en "Items a evaluar"
 let fichaTipoPosition = null;           // qué posición se está viendo en Configuración → Fichas tipo → Individual
@@ -93,6 +92,12 @@ const CONFIG_GROUPS = [
       { key: 'ficha-colores', label: 'Colores de la ficha' },
       { key: 'ficha-matriz',  label: 'Matriz' },
       { key: 'dimensiones',   label: 'Dimensiones' },
+    ],
+  },
+  {
+    label: 'Ayuda',
+    tabs: [
+      { key: 'flujo', label: 'Flujo de evaluaciones' },
     ],
   },
 ];
@@ -297,198 +302,6 @@ function buildCondicionalRefsTableHTML() {
   `;
 }
 
-function renderPanelPlantillas(container) {
-  const player = plantillasSelectedPlayerId
-    ? state.players.find(p => p.id === plantillasSelectedPlayerId)
-    : null;
-
-  if (plantillasSelectedPlayerId && !player) plantillasSelectedPlayerId = null; // se borró, vuelve a la lista
-
-  if (player) {
-    renderPlayerProfile(container, player);
-  } else {
-    renderPlantillasList(container);
-  }
-}
-
-function renderPlantillasList(container) {
-  const posLabel = keys => keys
-    .map(k => state.positions.find(p => p.key === k)?.label || k)
-    .join(' / ');
-
-  const rows = state.players.map(pl => `
-    <tr>
-      <td><button class="link-btn" data-open="${pl.id}">${safeText(pl.name)}</button></td>
-      <td>
-        <select class="select" data-team-for="${pl.id}">
-          <option value="">—</option>
-          ${TEAMS.map(t => `<option value="${t.key}" ${pl.teamsBySeason[state.season] === t.key ? 'selected' : ''}>${t.label}</option>`).join('')}
-        </select>
-      </td>
-      <td>${safeText(posLabel(pl.positions))}</td>
-      <td><button class="btn btn-sm" data-del="${pl.id}">Eliminar</button></td>
-    </tr>
-  `).join('');
-
-  const posOptions = state.positions.map(p => `<option value="${p.key}">${safeText(p.label)}</option>`).join('');
-
-  container.innerHTML = `
-    ${firebaseNotice()}
-    <div class="card mb-16">
-      <div class="card-title">Nuevo jugador</div>
-      <div class="card-body">
-        <p class="text-xs text-muted mb-16">El equipo se asigna para la temporada activa (${safeText(state.season)}) — cámbiala en el selector del header.</p>
-        <div class="flex gap-12" style="flex-wrap:wrap;align-items:flex-end;">
-          <label>
-            <div class="text-xs text-muted mb-8">Nombre</div>
-            <input class="input" type="text" id="pl-name" placeholder="Nombre y apellidos" />
-          </label>
-          <label>
-            <div class="text-xs text-muted mb-8">Equipo (${safeText(state.season)})</div>
-            <select class="select" id="pl-team">
-              ${TEAMS.map(t => `<option value="${t.key}">${t.label}</option>`).join('')}
-            </select>
-          </label>
-          <label>
-            <div class="text-xs text-muted mb-8">Posición 1</div>
-            <select class="select" id="pl-pos1"><option value="">—</option>${posOptions}</select>
-          </label>
-          <label>
-            <div class="text-xs text-muted mb-8">Posición 2 (opcional)</div>
-            <select class="select" id="pl-pos2"><option value="">—</option>${posOptions}</select>
-          </label>
-          <button class="btn btn-primary" id="pl-add">+ Añadir jugador</button>
-        </div>
-        ${state.positions.length === 0 ? '<p class="text-xs text-muted mt-16">⚠ No hay posiciones definidas todavía — añádelas en Configuración.</p>' : ''}
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Jugadores (${state.players.length}) — temporada ${safeText(state.season)}</div>
-      <div class="card-body" style="overflow-x:auto;">
-        <table class="table">
-          <thead><tr><th>Nombre</th><th>Equipo</th><th>Posición(es)</th><th></th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="4" class="text-muted">Sin jugadores todavía.</td></tr>'}</tbody>
-        </table>
-      </div>
-      <p class="text-xs text-muted mt-16" style="padding: 0 16px 16px;">
-        ⚠ Pendiente: esto solo dura mientras la pestaña está abierta. Falta guardarlo en Firestore para que persista.
-      </p>
-    </div>
-  `;
-
-  container.querySelector('#pl-add').addEventListener('click', () => {
-    const name = container.querySelector('#pl-name').value.trim();
-    const team = container.querySelector('#pl-team').value;
-    const pos1 = container.querySelector('#pl-pos1').value;
-    const pos2 = container.querySelector('#pl-pos2').value;
-
-    if (!name) { showError('Falta el nombre del jugador.'); return; }
-    if (!pos1) { showError('Elige al menos una posición.'); return; }
-    if (pos2 && pos2 === pos1) { showError('Las 2 posiciones no pueden ser la misma.'); return; }
-
-    const positions = [pos1, ...(pos2 ? [pos2] : [])];
-    const teamsBySeason = team ? { [state.season]: team } : {};
-    setState({ players: [...state.players, { id: crypto.randomUUID(), name, positions, teamsBySeason }] });
-    renderPanelPlantillas(container);
-    showSuccess('Jugador añadido.');
-  });
-
-  container.querySelectorAll('[data-open]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      plantillasSelectedPlayerId = btn.dataset.open;
-      renderPanelPlantillas(container);
-    });
-  });
-
-  container.querySelectorAll('[data-team-for]').forEach(sel => {
-    sel.addEventListener('change', () => {
-      const id = sel.dataset.teamFor;
-      const players = state.players.map(p => p.id === id
-        ? { ...p, teamsBySeason: { ...p.teamsBySeason, [state.season]: sel.value } }
-        : p
-      );
-      setState({ players });
-      showSuccess('Equipo actualizado para ' + state.season + '.');
-    });
-  });
-
-  container.querySelectorAll('[data-del]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      setState({
-        players:  state.players.filter(p => p.id !== btn.dataset.del),
-        informes: state.informes.filter(i => i.playerId !== btn.dataset.del),
-      });
-      renderPanelPlantillas(container);
-    });
-  });
-}
-
-function renderPlayerProfile(container, player) {
-  const posLabel = state.positions.find(p => p.key === player.positions[0])?.label || player.positions[0];
-  const posLabel2 = player.positions[1]
-    ? (state.positions.find(p => p.key === player.positions[1])?.label || player.positions[1])
-    : null;
-
-  const teamRows = state.seasons.map(s => `
-    <tr><td>${safeText(s)}</td><td>${safeText(TEAMS.find(t => t.key === player.teamsBySeason[s])?.label || '—')}</td></tr>
-  `).join('');
-
-  const informesSeason = state.informes
-    .filter(i => i.playerId === player.id && i.season === state.season)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-
-  const informesRows = informesSeason.map(inf => `
-    <tr>
-      <td>${new Date(inf.createdAt).toLocaleDateString('es-ES')}</td>
-      <td>${safeText(inf.season)}</td>
-      <td><button class="btn btn-sm" data-ver-informe="${inf.id}">Ver ficha</button></td>
-    </tr>
-  `).join('');
-
-  container.innerHTML = `
-    <button class="btn btn-sm mb-16" id="pl-back">← Volver a Plantillas</button>
-    <div class="card mb-16">
-      <div class="card-title">${safeText(player.name)}</div>
-      <div class="card-body">
-        <p class="mb-8"><strong>Posición${posLabel2 ? 'es' : ''}:</strong> ${safeText(posLabel)}${posLabel2 ? ' / ' + safeText(posLabel2) : ''}</p>
-        <table class="table" style="max-width:400px;">
-          <thead><tr><th>Temporada</th><th>Equipo</th></tr></thead>
-          <tbody>${teamRows}</tbody>
-        </table>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Informes — temporada ${safeText(state.season)}</div>
-      <div class="card-body">
-        <button class="btn btn-primary mb-16" id="pl-new-informe">+ Nuevo informe (ficha 1/2 + 2/2)</button>
-        <table class="table">
-          <thead><tr><th>Fecha</th><th>Temporada</th><th></th></tr></thead>
-          <tbody>${informesRows || '<tr><td colspan="3" class="text-muted">Sin informes en esta temporada.</td></tr>'}</tbody>
-        </table>
-        <p class="text-xs text-muted mt-16">
-          ⚠ Pendiente: "Ver ficha" todavía no carga los datos reales de este jugador — de momento lleva a la plantilla de ejemplo en la pestaña Fichas.
-        </p>
-      </div>
-    </div>
-  `;
-
-  container.querySelector('#pl-back').addEventListener('click', () => {
-    plantillasSelectedPlayerId = null;
-    renderPanelPlantillas(container);
-  });
-
-  container.querySelector('#pl-new-informe').addEventListener('click', () => {
-    const informe = { id: crypto.randomUUID(), playerId: player.id, season: state.season, createdAt: new Date().toISOString() };
-    setState({ informes: [...state.informes, informe] });
-    renderPlayerProfile(container, player);
-    showSuccess('Informe creado.');
-  });
-
-  container.querySelectorAll('[data-ver-informe]').forEach(btn => {
-    btn.addEventListener('click', () => switchTab('fichas'));
-  });
-}
-
 // Año y edad NUNCA se guardan — se calculan siempre de birthDate para que no se desincronicen.
 function calcAgeAndYear(birthDateStr) {
   if (!birthDateStr) return { age: null, year: null };
@@ -502,12 +315,28 @@ function calcAgeAndYear(birthDateStr) {
   return { age, year };
 }
 
+// Datos VARIABLES del jugador — llevan histórico (subcolección
+// jugadores/{id}/historico): cada cambio se AÑADE, nunca se sobreescribe.
+// El propio doc del jugador guarda el último valor (teamKey/positionKey/
+// weight/height/complexion) como "espejo" para listar rápido, tal como
+// ya se hacía con weight/height — solo se amplía el mismo patrón.
+const HISTORICO_FIELDS = ['teamKey', 'positionKey', 'weight', 'height', 'complexion'];
+
 function buildJugadorFormHTML(player) {
   const p = player || {};
+  const teamOptions = TEAMS.map(t => `<option value="${t.key}" ${p.teamKey === t.key ? 'selected' : ''}>${safeText(t.label)}</option>`).join('');
+  const posOptions = state.positions.map(pos => `<option value="${pos.key}" ${p.positionKey === pos.key ? 'selected' : ''}>${safeText(pos.label)}</option>`).join('');
   return `
     <div class="card mb-16">
       <div class="card-title">${player ? 'Editar jugador' : 'Nuevo jugador'}</div>
       <div class="card-body">
+        <div class="flex gap-12 mb-16" style="align-items:center;">
+          <img id="jug-foto-preview" src="${p.fotoUrl || ''}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;background:var(--bg-hover);display:${p.fotoUrl ? 'block' : 'none'};" />
+          <div class="field-group">
+            <label class="label">Foto</label>
+            <input class="input" type="file" id="jug-foto" accept="image/*" />
+          </div>
+        </div>
         <div class="flex gap-12" style="flex-wrap:wrap;">
           <div class="field-group" style="min-width:180px;">
             <label class="label">Nombre</label>
@@ -520,14 +349,6 @@ function buildJugadorFormHTML(player) {
           <div class="field-group" style="min-width:160px;">
             <label class="label">Fecha de nacimiento</label>
             <input class="input" type="date" id="jug-birthdate" value="${p.birthDate || ''}" />
-          </div>
-          <div class="field-group" style="min-width:120px;">
-            <label class="label">Peso (kg)</label>
-            <input class="input" type="number" step="0.1" min="0" id="jug-weight" value="${p.weight ?? ''}" />
-          </div>
-          <div class="field-group" style="min-width:120px;">
-            <label class="label">Altura (m)</label>
-            <input class="input" type="number" step="0.01" min="0" id="jug-height" value="${p.height ?? ''}" />
           </div>
           <div class="field-group" style="min-width:150px;">
             <label class="label">Lateralidad</label>
@@ -543,6 +364,29 @@ function buildJugadorFormHTML(player) {
             <input class="input" type="text" id="jug-maturational" value="${safeText(p.maturationalAge ?? '')}" />
           </div>
         </div>
+        <div class="text-xs text-muted mt-16 mb-8" style="font-weight:700;text-transform:uppercase;">Datos con histórico (cada cambio se guarda, no se pierde el anterior)</div>
+        <div class="flex gap-12" style="flex-wrap:wrap;">
+          <div class="field-group" style="min-width:160px;">
+            <label class="label">Equipo</label>
+            <select class="select" id="jug-team"><option value="">—</option>${teamOptions}</select>
+          </div>
+          <div class="field-group" style="min-width:160px;">
+            <label class="label">Posición</label>
+            <select class="select" id="jug-position"><option value="">—</option>${posOptions}</select>
+          </div>
+          <div class="field-group" style="min-width:120px;">
+            <label class="label">Peso (kg)</label>
+            <input class="input" type="number" step="0.1" min="0" id="jug-weight" value="${p.weight ?? ''}" />
+          </div>
+          <div class="field-group" style="min-width:120px;">
+            <label class="label">Altura (m)</label>
+            <input class="input" type="number" step="0.01" min="0" id="jug-height" value="${p.height ?? ''}" />
+          </div>
+          <div class="field-group" style="min-width:150px;">
+            <label class="label">Complexión</label>
+            <input class="input" type="text" id="jug-complexion" value="${safeText(p.complexion ?? '')}" />
+          </div>
+        </div>
         <div class="flex gap-8 mt-16">
           <button class="btn btn-primary" id="jug-save">${player ? 'Guardar cambios' : 'Añadir jugador'}</button>
           <button class="btn btn-ghost" id="jug-cancel">Cancelar</button>
@@ -552,6 +396,28 @@ function buildJugadorFormHTML(player) {
   `;
 }
 
+function buildHistoricoHTML(entries) {
+  if (!entries.length) return '<p class="text-xs text-muted">Sin histórico todavía.</p>';
+  const sorted = [...entries].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+  const rows = sorted.map(e => {
+    const fecha = e.createdAt?.seconds ? new Date(e.createdAt.seconds * 1000).toLocaleDateString('es-ES') : '-';
+    const cambios = HISTORICO_FIELDS.filter(f => e[f] !== undefined && e[f] !== null && e[f] !== '')
+      .map(f => {
+        if (f === 'teamKey') return 'Equipo: ' + safeText(TEAMS.find(t => t.key === e.teamKey)?.label || e.teamKey);
+        if (f === 'positionKey') return 'Posición: ' + safeText(state.positions.find(p => p.key === e.positionKey)?.label || e.positionKey);
+        if (f === 'weight') return 'Peso: ' + e.weight + ' kg';
+        if (f === 'height') return 'Altura: ' + e.height + ' m';
+        if (f === 'complexion') return 'Complexión: ' + safeText(e.complexion);
+        return '';
+      }).join(' · ');
+    return `<tr><td>${fecha}</td><td>${cambios}</td></tr>`;
+  }).join('');
+  return `<table class="table table-compact"><tbody>${rows}</tbody></table>`;
+}
+
+let jugadorHistoricoOpenId = null; // qué jugador tiene el histórico desplegado
+let jugadorHistoricoCache  = {};   // { [playerId]: entries[] } — evita releer si ya se abrió
+
 function renderPanelJugadores(container) {
   const editingPlayer = (jugadorFormId && jugadorFormId !== 'new')
     ? state.players.find(p => p.id === jugadorFormId)
@@ -560,22 +426,31 @@ function renderPanelJugadores(container) {
 
   const rows = state.players.map(p => {
     const { age, year } = calcAgeAndYear(p.birthDate);
+    const teamLabel = TEAMS.find(t => t.key === p.teamKey)?.label || '-';
+    const posLabel  = state.positions.find(pos => pos.key === p.positionKey)?.label || '-';
+    const historicoRow = jugadorHistoricoOpenId === p.id ? `
+      <tr><td colspan="10" style="background:var(--bg-hover);">
+        ${jugadorHistoricoCache[p.id] ? buildHistoricoHTML(jugadorHistoricoCache[p.id]) : '<p class="text-xs text-muted">Cargando…</p>'}
+      </td></tr>
+    ` : '';
     return `
       <tr>
+        <td>${p.fotoUrl ? `<img src="${p.fotoUrl}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" />` : ''}</td>
         <td>${safeText(p.nombre || '')}</td>
         <td>${safeText(p.apellidos || '')}</td>
-        <td>${p.birthDate || '-'}</td>
         <td>${year ?? '-'}</td>
         <td>${age ?? '-'}</td>
+        <td>${safeText(teamLabel)}</td>
+        <td>${safeText(posLabel)}</td>
         <td>${p.weight != null ? p.weight + ' kg' : '-'}</td>
         <td>${p.height != null ? p.height + ' m' : '-'}</td>
-        <td>${safeText(p.foot || '-')}</td>
-        <td>${safeText(p.maturationalAge ?? '-')}</td>
         <td>
           <button class="btn btn-sm" data-jug-edit="${p.id}">Editar</button>
+          <button class="btn btn-sm" data-jug-hist="${p.id}">${jugadorHistoricoOpenId === p.id ? 'Ocultar histórico' : 'Histórico'}</button>
           <button class="btn btn-sm" data-jug-del="${p.id}">Borrar</button>
         </td>
       </tr>
+      ${historicoRow}
     `;
   }).join('');
 
@@ -590,8 +465,8 @@ function renderPanelJugadores(container) {
           <table class="table">
             <thead>
               <tr>
-                <th>Nombre</th><th>Apellidos</th><th>F. nacimiento</th><th>Año</th><th>Edad</th>
-                <th>Peso</th><th>Altura</th><th>Lateralidad</th><th>E. madurativa</th><th></th>
+                <th></th><th>Nombre</th><th>Apellidos</th><th>Año</th><th>Edad</th>
+                <th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th></th>
               </tr>
             </thead>
             <tbody>${rows || '<tr><td colspan="10" class="text-muted">Sin jugadores todavía.</td></tr>'}</tbody>
@@ -615,6 +490,30 @@ function renderPanelJugadores(container) {
       renderPanelJugadores(container);
     });
   });
+  container.querySelectorAll('[data-jug-hist]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.jugHist;
+      if (jugadorHistoricoOpenId === id) {
+        jugadorHistoricoOpenId = null;
+        renderPanelJugadores(container);
+        return;
+      }
+      jugadorHistoricoOpenId = id;
+      renderPanelJugadores(container);
+      if (!jugadorHistoricoCache[id] && !isFirebaseUnconfigured()) {
+        try {
+          jugadorHistoricoCache[id] = await readSubCollection('jugadores', id, 'historico');
+        } catch (err) {
+          console.error('[Firestore] No se pudo leer el histórico:', err);
+          jugadorHistoricoCache[id] = [];
+        }
+        if (jugadorHistoricoOpenId === id) renderPanelJugadores(container);
+      } else if (isFirebaseUnconfigured()) {
+        jugadorHistoricoCache[id] = [];
+        renderPanelJugadores(container);
+      }
+    });
+  });
   container.querySelectorAll('[data-jug-del]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.jugDel;
@@ -630,27 +529,62 @@ function renderPanelJugadores(container) {
     });
   });
   container.querySelector('#jug-save')?.addEventListener('click', async () => {
-    const data = {
+    const baseData = {
       nombre: container.querySelector('#jug-nombre').value.trim(),
       apellidos: container.querySelector('#jug-apellidos').value.trim(),
       birthDate: container.querySelector('#jug-birthdate').value || null,
-      weight: container.querySelector('#jug-weight').value === '' ? null : parseFloat(container.querySelector('#jug-weight').value),
-      height: container.querySelector('#jug-height').value === '' ? null : parseFloat(container.querySelector('#jug-height').value),
       foot: container.querySelector('#jug-foot').value,
       maturationalAge: container.querySelector('#jug-maturational').value.trim(),
     };
-    if (!data.nombre) { showError('El nombre es obligatorio.'); return; }
+    const historicoData = {
+      teamKey: container.querySelector('#jug-team').value || null,
+      positionKey: container.querySelector('#jug-position').value || null,
+      weight: container.querySelector('#jug-weight').value === '' ? null : parseFloat(container.querySelector('#jug-weight').value),
+      height: container.querySelector('#jug-height').value === '' ? null : parseFloat(container.querySelector('#jug-height').value),
+      complexion: container.querySelector('#jug-complexion').value.trim() || null,
+    };
+    const fotoFile = container.querySelector('#jug-foto').files[0] || null;
+    if (!baseData.nombre) { showError('El nombre es obligatorio.'); return; }
+
+    // ¿Cambió algún dato con histórico respecto al valor actual? Solo se
+    // añade una entrada de histórico si de verdad hay un cambio — evita
+    // entradas vacías o repetidas cada vez que se guarda el formulario.
+    const isNew = jugadorFormId === 'new';
+    const prev = isNew ? {} : (editingPlayer || {});
+    const changedHistorico = isNew
+      ? HISTORICO_FIELDS.some(f => historicoData[f] !== null)
+      : HISTORICO_FIELDS.some(f => historicoData[f] !== (prev[f] ?? null));
+
     try {
-      if (jugadorFormId === 'new') {
-        let id = crypto.randomUUID();
-        if (!isFirebaseUnconfigured()) id = await addDocument('jugadores', data);
+      let id;
+      if (isNew) {
+        const data = { ...baseData, ...historicoData };
+        id = isFirebaseUnconfigured() ? crypto.randomUUID() : await addDocument('jugadores', data);
         setState({ players: [...state.players, { id, ...data }] });
-        showSuccess('Jugador añadido.');
       } else {
-        if (!isFirebaseUnconfigured()) await updateDocument('jugadores', jugadorFormId, data);
-        setState({ players: state.players.map(p => p.id === jugadorFormId ? { ...p, ...data } : p) });
-        showSuccess('Jugador actualizado.');
+        id = jugadorFormId;
+        const data = { ...baseData, ...historicoData };
+        if (!isFirebaseUnconfigured()) await updateDocument('jugadores', id, data);
+        setState({ players: state.players.map(p => p.id === id ? { ...p, ...data } : p) });
       }
+
+      if (changedHistorico && !isFirebaseUnconfigured()) {
+        await addSubDocument('jugadores', id, 'historico', historicoData);
+        delete jugadorHistoricoCache[id]; // se recarga la próxima vez que se abra
+      }
+
+      if (fotoFile && !isFirebaseUnconfigured()) {
+        try {
+          const fotoUrl = await uploadPlayerPhoto(id, fotoFile);
+          await updateDocument('jugadores', id, { fotoUrl });
+          setState({ players: state.players.map(p => p.id === id ? { ...p, fotoUrl } : p) });
+        } catch (err) {
+          console.error('[Storage] No se pudo subir la foto:', err);
+          showError('Jugador guardado, pero la foto no se pudo subir (revisa Firebase Storage).');
+        }
+      }
+
+      showSuccess(isNew ? 'Jugador añadido.' : 'Jugador actualizado.');
       jugadorFormId = null;
       renderPanelJugadores(container);
     } catch (err) {
@@ -1048,6 +982,18 @@ function renderPanelConfig(container) {
       <div class="card-body"><p class="text-xs text-muted">Pendiente de implementar.</p></div>
     </div>
     `}
+
+    ${configSubTab !== 'flujo' ? '' : `
+    <div class="card mb-16">
+      <div class="card-title">Flujo de evaluaciones</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">
+          Documentación interna — no aparece en las fichas de los jugadores. Se guarda igual que el resto de Configuración.
+        </p>
+        <textarea class="input" id="flujo-evaluaciones-text" rows="24" style="width:100%;font-family:var(--font-mono, monospace);font-size:13px;resize:vertical;">${safeText(state.flujoEvaluaciones)}</textarea>
+      </div>
+    </div>
+    `}
   `;
 
   container.querySelectorAll('[data-config-subtab]').forEach(btn => {
@@ -1057,6 +1003,13 @@ function renderPanelConfig(container) {
       renderPanelConfig(container);
     });
   });
+
+  const flujoTextarea = container.querySelector('#flujo-evaluaciones-text');
+  if (flujoTextarea) {
+    flujoTextarea.addEventListener('change', () => {
+      setState({ flujoEvaluaciones: flujoTextarea.value });
+    });
+  }
 
   container.querySelectorAll('[data-ficha-tipo-pos]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1384,20 +1337,10 @@ function renderPanelConfig(container) {
     if (!season) { showError('Escribe el nombre de la temporada.'); return; }
     if (state.seasons.includes(season)) { showError('Esa temporada ya existe.'); return; }
 
-    // Traspaso automático: cada jugador empieza en la temporada nueva
-    // con el mismo equipo que tenía en la última temporada existente.
-    const prevSeason = state.seasons[state.seasons.length - 1];
-    const players = state.players.map(p => {
-      const prevTeam = p.teamsBySeason[prevSeason];
-      return prevTeam
-        ? { ...p, teamsBySeason: { ...p.teamsBySeason, [season]: prevTeam } }
-        : p;
-    });
-
-    setState({ seasons: [...state.seasons, season], players });
+    setState({ seasons: [...state.seasons, season] });
     renderHeader();
     renderPanelConfig(container);
-    showSuccess('Temporada creada. Revisa los equipos en Plantillas.');
+    showSuccess('Temporada creada.');
   });
 
   container.querySelectorAll('[data-del-season]').forEach(btn => {
@@ -1405,12 +1348,6 @@ function renderPanelConfig(container) {
       const season = btn.dataset.delSeason;
       if (season === state.season) {
         showError('No se puede quitar la temporada activa — cámbiala primero en el header.');
-        return;
-      }
-      const inUse = state.players.some(p => p.teamsBySeason[season])
-        || state.informes.some(i => i.season === season);
-      if (inUse) {
-        showError('No se puede quitar: hay jugadores o informes de esa temporada.');
         return;
       }
       setState({ seasons: state.seasons.filter(s => s !== season) });
@@ -1423,7 +1360,6 @@ const RENDERERS = {
   inicio:     renderPanelInicio,
   importar:   renderPanelImportar,
   registro:   renderPanelRegistro,
-  plantillas: renderPanelPlantillas,
   jugadores:  renderPanelJugadores,
   fichas:     renderPanelFichas,
   config:     renderPanelConfig,
@@ -1461,11 +1397,6 @@ function setupEvents() {
   document.addEventListener('rm:thresholds-changed', () => {
     const wrap = document.querySelector('#fichas-tipo-wrap');
     if (wrap) renderPanelFichas(wrap, fichaTipoPosition);
-  });
-
-  document.addEventListener('rm:season-changed', () => {
-    const panel = document.querySelector('.tab-panel[data-tab="plantillas"]');
-    if (panel) renderPanelPlantillas(panel);
   });
 
   document.addEventListener('rm:criteria-changed', () => {
