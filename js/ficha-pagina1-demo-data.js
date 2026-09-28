@@ -22,12 +22,12 @@ export const FICHA1_DEMO_DATA = {
 
   description: '',
 
-  // Barras de estado específicas del perfil (aquí: portero).
+  // Filas Perfil 1/2/3 (3 perfiles por posición, ver Configuración → Perfiles).
   // color: 'green' | 'yellow' | 'red' | null (sin dato → gris)
   statusBars: [
-    { label: 'Dominador de Área',    color: null },
-    { label: 'Acción bajo palos',    color: null },
-    { label: 'Juego con los pies',   color: null },
+    { label: 'Perfil 1', color: null },
+    { label: 'Perfil 2', color: null },
+    { label: 'Perfil 3', color: null },
   ],
 
   personalidad: {
