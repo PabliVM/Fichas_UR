@@ -92,6 +92,11 @@ const _state = {
   // si |valor - refA| <= esto, sale guion; si no, check verde o X roja.
   // Editable en Configuración → Datos condicionales.
   condicionalTolerance: 0.2,
+  // Banco de frases modelo para "Descripción del jugador" — editable en
+  // Configuración → Ayuda → Frases modelo. El técnico las marca en la
+  // ficha (checklist) y se juntan en el texto editable de Descripción.
+  // Sin IA ni cálculo automático — eso depende de las medias (pendiente).
+  frasesModelo: [],
   // Texto libre editable en Configuración → Ayuda → Flujo de evaluaciones.
   // Documentación interna (no aparece en las fichas de los jugadores).
   flujoEvaluaciones: `FLUJO DE EVALUACIONES (estado actual)
@@ -126,7 +131,7 @@ export const state = _state;
 // jugadores NO va aquí — colección propia 'jugadores' (ver loadPlayersFromFirestore).
 const CONFIG_COLLECTION = 'config';
 const CONFIG_DOC_ID = 'general';
-const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'condicionalTolerance', 'fichaGridOrder', 'flujoEvaluaciones'];
+const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'condicionalTolerance', 'fichaGridOrder', 'flujoEvaluaciones', 'frasesModelo'];
 
 let _persistTimer = null;
 function schedulePersist() {
