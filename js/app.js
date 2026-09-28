@@ -109,7 +109,7 @@ const ASPECTOS_COMUNES_CATEGORIES = [
   { key: 'tecnico',     label: 'Técnico' },
   { key: 'condicional', label: 'Condicional' },
 ];
-let itemsConfigPage = 2; // qué página se edita en "Items a evaluar": 1 ó 2
+let itemsConfigPage = 1; // qué página se edita en "Items a evaluar": 1 ó 2 (por defecto Ficha 1)
 
 function buildAspectoComunCategoryHTML(cat) {
   const items = state.aspectosComunes[cat.key] || [];
