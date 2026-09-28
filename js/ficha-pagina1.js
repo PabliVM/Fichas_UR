@@ -38,7 +38,7 @@ function statusMarkup(status) {
 }
 
 function barColorHex(color) {
-  return color ? STATUS_HEX[color] : '#475569'; // gris si no hay dato (status bars)
+  return color ? STATUS_HEX[color] : '#ffffff'; // blanco si no hay dato (filas Perfil 1/2/3)
 }
 
 // Círculo central: en blanco cuando no hay dato de bloque (antes gris).
