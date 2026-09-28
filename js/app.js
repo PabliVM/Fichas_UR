@@ -53,6 +53,15 @@ function renderPanelImportar(container) {
   `;
 }
 
+function renderPanelSucesion(container) {
+  container.innerHTML = `
+    <div class="card">
+      <div class="card-title">Líneas de sucesión</div>
+      <div class="card-body">Pendiente de definir — pestaña reservada.</div>
+    </div>
+  `;
+}
+
 function renderPanelRegistro(container) {
   container.innerHTML = `
     ${firebaseNotice()}
@@ -1479,6 +1488,7 @@ const RENDERERS = {
   importar:   renderPanelImportar,
   registro:   renderPanelRegistro,
   jugadores:  renderPanelJugadores,
+  sucesion:   renderPanelSucesion,
   fichas:     renderPanelFichas,
   config:     renderPanelConfig,
 };
