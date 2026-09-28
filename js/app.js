@@ -104,10 +104,10 @@ const CONFIG_GROUPS = [
 ];
 // Temporadas: quitado de momento (código y datos se mantienen, solo se oculta la pestaña).
 
-// Comunes a todas las posiciones (sin selector de posición).
+// Comunes a todas las posiciones (sin selector de posición). Técnico salió
+// de aquí — ahora varía por posición, igual que Táctico (ver buildTecnicoCategoryHTML).
 const ASPECTOS_COMUNES_CATEGORIES = [
   { key: 'mental',      label: 'Mental' },
-  { key: 'tecnico',     label: 'Técnico' },
   { key: 'condicional', label: 'Condicional' },
 ];
 let itemsConfigPage = 1; // qué página se edita en "Items a evaluar": 1 ó 2 (por defecto Ficha 1)
@@ -132,6 +132,57 @@ function buildAspectoComunCategoryHTML(cat) {
         <textarea class="input" data-crit-new data-scope="comun" data-cat="${cat.key}" rows="1" style="min-height:36px;resize:vertical;" placeholder="Nuevo item… (o pega varios, uno por línea)"></textarea>
         <button class="btn btn-sm" data-crit-add data-scope="comun" data-cat="${cat.key}">+ Añadir</button>
       </div>
+    </div>
+  `;
+}
+
+// Técnico: ahora varía por posición (igual que Táctico). Mientras una
+// posición no tenga lista propia, se muestra la común como referencia
+// (solo lectura) con un botón para copiarla y empezar a editar desde ahí
+// — no se inventa ni se pierde el dato ya cargado.
+function buildTecnicoPositionSelectorHTML() {
+  return `
+    <div class="mb-16" style="max-width:280px;">
+      <div class="text-xs text-muted mb-8">Posición</div>
+      <select class="select" data-crit-position>
+        ${state.positions.map(p => `<option value="${p.key}" ${p.key === configCriteriaPosition ? 'selected' : ''}>${safeText(p.label)}</option>`).join('')}
+      </select>
+    </div>
+  `;
+}
+
+function buildTecnicoCategoryHTML() {
+  const posLabel = state.positions.find(p => p.key === configCriteriaPosition)?.label || configCriteriaPosition;
+  const schema = state.criteriaSchemas[configCriteriaPosition] || {};
+  const hasOwn = Array.isArray(schema.tecnico);
+  const items = hasOwn ? schema.tecnico : (state.aspectosComunes.tecnico || []);
+  const chips = items.map((label, i) => hasOwn ? `
+    <span class="chip">
+      ${i > 0 ? `<button data-move-crit data-cat="tecnico" data-idx="${i}" data-dir="-1" title="Subir">↑</button>` : ''}
+      ${i < items.length - 1 ? `<button data-move-crit data-cat="tecnico" data-idx="${i}" data-dir="1" title="Bajar">↓</button>` : ''}
+      ${safeText(label)}
+      <button data-del-crit data-cat="tecnico" data-idx="${i}" title="Quitar">×</button>
+    </span>
+  ` : `<span class="chip" style="opacity:0.6;">${safeText(label)}</span>`).join('');
+  return `
+    <div class="mb-16">
+      <div class="mb-8" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Técnico <span class="text-muted" style="font-weight:400;text-transform:none;font-size:11px;">(por posición)</span></div>
+      ${buildTecnicoPositionSelectorHTML()}
+      ${!hasOwn ? `
+        <p class="text-xs text-muted mb-8">
+          "${safeText(posLabel)}" aún no tiene lista propia — se muestra la común como referencia (solo lectura).
+          <button class="btn btn-sm" data-seed-tecnico>Usar esta lista como punto de partida</button>
+        </p>
+      ` : ''}
+      <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">
+        ${chips || '<span class="text-xs text-muted">Sin items definidos.</span>'}
+      </div>
+      ${hasOwn ? `
+        <div class="flex gap-8" style="align-items:flex-start;">
+          <textarea class="input" data-crit-new data-cat="tecnico" rows="1" style="min-height:36px;resize:vertical;" placeholder="Nuevo item… (o pega varios, uno por línea)"></textarea>
+          <button class="btn btn-sm" data-crit-add data-cat="tecnico">+ Añadir</button>
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -619,7 +670,7 @@ function buildFichaDemoFromSchema(positionKey) {
     player: { name: 'Jugador de ejemplo', photoUrl: null },
     blocks: {
       mental:      { rp: [null, null], items: rated(state.aspectosComunes.mental) },
-      tecnico:     { rp: [null, null], items: rated(state.aspectosComunes.tecnico) },
+      tecnico:     { rp: [null, null], items: rated(schema.tecnico ?? state.aspectosComunes.tecnico) },
       tactico:     { rp: [null, null], items: rated(schema.tactico) },
       condicional: { rp: null,         items: condicional },
     },
@@ -768,7 +819,7 @@ function renderPanelConfig(container) {
       <div class="card-title">Items a evaluar</div>
       <div class="card-body">
         <p class="text-sm text-muted mb-16">
-          Mental/Técnico/Condicional son comunes a todas las posiciones. Táctico varía por posición.
+          Mental/Condicional son comunes a todas las posiciones. Técnico y Táctico varían por posición.
           Ofensivas/Defensivas (ficha 1) se seleccionan del Táctico de esa posición. Personalidad (ficha 1) se genera sola desde Mental.
         </p>
         ${state.positions.length === 0 ? '<p class="text-xs text-muted">Define primero al menos una posición en la pestaña Posiciones.</p>' : `
@@ -777,7 +828,11 @@ function renderPanelConfig(container) {
             <button class="btn ${itemsConfigPage === 2 ? 'btn-primary' : 'btn-sm'}" data-items-page="2">Ficha 2</button>
           </div>
 
-          ${itemsConfigPage === 2 ? ASPECTOS_COMUNES_CATEGORIES.map(buildAspectoComunCategoryHTML).join('') : `
+          ${itemsConfigPage === 2 ? (
+            buildAspectoComunCategoryHTML(ASPECTOS_COMUNES_CATEGORIES[0])
+            + buildTecnicoCategoryHTML()
+            + buildAspectoComunCategoryHTML(ASPECTOS_COMUNES_CATEGORIES[1])
+          ) : `
             <div class="mb-16">
               <div class="mb-8" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Personalidad <span class="text-muted" style="font-weight:400;text-transform:none;font-size:11px;">(automática)</span></div>
               <p class="text-xs text-muted">Se genera desde Mental. Edítala en la pestaña "Ficha 2".</p>
@@ -1260,6 +1315,19 @@ function renderPanelConfig(container) {
       setState({ positions: state.positions.filter(p => p.key !== key) });
       renderPanelConfig(container);
     });
+  });
+
+  container.querySelector('[data-seed-tecnico]')?.addEventListener('click', () => {
+    const schema = state.criteriaSchemas[configCriteriaPosition] || {};
+    setState({
+      criteriaSchemas: {
+        ...state.criteriaSchemas,
+        [configCriteriaPosition]: { ...schema, tecnico: [...(state.aspectosComunes.tecnico || [])] },
+      },
+    });
+    document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
+    renderPanelConfig(container);
+    showSuccess('Lista copiada — ya puedes editarla para esta posición.');
   });
 
   container.querySelectorAll('[data-crit-position]').forEach(critSelect => {
