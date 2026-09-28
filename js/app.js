@@ -97,7 +97,8 @@ const CONFIG_GROUPS = [
   {
     label: 'Ayuda',
     tabs: [
-      { key: 'flujo', label: 'Flujo de evaluaciones' },
+      { key: 'flujo',   label: 'Flujo de evaluaciones' },
+      { key: 'frases',  label: 'Frases modelo' },
     ],
   },
 ];
@@ -655,6 +656,7 @@ function buildFicha1DemoFromSchema(positionKey) {
     },
     competenciasOfensivas: orderByTactico(schema.competenciasOfensivas).map(label => ({ label, status: null })),
     competenciasDefensivas: orderByTactico(schema.competenciasDefensivas).map(label => ({ label, status: null })),
+    frasesModelo: state.frasesModelo,
   };
 }
 
@@ -1000,6 +1002,26 @@ function renderPanelConfig(container) {
       </div>
     </div>
     `}
+
+    ${configSubTab !== 'frases' ? '' : `
+    <div class="card mb-16">
+      <div class="card-title">Frases modelo</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">
+          Banco de frases para "Descripción del jugador". En la ficha, el técnico marca las que aplican (botón "+ Frases" junto a la descripción) y se juntan en el texto — editable después. Sin IA: solo unen el texto tal cual.
+        </p>
+        <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
+          ${state.frasesModelo.map((f, i) => `
+            <span class="chip">${safeText(f)}<button data-del-frase data-idx="${i}" title="Quitar">×</button></span>
+          `).join('') || '<span class="text-xs text-muted">Sin frases definidas.</span>'}
+        </div>
+        <div class="flex gap-8" style="align-items:flex-start;">
+          <textarea class="input" id="frase-new" rows="2" style="min-height:56px;resize:vertical;flex:1;" placeholder="Nueva frase… (o pega varias, una por línea)"></textarea>
+          <button class="btn btn-sm" id="frase-add-btn">+ Añadir</button>
+        </div>
+      </div>
+    </div>
+    `}
   `;
 
   container.querySelectorAll('[data-config-subtab]').forEach(btn => {
@@ -1016,6 +1038,27 @@ function renderPanelConfig(container) {
       setState({ flujoEvaluaciones: flujoTextarea.value });
     });
   }
+
+  const fraseAddBtn = container.querySelector('#frase-add-btn');
+  if (fraseAddBtn) {
+    fraseAddBtn.addEventListener('click', () => {
+      const input = container.querySelector('#frase-new');
+      const rawLines = input.value.split('\n').map(l => l.trim()).filter(Boolean);
+      if (!rawLines.length) { showError('Escribe al menos una frase.'); return; }
+      const existingLower = state.frasesModelo.map(f => f.toLowerCase());
+      const toAdd = rawLines.filter(l => !existingLower.includes(l.toLowerCase()));
+      if (!toAdd.length) { showError('Esa frase ya existe.'); return; }
+      setState({ frasesModelo: [...state.frasesModelo, ...toAdd] });
+      renderPanelConfig(container);
+    });
+  }
+  container.querySelectorAll('[data-del-frase]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.idx);
+      setState({ frasesModelo: state.frasesModelo.filter((_, i) => i !== idx) });
+      renderPanelConfig(container);
+    });
+  });
 
   container.querySelectorAll('[data-ficha-tipo-pos]').forEach(btn => {
     btn.addEventListener('click', () => {
