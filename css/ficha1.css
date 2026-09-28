@@ -136,7 +136,8 @@
   min-height: 200px;
 }
 .p1-plain-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 24px; font-size: 43px; } /* 36px × 1.2 */
-.p1-plain-list li::before { content: "• "; color: rgba(255,255,255,0.5); }
+.p1-plain-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; } /* checkbox siempre pegado al mismo borde derecho → alineados en columna */
+.p1-item-label::before { content: "• "; color: rgba(255,255,255,0.5); }
 
 /* ── COLUMNA DERECHA: descripción + competencias ──
    3 cajones iguales (descripción / comp. ofensivas / comp. defensivas),
