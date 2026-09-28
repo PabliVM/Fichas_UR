@@ -657,8 +657,8 @@ function renderPanelFichas(container, positionKey = 'portero') {
     ${firebaseNotice()}
     <div class="mb-16 flex ficha-toolbar" style="justify-content:space-between;align-items:center;">
       <div class="flex gap-8">
-        <button class="btn ${fichasSubPage === 1 ? 'btn-primary' : 'btn-sm'}" data-ficha-page="1">Individual 1</button>
-        <button class="btn ${fichasSubPage === 2 ? 'btn-primary' : 'btn-sm'}" data-ficha-page="2">Individual 2</button>
+        <button class="btn ${fichasSubPage === 1 ? 'btn-primary' : 'btn-sm'}" data-ficha-page="1">Ficha 1</button>
+        <button class="btn ${fichasSubPage === 2 ? 'btn-primary' : 'btn-sm'}" data-ficha-page="2">Ficha 2</button>
       </div>
       <button class="btn btn-primary btn-print-ficha" id="btn-print-ficha">⬇ Descargar PDF</button>
     </div>
@@ -1014,6 +1014,7 @@ function renderPanelConfig(container) {
   container.querySelectorAll('[data-ficha-tipo-pos]').forEach(btn => {
     btn.addEventListener('click', () => {
       fichaTipoPosition = btn.dataset.fichaTipoPos;
+      fichasSubPage = 1; // cada posición se abre siempre en Ficha 1, no arrastra el "Individual 2" de la anterior
       renderPanelConfig(container);
     });
   });
