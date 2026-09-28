@@ -55,10 +55,11 @@ const _state = {
   ],
   positions:       PROFILES.map(p => ({ ...p })), // editable desde Configuración — semilla: PROFILES
   seasons:         [...SEASONS], // editable desde Configuración — semilla: SEASONS
-  // { id, name, positions: [posKey, posKey2?], teamsBySeason: { [season]: teamKey } }
+  // { id, nombre, apellidos, birthDate, foot, maturationalAge, fotoUrl,
+  //   teamKey, positionKey, weight, height, complexion } — los últimos 5
+  // son "espejo" del último valor; el histórico real vive en la
+  // subcolección Firestore jugadores/{id}/historico (ver firebase-service.js).
   players:         [],
-  // { id, playerId, season, createdAt } — informe = 1 registro de las 2 fichas para ese jugador/temporada
-  informes:        [],
   // MENTAL/TÉCNICO/CONDICIONAL: comunes a TODAS las posiciones. Editable en
   // Configuración → Items a evaluar → Ficha 2, sin selector de posición.
   aspectosComunes: {
@@ -91,16 +92,41 @@ const _state = {
   // si |valor - refA| <= esto, sale guion; si no, check verde o X roja.
   // Editable en Configuración → Datos condicionales.
   condicionalTolerance: 0.2,
+  // Texto libre editable en Configuración → Ayuda → Flujo de evaluaciones.
+  // Documentación interna (no aparece en las fichas de los jugadores).
+  flujoEvaluaciones: `FLUJO DE EVALUACIONES (estado actual)
+
+1. Configuración define, por posición: Aspectos comunes (Mental/Técnico/
+   Condicional, iguales para todas), Táctico (varía por posición),
+   Competencias ofensivas/defensivas (subconjunto de Táctico), Perfiles
+   (3 por posición, cada uno con su subconjunto de Táctico para la media),
+   rango de colores y datos condicionales de referencia.
+
+2. Con eso se generan las plantillas (Ficha 1 y Ficha 2) por posición —
+   lo que se ve hoy en Configuración → Fichas tipo → Individual, con
+   datos de ejemplo.
+
+3. PENDIENTE (no implementado todavía):
+   - Encuesta/formulario real para evaluar a un jugador concreto.
+   - Guardar esas notas en Firestore (colección jugadores).
+   - Calcular las medias: por bloque (Mental/Técnico/Condicional/Táctico,
+     para el círculo y el radar de Ficha 2) y por perfil (Ficha 1, usando
+     las competencias marcadas en Configuración → Perfiles).
+   - Autenticación (Firebase Auth).
+
+Recorrido del dato cuando esté completo:
+Configuración → Encuesta del jugador → Notas guardadas → Medias → Ficha 1/2 real
+`,
 };
 
 export const state = _state;
 
 // ── PERSISTENCIA EN FIRESTORE ─────────────────────
 // Un único documento (config/general) con todo lo editable en Configuración.
-// jugadores/informes NO van aquí (tendrán su propia colección más adelante).
+// jugadores NO va aquí — colección propia 'jugadores' (ver loadPlayersFromFirestore).
 const CONFIG_COLLECTION = 'config';
 const CONFIG_DOC_ID = 'general';
-const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'condicionalTolerance', 'fichaGridOrder'];
+const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'condicionalTolerance', 'fichaGridOrder', 'flujoEvaluaciones'];
 
 let _persistTimer = null;
 function schedulePersist() {
