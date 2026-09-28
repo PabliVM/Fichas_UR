@@ -7,7 +7,7 @@
 
 export const FICHA1_DEMO_DATA = {
   player: {
-    name: '',
+    name: 'Nombre del jugador',
     photoUrl: null,
     birthDate: '',
     maturationalAge: null,
