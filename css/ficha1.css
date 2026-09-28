@@ -93,29 +93,29 @@
 
 /* R/P: reubicados junto a los datos, tamaño ×2 × 0.8 = ×1.6 sobre el
    original; desplazados un poco a la derecha (sin llegar al círculo). */
-.p1-rp-group { display: flex; flex-direction: column; padding: 24px 0 0 0; margin-left: 70px; }
-.p1-rp-row { display: flex; gap: 16px; margin-bottom: 13px; }
+.p1-rp-group { display: flex; flex-direction: column; padding: 24px 0 0 0; margin-left: 220px; }
+.p1-rp-row { display: flex; gap: 28px; margin-bottom: 18px; }
 .p1-rp-badge {
-  width: 154px; height: 154px;
+  width: 220px; height: 220px;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 67px; font-weight: 800;
+  font-size: 90px; font-weight: 800;
   border: 6px solid #0f1117;
   flex-shrink: 0;
 }
 .p1-rp-badge-r { background: var(--score-yellow); color: #0f1117; }
 .p1-rp-badge-p { background: #ffffff; color: #0f1117; }
 .p1-rp-box {
-  width: 154px; height: 122px;
+  width: 220px; height: 160px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 67px; font-weight: 800;
+  font-size: 90px; font-weight: 800;
   border-radius: 6px;
 }
 .p1-rp-box-r { background: var(--score-yellow); color: #0f1117; }
 .p1-rp-box-p { background: #dbeafe; color: #0f1117; }
 
-.p1-status-bars { display: flex; flex-direction: column; margin-top: 10px; }
-.p1-status-bar { color: #0f1117; font-weight: 700; font-size: 36px; padding: 16px 28px; } /* oficial ficha2: 55px × 0.6528 */
+.p1-status-bars { display: flex; flex-direction: column; margin-top: 10px; gap: 10px; }
+.p1-status-bar { color: #0f1117; font-weight: 700; font-size: 40px; padding: 32px 28px; } /* filas "Perfil 1/2/3" — más altura a petición */
 
 .p1-subheader {
   background: var(--wine);
@@ -129,6 +129,7 @@
 .p1-personalidad-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-content: center; /* baja el bloque para usar el hueco libre inferior */
   padding: 20px 28px;
   gap: 18px 44px;
   flex: 1;
@@ -162,9 +163,9 @@
   outline: none;
 }
 .p1-desc-text:focus { background: rgba(255,255,255,0.06); }
-.p1-comp-grid { display: grid; column-gap: 16px; padding: 20px 24px; flex: 1 1 auto; min-height: 0; }
+.p1-comp-grid { display: grid; column-gap: 16px; padding: 20px 24px 20px 460px; flex: 1 1 auto; min-height: 0; } /* padding-left 460px: deja libre el hueco que ocupa el círculo central */
 .p1-comp-cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; }
-.p1-comp-label { font-size: 26px; font-weight: 600; min-height: 90px; }
+.p1-comp-label { font-size: 43px; font-weight: 600; min-height: 130px; } /* mismo tamaño que personalidad (.p1-plain-list) */
 .p1-status-box { display: inline-block; width: 36px; height: 36px; border-radius: 4px; }
 .p1-status-none { background: rgba(255,255,255,0.15); }
 
