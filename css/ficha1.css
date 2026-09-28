@@ -1,378 +1,499 @@
-/* ================================================
-   FICHA1.CSS — Página 1 de la ficha individual
-   Comparte paleta y tokens con ficha.css (--wine, --slate,
-   --score-*), pero es una plantilla distinta a la de la
-   página 2 (identidad + competencias, no 4 cuadrantes).
-   ================================================ */
+// ================================================
+// FICHA-DETALLE.JS — Página 2 de la ficha individual
+// 4 bloques: MENTAL, TÉCNICO, CONDICIONAL, TÁCTICO
+// + círculo central + Plan de acción.
+//
+// Colores de media: usan state.scoreBands (Configuración) —
+// número de bandas y color de cada una, configurable.
+// El círculo central usa el MISMO color que la media del
+// bloque — en blanco cuando aún no hay dato.
+// ================================================
 
-.p1-detalle {
-  --wine:        #7b3a52;
-  --slate:       #24313d;
-  --slate-line:  rgba(255,255,255,0.12);
-  background: var(--slate);
-  color: #ffffff;
-  font-family: var(--font-sans);
-  width: 4700px;          /* mismo ancho de diseño que la página 2 */
-  height: 3246px;         /* forzado: = 1174px en pantalla (igual que la ficha 2) */
-  overflow: hidden;
-  transform-origin: top left;
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: flex;
-  flex-direction: column;
+import { scoreColor, safeText } from './utils.js';
+import { buildRadarSVG } from './radar-chart.js';
+
+/** Color del cuarto del círculo para un bloque: el de su banda, o blanco si no hay dato. */
+function blockCircleColor(rp, bands) {
+  const avg = rp && rp[0] != null ? rp[0] : null;
+  return avg != null ? (scoreColor(avg, bands) || '#ffffff') : '#ffffff';
 }
 
-/* ── HEADER PROPIO (no comparte CSS con .ficha-header de la ficha 2) ──
-   Valores oficiales ficha2 escalados ×0.6528 (4700/7200):
-   escudo 260→170, título 104→68, badge 72→47, padding 10px 22px→7px 14px. */
-.p1-header {
-  background: var(--blue-600, #1d4ed8);
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 7px 14px;
-}
-.p1-header-crest { width: 170px; height: 170px; object-fit: contain; flex-shrink: 0; }
-.p1-header-title {
-  flex: 1;
-  text-align: center;
-  color: var(--text-header, #ffffff);
-  font-weight: 600;
-  font-size: 68px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-.p1-header-page {
-  color: var(--text-header, #ffffff);
-  font-weight: 700;
-  font-size: 47px;
-  background: rgba(255,255,255,0.18);
-  padding: 5px 14px;
-  border-radius: 999px;
-  white-space: nowrap;
-  flex-shrink: 0;
+// ── CÍRCULO CENTRAL ──────────────────────────────
+
+function polar(cx, cy, r, deg) {
+  const rad = ((deg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
 }
 
-.p1-top {
-  display: grid;
-  grid-template-columns: 1692px 1fr; /* 36% del ancho — proporción del diseño objetivo (antes 1080px/23%) */
-  position: relative;
-  border-bottom: 3px solid rgba(255,255,255,0.65);
+// Ángulo (en pantalla) de cada posición de la matriz — fijo, no depende
+// de qué bloque haya ahí: tl=270-360°, tr=0-90°, br=90-180°, bl=180-270°.
+const POS_ANGLES = { tl: [270, 360], tr: [0, 90], br: [90, 180], bl: [180, 270] };
+const BLOCK_TITLES = { mental: 'MENTAL', tecnico: 'TÉCNICO', tactico: 'TÁCTICO', condicional: 'CONDICIONAL' };
+
+function buildCentralCircle(photoUrl, blockColors, rpTexts, order) {
+  const size = 1420;
+  const cx = size / 2;
+  const cy = size / 2;
+  const rOuter = 683;
+  const rInner = 378;
+  const midR = (rOuter + rInner) / 2;
+  const rpR  = midR + (rOuter - midR) * 0.6; // un poco más hacia fuera que el nombre, pegado a él
+
+  const seg = (startDeg, endDeg, color) => {
+    const p1 = polar(cx, cy, rOuter, startDeg);
+    const p2 = polar(cx, cy, rOuter, endDeg);
+    const p3 = polar(cx, cy, rInner, endDeg);
+    const p4 = polar(cx, cy, rInner, startDeg);
+    const large = endDeg - startDeg > 180 ? 1 : 0;
+    return `<path d="M ${p1.x} ${p1.y} A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y} Z" fill="${color}" stroke="#94a3b8" stroke-width="1.5" />`;
+  };
+
+  // Arco invisible por cuadrante (radio medio) para que el texto lo siga.
+  // En la mitad inferior (TÁCTICO/CONDICIONAL) se dibuja al revés,
+  // si no el texto saldría boca abajo.
+  const arcPath = (id, aDeg, bDeg, radius) => {
+    const p1 = polar(cx, cy, radius, aDeg);
+    const p2 = polar(cx, cy, radius, bDeg);
+    const large = Math.abs(bDeg - aDeg) > 180 ? 1 : 0;
+    const sweep = bDeg > aDeg ? 1 : 0;
+    return `<path id="${id}" d="M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${large} ${sweep} ${p2.x} ${p2.y}" fill="none" />`;
+  };
+
+  const curvedLabel = (id, text, color) => {
+    const fill = color === '#ffffff' ? '#334155' : '#0f1117';
+    return `<text font-size="79" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
+  };
+
+  // El R/P del bloque, pegado justo al lado del nombre (MENTAL/TÉCNICO/...).
+  const rpLabel = (id, text) => text
+    ? `<text font-size="42" font-weight="700" fill="#0f1117"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`
+    : '';
+
+  const photo = photoUrl
+    ? `<clipPath id="ficha-photo-clip"><circle cx="${cx}" cy="${cy}" r="${rInner - 4}" /></clipPath>
+       <image href="${photoUrl}" x="${cx - rInner}" y="${cy - rInner}" width="${rInner * 2}" height="${rInner * 2}" clip-path="url(#ficha-photo-clip)" preserveAspectRatio="xMidYMid slice" />`
+    : `<text x="${cx}" y="${cy}" font-size="78" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
+
+  // Cada posición (tl/tr/br/bl) toma el color/nombre/R-P del bloque que
+  // Configuración → Matriz haya puesto ahí (order[pos]) — el ángulo de
+  // pantalla de cada posición es fijo, el contenido no.
+  const POSITIONS = ['tl', 'tr', 'br', 'bl'];
+  const segs = POSITIONS.map(pos => {
+    const key = order[pos];
+    const [a, b] = POS_ANGLES[pos];
+    return seg(a, b, blockColors[key]);
+  }).join('');
+  const arcs = POSITIONS.map(pos => {
+    const [a, b] = POS_ANGLES[pos];
+    // mitad inferior (br/bl): arco al revés para que el texto no salga boca abajo.
+    const [aa, bb] = (pos === 'br' || pos === 'bl') ? [b, a] : [a, b];
+    return arcPath(`arc-${pos}`, aa, bb, midR) + arcPath(`rp-${pos}`, aa, bb, rpR);
+  }).join('');
+  const labels = POSITIONS.map(pos => {
+    const key = order[pos];
+    return curvedLabel(`arc-${pos}`, BLOCK_TITLES[key], blockColors[key]);
+  }).join('');
+  const rpLabels = POSITIONS.map(pos => rpLabel(`rp-${pos}`, rpTexts?.[order[pos]])).join('');
+
+  return `
+    <svg viewBox="0 0 ${size} ${size}" class="ficha-central-svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>${arcs}</defs>
+      ${segs}
+      <circle cx="${cx}" cy="${cy}" r="${rInner + 4}" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" />
+      ${photo}
+      ${labels}
+      ${rpLabels}
+    </svg>
+  `;
 }
 
-/* ── COLUMNA IZQUIERDA: identidad ── */
-.p1-left {
-  display: flex;
-  flex-direction: column;
-  border-right: 3px solid rgba(255,255,255,0.65);
-}
-.p1-name-header {
-  background: var(--wine);
-  color: #ffffff;
-  font-size: 49px;          /* oficial ficha2: 75px × 0.6528 */
-  font-weight: 600;
-  padding: 8px 28px;        /* vertical oficial: 12px × 0.6528; horizontal sin tocar (layout space-between) */
-  border-top: 3px solid rgba(255,255,255,0.65); /* como en ficha 2 */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  text-transform: uppercase;
-}
-.p1-identity-row { display: flex; align-items: flex-start; justify-content: flex-start; gap: 40px; } /* flex-start: que no se acerque al borde donde entra el círculo */
-.p1-facts {
-  list-style: none;
-  margin: 0;
-  padding: 42px 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-  font-size: 43px;          /* igual que personalidad */
-}
-.p1-facts li::before { content: "• "; color: rgba(255,255,255,0.5); }
-.p1-check { color: var(--score-green); font-weight: 800; margin-left: 10px; }
+/**
+ * Coloca el círculo central exactamente en el cruce de los 4
+ * cuadrantes, midiendo el DOM real (fiable pase lo que pase con
+ * las alturas de MENTAL/TÉCNICO/CONDICIONAL/TÁCTICO).
+ */
+function centerFichaCircle(root) {
+  const grid     = root.querySelector('.ficha-grid');
+  const topLeft  = root.querySelector('.pos-tl');
+  const botLeftHeader = root.querySelector('.pos-bl .ficha-q-header');
+  const circle   = root.querySelector('.ficha-central');
+  if (!grid || !topLeft || !botLeftHeader || !circle) return;
 
-/* R/P: reubicados junto a los datos, tamaño ×2 × 0.8 = ×1.6 sobre el
-   original; desplazados un poco a la derecha (sin llegar al círculo). */
-.p1-rp-group { display: flex; flex-direction: column; padding: 24px 0 0 0; margin-left: 220px; }
-.p1-rp-row { display: flex; gap: 22px; margin-bottom: 14px; }
-.p1-rp-badge {
-  width: 176px; height: 176px;      /* 220px × 0.8 */
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 72px; font-weight: 800; /* 90px × 0.8 */
-  border: 6px solid #0f1117;
-  flex-shrink: 0;
-}
-.p1-rp-badge-r { background: var(--score-yellow); color: #0f1117; }
-.p1-rp-badge-p { background: #ffffff; color: #0f1117; }
-.p1-rp-box {
-  width: 176px; height: 128px;      /* 220px/160px × 0.8 */
-  display: flex; align-items: center; justify-content: center;
-  font-size: 72px; font-weight: 800; /* 90px × 0.8 */
-  border-radius: 6px;
-}
-.p1-rp-box-r { background: var(--score-yellow); color: #0f1117; }
-.p1-rp-box-p { background: #dbeafe; color: #0f1117; }
+  root.style.transform = 'none'; // medir en tamaño real, no en el ya escalado
 
-.p1-status-bars { display: flex; flex-direction: column; margin-top: 10px; gap: 10px; }
-.p1-status-bar { color: #0f1117; font-weight: 700; font-size: 43px; text-transform: uppercase; padding: 32px 28px; } /* filas "Perfil 1/2/3" — igual que el círculo (negrita) */
+  const gridRect   = grid.getBoundingClientRect();
+  const topLeftRect = topLeft.getBoundingClientRect();
 
-.p1-subheader {
-  background: var(--wine);
-  color: #ffffff;
-  font-size: 49px;          /* oficial ficha2: 75px × 0.6528 */
-  font-weight: 600;
-  padding: 8px 20px;
-  border-top: 3px solid rgba(255,255,255,0.65); /* como en ficha 2 */
-  text-align: center;
-}
-.p1-personalidad-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-content: center; /* baja el bloque para usar el hueco libre inferior */
-  padding: 20px 28px;
-  gap: 18px 44px;
-  flex: 1;
-  min-height: 200px;
-}
-.p1-plain-list { list-style: none; margin: 0; padding: 0 160px 0 0; display: flex; flex-direction: column; gap: 24px; font-size: 43px; } /* 36px × 1.2; padding-right mueve la columna de checks a la izquierda del borde */
-.p1-plain-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; } /* checkbox alineado en columna (borde del padding-right de arriba) */
-.p1-item-label::before { content: "• "; color: rgba(255,255,255,0.5); }
+  const crossX = topLeftRect.right - gridRect.left; // borde derecho del cuadrante arriba-izq = línea vertical
+  // línea horizontal: no el borde superior de la barra de abajo,
+  // sino la mitad de su cabecera — ahí cae el ecuador del círculo.
+  const crossY = (topLeftRect.bottom - gridRect.top) + botLeftHeader.offsetHeight / 2;
+  const half = circle.offsetWidth / 2;
 
-/* ── COLUMNA DERECHA: descripción + competencias ──
-   3 cajones iguales (descripción / comp. ofensivas / comp. defensivas),
-   cada uno se reparte 1/3 del alto disponible. */
-.p1-right { display: flex; flex-direction: column; }
-.p1-right > .p1-section { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
-/* nota: no hace falta borde extra entre secciones — cada header ya trae su propio border-top */
-.p1-desc-wrap { position: relative; }
-.p1-desc-header {
-  background: var(--wine);
-  color: #ffffff;
-  font-size: 49px;          /* oficial ficha2: 75px × 0.6528 */
-  font-weight: 600;
-  padding: 8px 20px;
-  border-top: 3px solid rgba(255,255,255,0.65); /* como en ficha 2 */
-  text-align: center;
-  position: relative;
-}
-/* Botón "+ Frases" — abre el picker de frases modelo (Configuración → Ayuda). */
-.p1-frases-btn {
-  position: absolute;
-  right: 20px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(255,255,255,0.15);
-  color: #ffffff;
-  border: 1px solid rgba(255,255,255,0.4);
-  border-radius: 6px;
-  padding: 6px 16px;
-  font-size: 24px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.p1-frases-picker {
-  position: absolute;
-  top: 100%;
-  right: 20px;
-  z-index: 20;
-  background: #1b232c;
-  border: 1px solid rgba(255,255,255,0.25);
-  border-radius: 8px;
-  padding: 18px;
-  width: 560px;
-  max-height: 420px;
-  overflow-y: auto;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
-}
-.p1-frases-picker.hidden { display: none; }
-.p1-frase-item { display: flex; gap: 12px; align-items: flex-start; font-size: 26px; color: #ffffff; margin-bottom: 12px; }
-.p1-frases-join-btn {
-  margin-top: 6px;
-  background: var(--wine);
-  color: #ffffff;
-  border: none;
-  border-radius: 6px;
-  padding: 10px 20px;
-  font-size: 26px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.p1-desc-text {
-  padding: 20px 28px;
-  font-size: 43px;          /* igual que personalidad */
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-  background: rgba(255,255,255,0.03);
-  outline: none;
-}
-.p1-desc-text:focus { background: rgba(255,255,255,0.06); }
-.p1-comp-grid { display: grid; column-gap: 16px; padding: 20px 24px 20px 460px; flex: 1 1 auto; min-height: 0; } /* padding-left 460px: deja libre el hueco que ocupa el círculo central */
-.p1-comp-cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; }
-.p1-comp-label {
-  font-size: 43px;
-  font-weight: 400;
-  line-height: 1.15;
-  height: 170px;           /* fija (no min-height): cabe hasta 3 líneas, así el check/cuadro de abajo siempre arranca en el mismo punto */
-  display: flex;
-  align-items: center;    /* centra el texto verticalmente, tenga 1 o 3 líneas */
-  justify-content: center;
-}
-.p1-status-box { display: inline-block; width: 36px; height: 36px; border-radius: 4px; }
-.p1-status-none { background: rgba(255,255,255,0.15); }
-
-/* ── CÍRCULO MINI (posición fija según el ancho de .p1-left) ── */
-.p1-central {
-  position: absolute;
-  top: 50%;
-  left: 1692px;          /* sigue el borde de .p1-left (ver .p1-top) */
-  width: 927px;          /* oficial ficha2: 1420px × 0.6528 */
-  height: 927px;
-  transform: translate(-50%, -50%);
-  z-index: 5;
-}
-.p1-central-svg { width: 100%; height: 100%; }
-
-/* ── ASPECTOS INDIVIDUALES (potenciar / mejorar, editable) ── */
-.p1-aspectos-grid { display: grid; grid-template-columns: 1fr 1fr; flex: 1 1 auto; min-height: 0; }
-.p1-aspectos-col { border: 1px solid var(--slate-line); display: flex; flex-direction: column; min-height: 0; }
-.p1-aspectos-col-header {
-  background: #ffffff;
-  color: #0f1117;
-  text-align: center;
-  font-weight: 700;
-  font-size: 48px;          /* oficial ficha2: 73px × 0.6528 */
-  padding: 4px 9px;         /* oficial ficha2: 6px 14px × 0.6528 */
-  height: 98px;             /* oficial ficha2: 150px × 0.6528, alto fijo igual que plan-col-header */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-.p1-editable-list {
-  list-style: none;
-  margin: 0;
-  padding: 30px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  font-size: 43px;          /* igual que personalidad */
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-  background: rgba(255,255,255,0.03);
-}
-.p1-editable-list li {
-  border-bottom: 1px dashed var(--slate-line);
-  padding-bottom: 8px;
-  outline: none;
-  overflow-wrap: break-word;
-}
-.p1-editable-list li:focus { background: rgba(255,255,255,0.06); }
-
-/* ── FILA INFERIOR: campo+leyenda (columna izq) | aspectos individuales
-   (columna der) — mismas 2 columnas que .p1-top (1692px/1fr), para que la
-   línea divisoria quede continua de arriba a abajo. ── */
-.p1-lower {
-  display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-  border-top: 3px solid rgba(255,255,255,0.65);
-}
-.p1-lower-left {
-  flex: 0 0 1692px;
-  display: flex;
-  flex-direction: column;
-  border-right: 3px solid rgba(255,255,255,0.65);
-}
-.p1-lower-right {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.p1-lower-right > .p1-section {
-  flex: 1 1 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.p1-lower-right > .p1-section + .p1-section {
-  border-top: 3px solid rgba(255,255,255,0.65);
+  circle.style.left = `${crossX - half}px`;
+  circle.style.top  = `${crossY - half}px`;
 }
 
-/* ── CAMPO + LEYENDA (apilados, columna izquierda) ── */
-.p1-pitch {
-  flex: 1 1 auto;
-  min-height: 0;
-  background-image: url('../campo.jpg');
-  background-size: contain;     /* campo entero visible, sin recortar (antes: cover) */
-  background-repeat: no-repeat;
-  background-position: center;
-  background-color: var(--slate); /* relleno cuando el campo no llena el cajón (antes: verde) */
-  position: relative;
+// ── BLOQUE CON RADAR (mental / técnico / táctico) ──
+
+function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos }) {
+  // Con muchas items (ej. Táctico portero, 24) la lista lateral no cabe
+  // en la altura fija de la ficha si mantiene el tamaño pensado para ~12.
+  // A partir de 18 items se reduce letra/gap solo de esta lista, para no
+  // desbordar el alto fijo (7200x5014, nunca cambia).
+  const many = items.length > 18;
+  const listFontSize = many ? 38 : 55;
+  const listGap      = many ? 3  : 6;
+
+  const listHTML = items.map(item => {
+    const color = scoreColor(item.value, bands); // hex de la banda, o null si no hay dato
+    const valueText = item.value == null ? '-' : formatNum(item.value);
+    const style = `style="color:${color || 'rgba(255,255,255,0.5)'}"`;
+    return side === 'left'
+      ? `<li><span class="ficha-score" ${style}>${valueText}</span><span class="ficha-item-label">${safeText(item.label)}</span></li>`
+      : `<li><span class="ficha-item-label">${safeText(item.label)}</span><span class="ficha-score" ${style}>${valueText}</span></li>`;
+  }).join('');
+
+  const radarSVG = buildRadarSVG(
+    items.map(i => ({ label: i.label, value: i.value }))
+  );
+
+  const listBlock  = `<ul class="ficha-item-list ${side === 'left' ? 'align-left' : 'align-right'}" style="font-size:${listFontSize}px;gap:${listGap}px;">${listHTML}</ul>`;
+  const radarBlock = `<div class="ficha-radar">${radarSVG}</div>`;
+
+  return `
+    <section class="ficha-quadrant q-${blockKey} pos-${pos} ${side === 'left' ? 'q-left' : 'q-right'}">
+      <header class="ficha-q-header">
+        <span class="ficha-q-title">${safeText(title)}</span>
+      </header>
+      <div class="ficha-q-body">
+        ${side === 'left' ? listBlock + radarBlock : radarBlock + listBlock}
+      </div>
+    </section>
+  `;
 }
-/* Botón "+" — añade una 2ª camiseta de jugador (máx. 2; oculto en portero
-   y oculto también al llegar a 2, ver initPitchDragDrop → syncAddBtn). */
-.p1-jersey-add {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255,255,255,0.85);
-  color: #0f1117;
-  font-size: 28px;
-  font-weight: 800;
-  line-height: 1;
-  cursor: pointer;
-  z-index: 5;
+
+// ── BLOQUE CONDICIONAL (valores GPS, editable, sin radar) ──
+
+function buildCondicionalBlock({ title, rp, items, pos }) {
+  const header = `
+    <div class="gps-row gps-col-headers gps-header-row">
+      <span class="gps-val-cell gps-cell-a">1</span>
+      <span class="gps-val-cell">2</span>
+      <span class="gps-label"></span>
+      <span class="gps-ref-cell gps-cell-a">3</span>
+      <span class="gps-ref-cell">4</span>
+    </div>
+  `;
+
+  const legend = `
+    <p class="gps-legend">
+      1- media del jugador<br>
+      2- máxima del jugador<br>
+      3- media por posición en fútbol profesional<br>
+      4- máxima por posición en fútbol profesional
+    </p>
+  `;
+
+  const rows = items.map((item, i) => `
+    <div class="gps-row" data-row="${i}" data-ref-a="${item.refA ?? ''}">
+      <span class="gps-val-cell gps-cell-a">
+        <input class="gps-input" type="text" data-row="${i}" data-field="valueA" value="${item.valueA ?? ''}" />
+        <span class="gps-icon"></span>
+      </span>
+      <span class="gps-val-cell">
+        <input class="gps-input" type="text" data-row="${i}" data-field="valueB" value="${item.valueB ?? ''}" />
+        <span class="gps-icon"></span>
+      </span>
+      <span class="gps-label">• ${safeText(item.label)}</span>
+      <span class="gps-ref-cell gps-cell-a">
+        <span class="gps-ref-value">${formatNum(item.refA)}</span>
+      </span>
+      <span class="gps-ref-cell">
+        <span class="gps-ref-value">${formatNum(item.refB)}</span>
+      </span>
+    </div>
+  `).join('');
+
+  return `
+    <section class="ficha-quadrant q-condicional pos-${pos} q-left ficha-condicional">
+      <header class="ficha-q-header">
+        <span class="ficha-q-title">${safeText(title)}</span>
+      </header>
+      <div class="ficha-condicional-body">
+        <div class="gps-grid">${header}${rows}${legend}</div>
+      </div>
+    </section>
+  `;
 }
-.p1-jersey-marker {
-  position: absolute;
-  width: 211px;             /* 234px × 0.9 */
-  height: 211px;
-  transform: translate(-50%, -50%);
-  cursor: grab;
-  z-index: 6;
+
+// ── PLAN DE ACCIÓN ────────────────────────────────
+
+const PLAN_COLUMNS = [
+  { key: 'tecnico',     label: 'TÉCNICO',     icon: './balon.png'   },
+  { key: 'tactico',     label: 'TÁCTICO',     icon: './pizarra.jpg' },
+  { key: 'condicional', label: 'CONDICIONAL', icon: './cohete.png'  },
+  { key: 'mental',      label: 'MENTAL',      icon: './cerebro.png' },
+];
+
+function buildPlanAccion(plan) {
+  const cols = PLAN_COLUMNS.map(col => {
+    const items = (plan?.[col.key] ?? ['', '', '', '', '', '', '']);
+    const lis = items.map(txt =>
+      `<li contenteditable="true" data-plan="${col.key}">${safeText(txt)}</li>`
+    ).join('');
+    return `
+      <div class="plan-col">
+        <div class="plan-col-header">
+          <span>${col.label}</span><img class="plan-col-icon plan-col-icon-${col.key}" src="${col.icon}" alt="" />
+        </div>
+        <ul class="plan-col-list">${lis}</ul>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <section class="ficha-plan">
+      <header class="ficha-plan-title">PLAN DE ACCIÓN</header>
+      <div class="ficha-plan-subheader">ASPECTOS DEL JUGADOR</div>
+      <div class="ficha-plan-grid">
+        ${cols}
+      </div>
+    </section>
+  `;
 }
-.p1-jersey-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  filter: drop-shadow(0 3px 5px rgba(0,0,0,0.6));
-  pointer-events: none; /* el drag va en el wrapper .p1-jersey-marker */
+
+// ── HEADER DE LA FICHA (azul corporativo, arriba del todo) ──
+
+export function buildFichaHeader(logoPath, pageLabel) {
+  return `
+    <header class="ficha-header">
+      <img src="${logoPath}" alt="" class="ficha-header-crest" />
+      <span class="ficha-header-title">INFORME INDIVIDUAL DEL JUGADOR</span>
+      ${pageLabel ? `<span class="ficha-header-page">${safeText(pageLabel)}</span>` : ''}
+    </header>
+  `;
 }
-.p1-jersey-remove {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(239,68,68,0.9);
-  color: #ffffff;
-  font-size: 20px;
-  font-weight: 800;
-  line-height: 1;
-  cursor: pointer;
-  z-index: 7;
+
+// ── FORMATEO ──────────────────────────────────────
+
+function formatNum(n) {
+  if (n == null) return '-';
+  return Number(n).toFixed(2).replace(/\.00$/, '').replace('.', ',');
 }
-.p1-legend {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 48px;
-  padding: 28px 32px;
-  background: var(--slate);
+
+function parseEsNumber(str) {
+  if (str == null) return null;
+  let s = String(str).trim();
+  if (s === '') return null;
+  if (s.includes(',') && s.includes('.')) {
+    // formato español completo (miles.decimal): "1.234,56" → quitar puntos, coma a punto
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (s.includes(',')) {
+    // solo coma → es el decimal: "1,8" → "1.8"
+    s = s.replace(',', '.');
+  }
+  // solo punto (o ninguno) → se deja tal cual, es decimal: "1.8" NO son 18
+  const n = parseFloat(s);
+  return Number.isNaN(n) ? null : n;
 }
-.p1-legend-item { display: flex; align-items: center; gap: 16px; font-weight: 700; font-size: 42px; }
-.p1-legend-dot { width: 34px; height: 34px; border-radius: 6px; display: inline-block; }
+
+/**
+ * Recalcula el icono de una fila GPS comparando valueA/valueB (columnas 1/2,
+ * manuales) contra refA — la columna 3, fija por posición desde Configuración
+ * → Datos condicionales (guardada en data-ref-a, NO es un input editable).
+ * La columna 4 (refB) es solo informativa, nunca participa en la comparación.
+ * diferencia = valor - refA:
+ *   > +0.2  → ✔ verde
+ *   < -0.2  → ✘ roja
+ *   resto (incl. límites) → guion amarillo
+ * Si falta valor o falta refA: sin icono (no se interpreta vacío como 0).
+ */
+let _gpsTolerance = 0.2;
+/** Fija la tolerancia (±) para el guion amarillo — viene de Configuración → Datos condicionales. */
+export function setGpsTolerance(value) {
+  const n = Number(value);
+  _gpsTolerance = (Number.isFinite(n) && n >= 0) ? n : 0.2;
+}
+
+function recalcGpsRow(rowEl) {
+  const refARaw = rowEl.dataset.refA;
+  const refA = (refARaw === '' || refARaw == null || Number.isNaN(Number(refARaw))) ? null : Number(refARaw);
+
+  ['valueA', 'valueB'].forEach(field => {
+    const input = rowEl.querySelector(`[data-field="${field}"]`);
+    const iconSlot = input.parentElement.querySelector('.gps-icon');
+    const val = parseEsNumber(input.value);
+    let st = null; // null | 'ok' | 'fail' | 'dash'
+    if (val != null && refA != null) {
+      // redondeo a 2 decimales: 7.2 - 7.0 da 0.20000000000000018 en JS (float),
+      // y un valor justo en el límite (±tolerancia, que es inclusive) se colaría en verde/rojo.
+      const diff = Math.round((val - refA) * 100) / 100;
+      st = diff > _gpsTolerance ? 'ok' : diff < -_gpsTolerance ? 'fail' : 'dash';
+    }
+    iconSlot.className = 'gps-icon' + (st ? ` gps-${st}` : '');
+    iconSlot.textContent = st === 'ok' ? '✔' : st === 'fail' ? '✘' : st === 'dash' ? '━' : '';
+  });
+}
+
+/**
+ * El bloque CONDICIONAL ya no usa CSS Grid (display:contents rompía el
+ * PDF, ver ficha.css) — con flexbox cada fila mide su ancho por
+ * separado, y como la etiqueta ("• V.MAX.", "• Edad Madurativa."...)
+ * no mide igual en cada fila, las cajitas quedaban descuadradas
+ * (cada fila se centraba con un ancho total distinto). Se iguala
+ * aquí, en JS, el ancho de TODAS las etiquetas al de la más larga
+ * — así todas las filas miden lo mismo y las columnas quedan rectas.
+ */
+/**
+ * Alinea la leyenda (1-/2-/3-/4-) a la izquierda, a la misma altura horizontal
+ * donde empiezan las filas de datos (columna 1), en vez de centrada.
+ * Se mide en JS porque las filas están centradas dentro de .gps-grid y su
+ * ancho depende del contenido (ver equalizeGpsLabelWidth).
+ */
+function alignGpsLegend(container) {
+  const legend = container.querySelector('.gps-legend');
+  const grid = container.querySelector('.gps-grid');
+  const firstRow = container.querySelector('.gps-row:not(.gps-header-row)');
+  if (!legend || !grid || !firstRow) return;
+  const offset = firstRow.getBoundingClientRect().left - grid.getBoundingClientRect().left;
+  legend.style.marginLeft = Math.max(offset, 0) + 'px';
+}
+
+function equalizeGpsLabelWidth(container) {
+  const labels = container.querySelectorAll('.gps-label');
+  if (!labels.length) return;
+  labels.forEach(l => { l.style.width = ''; }); // reset antes de medir el ancho natural
+  let max = 0;
+  labels.forEach(l => { max = Math.max(max, l.scrollWidth); });
+  max += 12; // margen de seguridad — con white-space:nowrap (ficha.css) nunca debería hacer falta, es cinturón y tirantes
+  labels.forEach(l => { l.style.width = max + 'px'; });
+}
+
+/**
+ * Conecta los inputs del bloque CONDICIONAL para que el ✔/✘
+ * se recalcule solo al escribir. Llamar tras insertar el HTML
+ * en el DOM (no persiste en Firestore todavía).
+ */
+export function wireCondicionalInputs(container) {
+  equalizeGpsLabelWidth(container);
+  alignGpsLegend(container);
+  container.querySelectorAll('.gps-row:not(.gps-header-row)').forEach(rowEl => {
+    recalcGpsRow(rowEl);
+    rowEl.querySelectorAll('.gps-input').forEach(input => {
+      input.addEventListener('input', () => recalcGpsRow(rowEl));
+    });
+  });
+}
+
+// ── RENDER PRINCIPAL ──────────────────────────────
+
+/**
+ * Renderiza la página de detalle (4 cuadrantes) dentro de `container`.
+ * @param {HTMLElement} container
+ * @param {Object} data — { player, blocks: {mental, tecnico, tactico, condicional}, plan }
+ * @param {string} logoPath — ruta del escudo (LOGO_PATH de constants.js)
+ * @param {Array} bands — state.scoreBands: [{ color, min }, ...]
+ * @param {string} [pageLabel] — indicador de página, ej. '2/2'. Vacío/omitido = no se muestra.
+ */
+const DEFAULT_GRID_ORDER = { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: 'tactico' };
+
+export function renderFichaDetalle(container, data, logoPath, bands, pageLabel = '2/2', colors, gridOrder) {
+  const { player, blocks, plan } = data;
+  const order = gridOrder || DEFAULT_GRID_ORDER;
+
+  const blockColors = {
+    mental:      blockCircleColor(blocks.mental.rp,      bands),
+    tecnico:     blockCircleColor(blocks.tecnico.rp,      bands),
+    tactico:     blockCircleColor(blocks.tactico.rp,      bands),
+    condicional: blockCircleColor(blocks.condicional.rp,  bands),
+  };
+
+  const rpText = rp => (rp && rp[0] != null && rp[1] != null) ? `${formatNum(rp[0])}/${formatNum(rp[1])}` : null;
+  const rpTexts = {
+    mental:      rpText(blocks.mental.rp),
+    tecnico:     rpText(blocks.tecnico.rp),
+    tactico:     rpText(blocks.tactico.rp),
+    condicional: rpText(blocks.condicional.rp),
+  };
+
+  const colorStyle = colors ? ` style="--slate:${colors.slate}; --wine:${colors.wine}; --text-general:${colors.textGeneral}; --text-header:${colors.textHeader}; --text-aspectos:${colors.textAspectos}; --text-subheader-white:${colors.textSubheaderWhite};"` : '';
+
+  // Cada bloque de contenido se puede colocar en cualquiera de las 4
+  // posiciones (order.tl/tr/bl/br) — Configuración → Matriz. El "side"
+  // (a qué lado va la lista respecto al radar) sigue la COLUMNA de la
+  // posición, no el bloque: izquierda en tl/bl, derecha en tr/br.
+  const sideForPos = pos => (pos === 'tl' || pos === 'bl') ? 'left' : 'right';
+  const buildBlockAt = pos => {
+    const key = order[pos];
+    if (key === 'condicional') {
+      return buildCondicionalBlock({ title: BLOCK_TITLES.condicional, rp: blocks.condicional.rp, items: blocks.condicional.items, pos });
+    }
+    return buildRatedBlock({ title: BLOCK_TITLES[key], rp: blocks[key].rp, items: blocks[key].items, side: sideForPos(pos), bands, blockKey: key, pos });
+  };
+
+  container.innerHTML = `
+    <div class="ficha-a4-frame">
+      <div class="ficha-detalle"${colorStyle}>
+        ${buildFichaHeader(logoPath, pageLabel)}
+        <div class="ficha-grid">
+          ${buildBlockAt('tl')}
+          ${buildBlockAt('tr')}
+          ${buildBlockAt('bl')}
+          ${buildBlockAt('br')}
+          <div class="ficha-central">${buildCentralCircle(player?.photoUrl, blockColors, rpTexts, order)}</div>
+        </div>
+        ${buildPlanAccion(plan)}
+      </div>
+    </div>
+  `;
+
+  wireCondicionalInputs(container);
+
+  const fichaRoot = container.querySelector('.ficha-detalle');
+  centerFichaCircle(fichaRoot);
+  fitFichaToFrame(container);
+
+  window.addEventListener('resize', () => {
+    centerFichaCircle(fichaRoot);
+    fitFichaToFrame(container);
+  });
+  window.addEventListener('beforeprint', () => {
+    // Al imprimir NO reescalamos por JS (los tiempos del navegador
+    // en beforeprint son poco fiables) — se deja la ficha a tamaño
+    // natural y es la opción "Ajustar al área de impresión" del
+    // propio diálogo de impresión la que la encoge a una página.
+    const ficha = container.querySelector('.ficha-detalle');
+    if (ficha) ficha.style.transform = 'none';
+  });
+  window.addEventListener('afterprint', () => fitFichaToFrame(container));
+}
+
+/**
+ * Escala la ficha (tamaño de diseño fijo) para que ocupe el ancho
+ * disponible en pantalla — SOLO por ancho, sin límite de alto, para
+ * que la ficha 1 y la ficha 2 midan siempre el mismo ancho entre sí
+ * (antes, la que tenía más contenido —más alta— se paraba antes por
+ * el límite de alto y quedaba más estrecha). El marco se ajusta
+ * exacto al resultado. Se recalcula solo, no hay que tocar nada a mano.
+ */
+export function fitFichaToFrame(container) {
+  const frame = container.querySelector('.ficha-a4-frame');
+  const ficha = container.querySelector('.ficha-detalle');
+  if (!frame || !ficha) return;
+
+  frame.style.width  = '';
+  frame.style.height = '';
+  ficha.style.transform = 'none'; // medir tamaño real, sin escalar todavía
+
+  const maxW = Math.min(frame.parentElement?.clientWidth || 1700, 1700);
+
+  const fichaRect = ficha.getBoundingClientRect();
+  if (!fichaRect.width || !fichaRect.height) return;
+
+  const scale = maxW / fichaRect.width; // solo ancho, sin tope de alto
+  ficha.style.transform = `scale(${scale})`;
+
+  frame.style.width  = `${fichaRect.width * scale}px`;
+  frame.style.height = `${fichaRect.height * scale}px`;
+}
