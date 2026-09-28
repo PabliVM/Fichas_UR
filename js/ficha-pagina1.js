@@ -161,6 +161,60 @@ function buildPersonalidad(personalidad) {
   `;
 }
 
+// ── DESCRIPCIÓN + FRASES MODELO ──────────────────
+// Banco de frases (Configuración → Ayuda → Frases modelo). El técnico
+// marca las que aplican y "Unir" las junta en el texto editable — no hay
+// IA ni cálculo automático, solo concatenar texto tal cual.
+function buildDescripcionSection(description, frasesModelo) {
+  const hasFrases = (frasesModelo || []).length > 0;
+  return `
+    <section class="p1-section">
+      <div class="p1-desc-wrap">
+        <header class="p1-desc-header">
+          <span>DESCRIPCIÓN DEL JUGADOR</span>
+          ${hasFrases ? '<button type="button" class="p1-frases-btn" title="Unir frases modelo en el texto">+ Frases</button>' : ''}
+        </header>
+        ${hasFrases ? buildFrasesPicker(frasesModelo) : ''}
+      </div>
+      <div class="p1-desc-text" contenteditable="true">${safeText(description)}</div>
+    </section>
+  `;
+}
+
+function buildFrasesPicker(frasesModelo) {
+  const items = frasesModelo.map((f, i) => `
+    <label class="p1-frase-item">
+      <input type="checkbox" data-frase-idx="${i}" />
+      <span>${safeText(f)}</span>
+    </label>
+  `).join('');
+  return `
+    <div class="p1-frases-picker hidden">
+      <div class="p1-frases-list">${items}</div>
+      <button type="button" class="p1-frases-join-btn">Unir en Descripción</button>
+    </div>
+  `;
+}
+
+function initFrasesPicker(container) {
+  const btn = container.querySelector('.p1-frases-btn');
+  const panel = container.querySelector('.p1-frases-picker');
+  if (!btn || !panel) return;
+  btn.addEventListener('click', () => panel.classList.toggle('hidden'));
+  const joinBtn = panel.querySelector('.p1-frases-join-btn');
+  joinBtn.addEventListener('click', () => {
+    const checked = [...panel.querySelectorAll('input[data-frase-idx]:checked')]
+      .map(cb => cb.nextElementSibling.textContent.trim());
+    if (!checked.length) return;
+    const descEl = container.querySelector('.p1-desc-text');
+    const current = descEl.textContent.trim();
+    const joined = checked.join(' ');
+    descEl.textContent = current ? `${current} ${joined}` : joined;
+    panel.classList.add('hidden');
+    panel.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+  });
+}
+
 function buildCompetencias(title, items) {
   const cells = items.map(it => `
     <div class="p1-comp-cell">
@@ -372,10 +426,7 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
             ${buildPersonalidad(data.personalidad)}
           </div>
           <div class="p1-right">
-            <section class="p1-section">
-              <header class="p1-desc-header">DESCRIPCIÓN DEL JUGADOR</header>
-              <div class="p1-desc-text" contenteditable="true">${safeText(data.description)}</div>
-            </section>
+            ${buildDescripcionSection(data.description, data.frasesModelo)}
             ${buildCompetencias('COMPETENCIAS OFENSIVAS', data.competenciasOfensivas)}
             ${buildCompetencias('COMPETENCIAS DEFENSIVAS', data.competenciasDefensivas)}
           </div>
@@ -397,4 +448,5 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
   fitFichaToFrame(container);
   window.addEventListener('resize', () => fitFichaToFrame(container));
   initPitchDragDrop(container, data, positionKey);
+  initFrasesPicker(container);
 }
