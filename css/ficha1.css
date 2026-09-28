@@ -165,7 +165,15 @@
 .p1-desc-text:focus { background: rgba(255,255,255,0.06); }
 .p1-comp-grid { display: grid; column-gap: 16px; padding: 20px 24px 20px 460px; flex: 1 1 auto; min-height: 0; } /* padding-left 460px: deja libre el hueco que ocupa el círculo central */
 .p1-comp-cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; }
-.p1-comp-label { font-size: 43px; font-weight: 600; min-height: 130px; } /* mismo tamaño que personalidad (.p1-plain-list) */
+.p1-comp-label {
+  font-size: 43px;
+  font-weight: 600;
+  line-height: 1.15;
+  height: 170px;           /* fija (no min-height): cabe hasta 3 líneas, así el check/cuadro de abajo siempre arranca en el mismo punto */
+  display: flex;
+  align-items: center;    /* centra el texto verticalmente, tenga 1 o 3 líneas */
+  justify-content: center;
+}
 .p1-status-box { display: inline-block; width: 36px; height: 36px; border-radius: 4px; }
 .p1-status-none { background: rgba(255,255,255,0.15); }
 
