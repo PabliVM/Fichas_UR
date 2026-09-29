@@ -4,6 +4,7 @@
 
 import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, uploadPlayerPhoto } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
+import { watchAuthState, login } from './auth-service.js';
 import { crearEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
 import { matchJugador } from './import-matching.js';
 import { calcularMediasPorJugador, calcularMediaGrupo, buildAspectoPorCompetencia } from './medias.js';
@@ -2390,16 +2391,81 @@ function setupEvents() {
 
 // ── BOOT ─────────────────────────────────────────
 
+// ── LOGIN (Firebase Auth) ─────────────────────────
+// Overlay aparte de #app — no toca el HTML existente. Mientras no hay
+// usuario, #app queda oculto; al autenticarse se arranca el resto tal cual.
+
+function ensureLoginOverlay() {
+  let el = document.getElementById('rm-login-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'rm-login-overlay';
+    el.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg, #24313d);z-index:9999;';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function showLogin() {
+  const app = document.getElementById('app');
+  if (app) app.style.display = 'none';
+  const overlay = ensureLoginOverlay();
+  overlay.style.display = 'flex';
+  overlay.innerHTML = `
+    <div class="card card-lg" style="max-width:360px;width:100%;">
+      <div class="card-title">RM Perfiles — Acceso</div>
+      <div class="card-body">
+        <div class="field-group mb-16"><label class="label">Email</label><input class="input" type="email" id="login-email" autocomplete="username" /></div>
+        <div class="field-group mb-16"><label class="label">Contraseña</label><input class="input" type="password" id="login-password" autocomplete="current-password" /></div>
+        <p class="text-xs mb-16" id="login-error" style="display:none;color:#ef4444;"></p>
+        <button class="btn btn-primary" id="login-btn" style="width:100%;">Entrar</button>
+      </div>
+    </div>
+  `;
+  const doLogin = async () => {
+    const email = overlay.querySelector('#login-email').value.trim();
+    const password = overlay.querySelector('#login-password').value;
+    const errEl = overlay.querySelector('#login-error');
+    errEl.style.display = 'none';
+    if (!email || !password) { errEl.textContent = 'Rellena email y contraseña.'; errEl.style.display = 'block'; return; }
+    try {
+      await login(email, password);
+    } catch (err) {
+      console.error('[Auth] Login fallido:', err);
+      errEl.textContent = 'Email o contraseña incorrectos.';
+      errEl.style.display = 'block';
+    }
+  };
+  overlay.querySelector('#login-btn').addEventListener('click', doLogin);
+  overlay.querySelector('#login-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+}
+
+function hideLogin() {
+  const overlay = document.getElementById('rm-login-overlay');
+  if (overlay) overlay.style.display = 'none';
+  const app = document.getElementById('app');
+  if (app) app.style.display = '';
+}
+
+let _appBooted = false;
+
 async function boot() {
   initFirebase();
-  await loadConfigFromFirestore(); // trae Configuración guardada antes de pintar
-  await loadPlayersFromFirestore(); // trae la lista de jugadores
+  watchAuthState(async user => {
+    if (!user) { showLogin(); return; }
+    hideLogin();
+    if (_appBooted) return; // ya está montado — no se repite en cada evento de auth
+    _appBooted = true;
 
-  renderFooter();
-  renderHeader();
-  renderTabs();
-  renderMain();
-  setupEvents();
+    await loadConfigFromFirestore(); // trae Configuración guardada antes de pintar
+    await loadPlayersFromFirestore(); // trae la lista de jugadores
+
+    renderFooter();
+    renderHeader();
+    renderTabs();
+    renderMain();
+    setupEvents();
+  });
 }
 
 document.addEventListener('DOMContentLoaded', boot);
