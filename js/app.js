@@ -5,7 +5,7 @@
 import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, uploadPlayerPhoto } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { watchAuthState, login, resetPassword } from './auth-service.js';
-import { crearEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
+import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
 import { matchJugador } from './import-matching.js';
 import { calcularMediasPorJugador, calcularMediaGrupo, buildAspectoPorCompetencia } from './medias.js';
 import { parseCSV, parseXLSXBuffer, parseEsNumber, buildRowKey, clasificarFilas } from './importar-csv.js';
@@ -75,6 +75,7 @@ let registroSubTab = localStorage.getItem('rm-registro-subtab') || 'registro'; /
 
 let regEvaluaciones  = null;  // cache; null = no cargado aún, [] = cargado y vacío
 let regEvalFormOpen  = false;
+let regEvalEditId    = null;  // id de la evaluación que se está editando (null = alta nueva)
 let regEvalSel       = null;  // id de la evaluación activa para importar
 let regImport        = null;  // estado del wizard de importación (ver resetRegImport)
 
@@ -236,38 +237,39 @@ function mediaGeneralDe(media) {
 // ── Registro: contexto de evaluación ──────────────
 
 function buildEvaluacionFormHTML() {
+  const ev = regEvalEditId ? regEvaluaciones.find(e => e.id === regEvalEditId) : null;
   return `
     <div class="card mb-16">
-      <div class="card-title">Nueva evaluación</div>
+      <div class="card-title">${ev ? 'Editar evaluación' : 'Nueva evaluación'}</div>
       <div class="card-body">
         <div class="flex gap-12" style="flex-wrap:wrap;">
           <div class="field-group" style="min-width:150px;">
             <label class="label">Temporada</label>
-            <select class="select" id="ev-temporada">${state.seasons.map(s => `<option value="${safeText(s)}">${safeText(s)}</option>`).join('')}</select>
+            <select class="select" id="ev-temporada">${state.seasons.map(s => `<option value="${safeText(s)}" ${ev?.temporada === s ? 'selected' : ''}>${safeText(s)}</option>`).join('')}</select>
           </div>
           <div class="field-group" style="min-width:220px;">
             <label class="label">Nombre / periodo</label>
-            <input class="input" type="text" id="ev-nombre" placeholder="Ej. Evaluación enero" />
+            <input class="input" type="text" id="ev-nombre" placeholder="Ej. Evaluación enero" value="${safeText(ev?.nombre || '')}" />
           </div>
           <div class="field-group" style="min-width:160px;">
             <label class="label">Posición</label>
-            <select class="select" id="ev-posicion">${state.positions.map(p => `<option value="${p.key}">${safeText(p.label)}</option>`).join('')}</select>
+            <select class="select" id="ev-posicion">${state.positions.map(p => `<option value="${p.key}" ${ev?.posicionKey === p.key ? 'selected' : ''}>${safeText(p.label)}</option>`).join('')}</select>
           </div>
           <div class="field-group" style="min-width:160px;">
             <label class="label">Tipo de evaluación</label>
-            <input class="input" type="text" id="ev-tipo" placeholder="Ej. Trimestral" />
+            <input class="input" type="text" id="ev-tipo" placeholder="Ej. Trimestral" value="${safeText(ev?.tipo || '')}" />
           </div>
           <div class="field-group" style="min-width:140px;">
             <label class="label">Fecha inicio</label>
-            <input class="input" type="date" id="ev-fecha-ini" />
+            <input class="input" type="date" id="ev-fecha-ini" value="${safeText(ev?.fechaInicio || '')}" />
           </div>
           <div class="field-group" style="min-width:140px;">
             <label class="label">Fecha fin</label>
-            <input class="input" type="date" id="ev-fecha-fin" />
+            <input class="input" type="date" id="ev-fecha-fin" value="${safeText(ev?.fechaFin || '')}" />
           </div>
         </div>
         <div class="flex gap-8 mt-16">
-          <button class="btn btn-primary" id="ev-crear">Crear evaluación</button>
+          <button class="btn btn-primary" id="ev-crear">${ev ? 'Guardar cambios' : 'Crear evaluación'}</button>
           <button class="btn btn-ghost" id="ev-cancelar">Cancelar</button>
         </div>
       </div>
@@ -285,7 +287,11 @@ function buildEvaluacionesListHTML() {
       <td>${safeText(state.positions.find(p => p.key === ev.posicionKey)?.label || ev.posicionKey)}</td>
       <td>${safeText(ev.tipo || '-')}</td>
       <td>${safeText(ev.fechaInicio || '-')}${ev.fechaFin ? ' – ' + safeText(ev.fechaFin) : ''}</td>
-      <td><button class="btn btn-sm" data-ev-importar="${ev.id}">Importar CSV</button></td>
+      <td class="flex gap-8">
+        <button class="btn btn-sm" data-ev-importar="${ev.id}">Importar CSV</button>
+        <button class="btn btn-sm" data-ev-editar="${ev.id}">Editar</button>
+        <button class="btn btn-sm" data-ev-borrar="${ev.id}">Borrar</button>
+      </td>
     </tr>
   `).join('');
   return `
@@ -495,10 +501,12 @@ function renderRegistroSub(container) {
 
   container.querySelector('#reg-nueva-ev')?.addEventListener('click', () => {
     regEvalFormOpen = true;
+    regEvalEditId = null;
     renderRegistroSub(container);
   });
   container.querySelector('#ev-cancelar')?.addEventListener('click', () => {
     regEvalFormOpen = false;
+    regEvalEditId = null;
     renderRegistroSub(container);
   });
   container.querySelector('#ev-crear')?.addEventListener('click', async () => {
@@ -513,14 +521,21 @@ function renderRegistroSub(container) {
     if (!data.nombre) { showError('Ponle un nombre/periodo a la evaluación.'); return; }
     if (isFirebaseUnconfigured()) { showError('Configura Firebase para crear evaluaciones.'); return; }
     try {
-      const id = await crearEvaluacion(data);
-      regEvaluaciones = [...regEvaluaciones, { id, ...data }];
+      if (regEvalEditId) {
+        await actualizarEvaluacion(regEvalEditId, data);
+        regEvaluaciones = regEvaluaciones.map(e => e.id === regEvalEditId ? { ...e, ...data } : e);
+        showSuccess('Evaluación actualizada.');
+      } else {
+        const id = await crearEvaluacion(data);
+        regEvaluaciones = [...regEvaluaciones, { id, ...data }];
+        showSuccess('Evaluación creada.');
+      }
       regEvalFormOpen = false;
-      showSuccess('Evaluación creada.');
+      regEvalEditId = null;
       renderRegistroSub(container);
     } catch (err) {
-      console.error('[Firestore] No se pudo crear la evaluación:', err);
-      showError('No se pudo crear la evaluación (revisa las reglas de Firestore).');
+      console.error('[Firestore] No se pudo guardar la evaluación:', err);
+      showError('No se pudo guardar la evaluación (revisa las reglas de Firestore).');
     }
   });
 
@@ -529,6 +544,36 @@ function renderRegistroSub(container) {
       regEvalSel = btn.dataset.evImportar;
       resetRegImport();
       renderRegistroSub(container);
+    });
+  });
+
+  container.querySelectorAll('[data-ev-editar]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      regEvalEditId = btn.dataset.evEditar;
+      regEvalFormOpen = true;
+      renderRegistroSub(container);
+    });
+  });
+
+  container.querySelectorAll('[data-ev-borrar]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.evBorrar;
+      if (isFirebaseUnconfigured()) { showError('Configura Firebase para borrar evaluaciones.'); return; }
+      try {
+        const registrosDeEsta = await queryRegistros({ evaluacionId: id });
+        const aviso = registrosDeEsta.length
+          ? `Esta evaluación tiene ${registrosDeEsta.length} registro(s) importado(s). Se borrará el CONTEXTO (temporada/posición/tipo), pero los registros individuales NO se borran — quedarán sin evaluación asociada. ¿Seguro?`
+          : '¿Borrar esta evaluación?';
+        if (!confirm(aviso)) return;
+        await eliminarEvaluacion(id);
+        regEvaluaciones = regEvaluaciones.filter(e => e.id !== id);
+        if (regEvalSel === id) { regEvalSel = null; resetRegImport(); }
+        showSuccess('Evaluación borrada.');
+        renderRegistroSub(container);
+      } catch (err) {
+        console.error('[Firestore] No se pudo borrar la evaluación:', err);
+        showError('No se pudo borrar (revisa las reglas de Firestore).');
+      }
     });
   });
 
