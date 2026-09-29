@@ -8,7 +8,7 @@ import { watchAuthState, login, resetPassword } from './auth-service.js';
 import { crearEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
 import { matchJugador } from './import-matching.js';
 import { calcularMediasPorJugador, calcularMediaGrupo, buildAspectoPorCompetencia } from './medias.js';
-import { parseCSV, parseEsNumber, buildRowKey, clasificarFilas } from './importar-csv.js';
+import { parseCSV, parseXLSXBuffer, parseEsNumber, buildRowKey, clasificarFilas } from './importar-csv.js';
 import { renderHeader }  from './render-header.js';
 import { renderTabs } from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
@@ -308,8 +308,8 @@ function buildImportWizardHTML() {
 
   if (regImport.step === 'archivo') {
     body = `
-      <p class="text-xs text-muted mb-16">Sube el archivo. En el siguiente paso indicas qué es cada columna — no hace falta que las columnas se llamen de una forma concreta.</p>
-      <input class="input" type="file" id="import-file" accept=".csv" />
+      <p class="text-xs text-muted mb-16">Sube el archivo (CSV o Excel). En el siguiente paso indicas qué es cada columna — no hace falta que las columnas se llamen de una forma concreta.</p>
+      <input class="input" type="file" id="import-file" accept=".csv,.xlsx,.xls" />
       <div class="flex gap-8 mt-16"><button class="btn btn-ghost" id="import-cancelar">Cancelar</button></div>
     `;
   } else if (regImport.step === 'mapeo') {
@@ -535,11 +535,18 @@ function renderRegistroSub(container) {
   container.querySelector('#import-file')?.addEventListener('change', async e => {
     const file = e.target.files[0];
     if (!file) return;
-    const text = await file.text();
-    const { headers, rows } = parseCSV(text);
-    if (!headers.length) { showError('No se pudo leer el archivo (¿está vacío?).'); return; }
-    regImport.headers = headers;
-    regImport.rows = rows;
+    const esExcel = /\.(xlsx|xls)$/i.test(file.name);
+    let parsed;
+    try {
+      parsed = esExcel ? parseXLSXBuffer(await file.arrayBuffer()) : parseCSV(await file.text());
+    } catch (err) {
+      console.error('[Import] No se pudo leer el archivo:', err);
+      showError('No se pudo leer el archivo (¿formato correcto?).');
+      return;
+    }
+    if (!parsed.headers.length) { showError('No se pudo leer el archivo (¿está vacío?).'); return; }
+    regImport.headers = parsed.headers;
+    regImport.rows = parsed.rows;
     regImport.mapping = {};
     regImport.step = 'mapeo';
     renderRegistroSub(container);
