@@ -4,7 +4,7 @@
 
 import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, uploadPlayerPhoto } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
-import { watchAuthState, login } from './auth-service.js';
+import { watchAuthState, login, resetPassword } from './auth-service.js';
 import { crearEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
 import { matchJugador } from './import-matching.js';
 import { calcularMediasPorJugador, calcularMediaGrupo, buildAspectoPorCompetencia } from './medias.js';
@@ -2400,7 +2400,6 @@ function ensureLoginOverlay() {
   if (!el) {
     el = document.createElement('div');
     el.id = 'rm-login-overlay';
-    el.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg, #24313d);z-index:9999;';
     document.body.appendChild(el);
   }
   return el;
@@ -2410,15 +2409,20 @@ function showLogin() {
   const app = document.getElementById('app');
   if (app) app.style.display = 'none';
   const overlay = ensureLoginOverlay();
-  overlay.style.display = 'flex';
+  overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:linear-gradient(160deg, var(--blue-900), var(--blue-500));font-family:var(--font-sans);padding:16px;';
   overlay.innerHTML = `
-    <div class="card card-lg" style="max-width:360px;width:100%;">
-      <div class="card-title">RM Perfiles — Acceso</div>
-      <div class="card-body">
-        <div class="field-group mb-16"><label class="label">Email</label><input class="input" type="email" id="login-email" autocomplete="username" /></div>
-        <div class="field-group mb-16"><label class="label">Contraseña</label><input class="input" type="password" id="login-password" autocomplete="current-password" /></div>
-        <p class="text-xs mb-16" id="login-error" style="display:none;color:#ef4444;"></p>
-        <button class="btn btn-primary" id="login-btn" style="width:100%;">Entrar</button>
+    <div style="background:var(--bg-surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:40px 36px;width:100%;max-width:380px;text-align:center;">
+      <img src="${LOGO_PATH}" alt="" style="width:80px;height:80px;object-fit:contain;margin:0 auto 16px;display:block;" />
+      <div style="font-size:22px;font-weight:800;color:var(--text-primary);margin-bottom:4px;">${safeText(state.appName)}</div>
+      <div style="font-size:13px;color:var(--blue-500);margin-bottom:24px;">Real Madrid · Cantera</div>
+      <div style="text-align:left;">
+        <div class="field-group mb-16"><input class="input" type="email" id="login-email" placeholder="Email" autocomplete="username" style="width:100%;" /></div>
+        <div class="field-group mb-16"><input class="input" type="password" id="login-password" placeholder="Contraseña" autocomplete="current-password" style="width:100%;" /></div>
+      </div>
+      <p class="text-xs mb-16" id="login-error" style="display:none;color:#ef4444;text-align:left;"></p>
+      <button class="btn btn-primary" id="login-btn" style="width:100%;">Iniciar sesión</button>
+      <div style="margin-top:16px;">
+        <a href="#" id="login-forgot" style="color:var(--blue-500);font-size:13px;">¿Olvidaste tu contraseña?</a>
       </div>
     </div>
   `;
@@ -2438,6 +2442,18 @@ function showLogin() {
   };
   overlay.querySelector('#login-btn').addEventListener('click', doLogin);
   overlay.querySelector('#login-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  overlay.querySelector('#login-forgot').addEventListener('click', async e => {
+    e.preventDefault();
+    const email = overlay.querySelector('#login-email').value.trim();
+    if (!email) { showError('Escribe tu email arriba primero.'); return; }
+    try {
+      await resetPassword(email);
+      showSuccess('Te hemos enviado un email para restablecer la contraseña.');
+    } catch (err) {
+      console.error('[Auth] No se pudo enviar el email de recuperación:', err);
+      showError('No se pudo enviar el email (revisa que sea correcto).');
+    }
+  });
 }
 
 function hideLogin() {
