@@ -1615,9 +1615,14 @@ function buildFicha1DemoFromSchema(positionKey) {
   // coincida siempre con el orden visual de Aspectos.
   const tactico = schema.tactico || [];
   const orderByTactico = selected => tactico.filter(t => (selected || []).includes(t));
+  // Perfil 1/2/3 son genéricos solo si la posición aún no tiene perfiles
+  // propios definidos en Configuración → Perfiles — si los tiene, se usan
+  // sus nombres reales (ej. "Dominador de área"), sin inventar ni duplicar.
+  const perfiles = schema.perfiles || [];
   return {
     ...FICHA1_DEMO_DATA,
     player: { ...FICHA1_DEMO_DATA.player, position: positionLabel },
+    statusBars: perfiles.length ? perfiles.map(nombre => ({ label: nombre, color: null })) : FICHA1_DEMO_DATA.statusBars,
     personalidad: {
       col1: mental.slice(0, mid).map(label => ({ label, status: null })),
       col2: mental.slice(mid).map(label => ({ label, status: null })),
