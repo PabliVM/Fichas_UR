@@ -54,6 +54,12 @@ export function getDB() {
   return _db;
 }
 
+/** Devuelve la app de Firebase ya inicializada (la usa auth-service.js). */
+export function getFirebaseApp() {
+  if (!_app) throw new Error('Firebase no inicializado. Llama a initFirebase() primero.');
+  return _app;
+}
+
 // ── CRUD BASE ────────────────────────────────────
 
 /**
