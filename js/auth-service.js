@@ -9,7 +9,7 @@
 // ================================================
 
 import {
-  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail,
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { initFirebase, getFirebaseApp } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
@@ -30,6 +30,10 @@ export function login(email, password) {
 
 export function logout() {
   return signOut(getAuthInstance());
+}
+
+export function resetPassword(email) {
+  return sendPasswordResetEmail(getAuthInstance(), email);
 }
 
 /**
