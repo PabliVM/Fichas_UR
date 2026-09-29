@@ -6,7 +6,7 @@ import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocume
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { crearEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
 import { matchJugador } from './import-matching.js';
-import { calcularMediasPorJugador, buildAspectoPorCompetencia } from './medias.js';
+import { calcularMediasPorJugador, calcularMediaGrupo, buildAspectoPorCompetencia } from './medias.js';
 import { parseCSV, parseEsNumber, buildRowKey, clasificarFilas } from './importar-csv.js';
 import { renderHeader }  from './render-header.js';
 import { renderTabs } from './render-tabs.js';
@@ -83,6 +83,11 @@ let bbddBusy = false;
 let fichaRealView = null;     // { jugadorId, positionKey } | null — "Ver ficha" desde BBDD
 let fichaRealSubPage = 1;
 
+let compFiltros  = { temporada: '', equipo: '', generacion: '', posicionKey: '', evaluacionId: '' };
+let compJugadorId = '';
+let compResultado = null;     // { mediasPorJugador, grupoMedia, jugadorMedia, n } tras Comparar
+let compBusy = false;
+
 // ── Ficha real (BBDD → Ficha 1/2) ──────────────────
 // Mismo objeto que ya esperan renderFichaPagina1/renderFichaDetalle — no se
 // toca su diseño ni su lógica, solo se rellena con la media consolidada real
@@ -101,12 +106,11 @@ function buildFichaRealData(positionKey, media, jugador) {
   const schema = state.criteriaSchemas[positionKey] || {};
   const comp = media?.porCompetencia || {};
   const rated = list => (list || []).map(label => ({ label, value: comp[label] ?? null }));
-  // Condicional: el CSV solo aporta una media por competencia (columna 1).
-  // La columna 2 (valueB) queda sin dato hasta que el import distinga las
-  // dos columnas de origen — limitación conocida, no inventada.
+  // Condicional: el mapeo de import permite dos columnas por item (valor 1/2,
+  // ver importar-csv.js) — valueB llega como `${label}__B` si se mapeó.
   const condicional = (state.aspectosComunes.condicional || []).map(label => {
     const ref = state.condicionalRefs?.[positionKey]?.[label] || {};
-    return { label, valueA: comp[label] ?? null, valueB: null, refA: ref.col3 ?? null, refB: ref.col4 ?? null };
+    return { label, valueA: comp[label] ?? null, valueB: comp[`${label}__B`] ?? null, refA: ref.col3 ?? null, refB: ref.col4 ?? null };
   });
   return {
     player: { name: jugador ? `${jugador.nombre} ${jugador.apellidos}`.trim() : 'Jugador', photoUrl: jugador?.fotoUrl || null },
@@ -316,11 +320,17 @@ function buildImportWizardHTML() {
         `<option value="">— Ignorar columna —</option>`,
         `<option value="jugador" ${sel === 'jugador' ? 'selected' : ''}>Jugador (nombre)</option>`,
         `<option value="evaluador" ${sel === 'evaluador' ? 'selected' : ''}>Evaluador</option>`,
-        ...competencias.map(c => `<option value="${safeText(c)}" ${sel === c ? 'selected' : ''}>Competencia: ${safeText(c)} (${safeText(aspectoPorCompetencia[c])})</option>`),
+        `<option value="equipo" ${sel === 'equipo' ? 'selected' : ''}>Equipo (opcional — ayuda a identificar al jugador)</option>`,
+        ...competencias.flatMap(c => aspectoPorCompetencia[c] === 'condicional' ? [
+          `<option value="${safeText(c)}::A" ${sel === c + '::A' ? 'selected' : ''}>Condicional: ${safeText(c)} — valor 1 (col. 3)</option>`,
+          `<option value="${safeText(c)}::B" ${sel === c + '::B' ? 'selected' : ''}>Condicional: ${safeText(c)} — valor 2 (col. 4)</option>`,
+        ] : [
+          `<option value="${safeText(c)}" ${sel === c ? 'selected' : ''}>Competencia: ${safeText(c)} (${safeText(aspectoPorCompetencia[c])})</option>`,
+        ]),
       ].join('');
     };
     body = `
-      <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas. Indica qué campo es cada columna del archivo (jugador, evaluador o una competencia de ${safeText(posLabel)}).</p>
+      <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas. Indica qué campo es cada columna del archivo (jugador, evaluador o una competencia de ${safeText(posLabel)}). Condicional admite dos columnas por item (valor 1 y valor 2).</p>
       <div style="overflow-x:auto;">
         <table class="table table-compact">
           <thead><tr><th>Columna del archivo</th><th>Ejemplo</th><th>Se importa como</th></tr></thead>
@@ -419,6 +429,8 @@ async function procesarImport(container) {
   const ev = regEvaluaciones.find(e => e.id === regEvalSel);
   const colJugador   = Object.keys(regImport.mapping).find(h => regImport.mapping[h] === 'jugador');
   const colEvaluador = Object.keys(regImport.mapping).find(h => regImport.mapping[h] === 'evaluador');
+  const colEquipo    = Object.keys(regImport.mapping).find(h => regImport.mapping[h] === 'equipo');
+  const teamKeyPorLabel = raw => TEAMS.find(t => t.label.toLowerCase().trim() === String(raw || '').toLowerCase().trim())?.key || null;
 
   const filas = regImport.rows.map(row => {
     const jugadorNombreArchivo = (row[colJugador] || '').trim();
@@ -429,16 +441,19 @@ async function procesarImport(container) {
     const puntuaciones = {};
     let invalido = false;
     Object.entries(regImport.mapping).forEach(([header, target]) => {
-      if (!target || target === 'jugador' || target === 'evaluador') return;
+      if (!target || target === 'jugador' || target === 'evaluador' || target === 'equipo') return;
       const raw = row[header];
       if (raw === '' || raw == null) return;
       const val = parseEsNumber(raw);
       if (val == null) { invalido = true; return; }
-      puntuaciones[target] = val;
+      // Condicional con dos columnas: "Item::A" → Item (valor 1), "Item::B" → Item__B (valor 2)
+      const key = target.endsWith('::A') ? target.slice(0, -3) : target.endsWith('::B') ? target.slice(0, -3) + '__B' : target;
+      puntuaciones[key] = val;
     });
     if (invalido) return { error: 'Valor no numérico', jugadorNombreArchivo, evaluador };
 
-    const match = matchJugador(jugadorNombreArchivo, state.players);
+    const teamKey = colEquipo ? teamKeyPorLabel(row[colEquipo]) : null;
+    const match = matchJugador(jugadorNombreArchivo, state.players, { teamKey });
     if (match.status !== 'auto') {
       return { jugadorNombreArchivo, evaluador, puntuaciones, matchStatus: match.status, matchCandidates: match.candidates };
     }
@@ -768,6 +783,123 @@ function renderBBDDSub(container) {
   });
 }
 
+// ── Comparativas (auditoría §12) ──────────────────
+// evaluadores → media del jugador → media de cada jugador del grupo →
+// media del grupo. Cada jugador pesa una vez, tenga los evaluadores que
+// tenga (misma función calcularMediaGrupo que usa BBDD).
+
+function buildComparativasHTML() {
+  const evOptions = (regEvaluaciones || []).map(ev => `<option value="${ev.id}" ${compFiltros.evaluacionId === ev.id ? 'selected' : ''}>${safeText(ev.nombre)} (${safeText(ev.temporada)})</option>`).join('');
+  const generaciones = [...new Set(state.players.map(p => calcAgeAndYear(p.birthDate).year).filter(y => y != null))].sort((a, b) => b - a);
+  return `
+    <div class="card mb-16">
+      <div class="card-title">Comparar jugador con un grupo</div>
+      <div class="card-body">
+        <div class="flex gap-12" style="flex-wrap:wrap;">
+          <div class="field-group" style="min-width:200px;">
+            <label class="label">Jugador</label>
+            <select class="select" id="comp-jugador"><option value="">— Elige —</option>${state.players.map(p => `<option value="${p.id}" ${compJugadorId === p.id ? 'selected' : ''}>${safeText(p.nombre)} ${safeText(p.apellidos)}</option>`).join('')}</select>
+          </div>
+          <div class="field-group" style="min-width:200px;">
+            <label class="label">Evaluación</label>
+            <select class="select" id="comp-evaluacion"><option value="">— Elige —</option>${evOptions}</select>
+          </div>
+          <div class="field-group" style="min-width:150px;">
+            <label class="label">Temporada</label>
+            <select class="select" id="comp-temporada"><option value="">— Todas —</option>${state.seasons.map(s => `<option value="${safeText(s)}" ${compFiltros.temporada === s ? 'selected' : ''}>${safeText(s)}</option>`).join('')}</select>
+          </div>
+          <div class="field-group" style="min-width:160px;">
+            <label class="label">Posición (grupo)</label>
+            <select class="select" id="comp-posicion"><option value="">— Todas —</option>${state.positions.map(p => `<option value="${p.key}" ${compFiltros.posicionKey === p.key ? 'selected' : ''}>${safeText(p.label)}</option>`).join('')}</select>
+          </div>
+          <div class="field-group" style="min-width:150px;">
+            <label class="label">Equipo</label>
+            <select class="select" id="comp-equipo"><option value="">— Todos —</option>${TEAMS.map(t => `<option value="${t.key}" ${compFiltros.equipo === t.key ? 'selected' : ''}>${safeText(t.label)}</option>`).join('')}</select>
+          </div>
+          <div class="field-group" style="min-width:140px;">
+            <label class="label">Generación</label>
+            <select class="select" id="comp-generacion"><option value="">— Todas —</option>${generaciones.map(y => `<option value="${y}" ${compFiltros.generacion === String(y) ? 'selected' : ''}>${y}</option>`).join('')}</select>
+          </div>
+        </div>
+        <button class="btn btn-primary mt-16" id="comp-buscar">${compBusy ? 'Comparando…' : 'Comparar'}</button>
+      </div>
+    </div>
+    <div class="card"><div class="card-title">Resultado</div><div class="card-body">${buildComparativasResultadoHTML()}</div></div>
+  `;
+}
+
+function buildComparativasResultadoHTML() {
+  if (!compResultado) return '<p class="text-xs text-muted">Elige jugador + evaluación (y filtros de grupo) y pulsa Comparar.</p>';
+  const { jugadorMedia, grupoMedia, n } = compResultado;
+  if (!jugadorMedia) return `<p class="text-xs text-muted">El jugador elegido no tiene registros con estos filtros. Grupo: ${n} jugadores.</p>`;
+  const jugadorGeneral = mediaGeneralDe(jugadorMedia);
+  const aspectos = [...new Set([...Object.keys(jugadorMedia.porAspecto || {})])];
+  const filas = aspectos.map(a => {
+    const grupoAspecto = calcularMediaGrupo(compResultado.mediasPorJugador, a);
+    return `<tr><td>${safeText(a)}</td><td>${jugadorMedia.porAspecto[a]?.toFixed(2) ?? '-'}</td><td>${grupoAspecto != null ? grupoAspecto.toFixed(2) : '-'}</td></tr>`;
+  }).join('');
+  return `
+    <p class="text-xs text-muted mb-16">Grupo: ${n} jugador(es).</p>
+    <table class="table table-compact">
+      <thead><tr><th>Aspecto</th><th>Jugador</th><th>Media del grupo</th></tr></thead>
+      <tbody>
+        ${filas}
+        <tr style="font-weight:700;"><td>General</td><td>${jugadorGeneral != null ? jugadorGeneral.toFixed(2) : '-'}</td><td>${grupoMedia != null ? grupoMedia.toFixed(2) : '-'}</td></tr>
+      </tbody>
+    </table>
+  `;
+}
+
+function renderComparativasSub(container) {
+  container.innerHTML = buildComparativasHTML();
+  container.querySelector('#comp-buscar')?.addEventListener('click', async () => {
+    compJugadorId = container.querySelector('#comp-jugador').value;
+    compFiltros = {
+      evaluacionId: container.querySelector('#comp-evaluacion').value,
+      temporada:    container.querySelector('#comp-temporada').value,
+      posicionKey:  container.querySelector('#comp-posicion').value,
+      equipo:       container.querySelector('#comp-equipo').value,
+      generacion:   container.querySelector('#comp-generacion').value,
+    };
+    if (!compFiltros.evaluacionId) { showError('Elige una evaluación.'); return; }
+    if (isFirebaseUnconfigured()) { showError('Configura Firebase para comparar.'); return; }
+    compBusy = true;
+    renderComparativasSub(container);
+    try {
+      const ev = regEvaluaciones.find(e => e.id === compFiltros.evaluacionId);
+      const filtrosQuery = { evaluacionId: compFiltros.evaluacionId };
+      if (compFiltros.temporada) filtrosQuery.temporada = compFiltros.temporada;
+      if (compFiltros.posicionKey) filtrosQuery.posicionKey = compFiltros.posicionKey;
+      const registros = await queryRegistros(filtrosQuery);
+      // Equipo/generación no viven en 'registros' — se acotan aquí, pero
+      // SOLO sobre el subconjunto ya filtrado por Firestore, no la colección entera.
+      const registrosFiltrados = registros.filter(r => {
+        if (!r.jugadorId) return false;
+        const jugador = state.players.find(p => p.id === r.jugadorId);
+        if (!jugador) return false;
+        if (compFiltros.equipo && jugador.teamKey !== compFiltros.equipo) return false;
+        if (compFiltros.generacion && String(calcAgeAndYear(jugador.birthDate).year) !== compFiltros.generacion) return false;
+        return true;
+      });
+      const posicionParaMedias = compFiltros.posicionKey || ev.posicionKey;
+      const map = buildAspectoPorCompetencia(state, posicionParaMedias);
+      const mediasPorJugador = calcularMediasPorJugador(registrosFiltrados, map);
+      compResultado = {
+        mediasPorJugador,
+        grupoMedia: calcularMediaGrupo(mediasPorJugador),
+        jugadorMedia: compJugadorId ? mediasPorJugador[compJugadorId] : null,
+        n: Object.keys(mediasPorJugador).length,
+      };
+    } catch (err) {
+      console.error('[Firestore] No se pudo calcular la comparativa:', err);
+      showError('No se pudo comparar (revisa reglas/índices de Firestore).');
+      compResultado = null;
+    }
+    compBusy = false;
+    renderComparativasSub(container);
+  });
+}
+
 function renderPanelRegistro(container) {
   ensureEvaluacionesLoaded(container);
   container.innerHTML = `
@@ -775,12 +907,14 @@ function renderPanelRegistro(container) {
     <div class="mb-16 flex gap-8">
       <button class="btn ${registroSubTab === 'registro' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="registro">Registro</button>
       <button class="btn ${registroSubTab === 'bbdd' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="bbdd">BBDD</button>
+      <button class="btn ${registroSubTab === 'comparativas' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="comparativas">Comparativas</button>
     </div>
     <div id="registro-sub-content"></div>
   `;
   const sub = container.querySelector('#registro-sub-content');
   if (registroSubTab === 'registro') renderRegistroSub(sub);
-  else renderBBDDSub(sub);
+  else if (registroSubTab === 'bbdd') renderBBDDSub(sub);
+  else renderComparativasSub(sub);
 
   container.querySelectorAll('[data-registro-subtab]').forEach(btn => {
     btn.addEventListener('click', () => {
