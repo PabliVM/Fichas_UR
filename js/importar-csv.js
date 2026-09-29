@@ -1,9 +1,30 @@
 // ================================================
-// IMPORTAR-CSV.JS — Parseo genérico + deduplicación
-// idempotente. NO asume nombres de columna: el usuario
-// mapea cada columna del archivo a un campo/competencia
-// conocido antes de importar (auditoría §4).
+// IMPORTAR-CSV.JS — Parseo genérico (CSV y Excel) +
+// deduplicación idempotente. NO asume nombres de
+// columna: el usuario mapea cada columna del archivo
+// a un campo/competencia conocido antes de importar
+// (auditoría §4).
 // ================================================
+
+import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.18.7/package/xlsx.mjs';
+
+/** Excel (.xlsx/.xls) → misma forma {headers, rows} que parseCSV. Usa la primera hoja. */
+export function parseXLSXBuffer(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: 'array' });
+  const hoja = wb.Sheets[wb.SheetNames[0]];
+  if (!hoja) return { headers: [], rows: [] };
+  const filas2D = XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
+  if (!filas2D.length) return { headers: [], rows: [] };
+  const headers = filas2D[0].map(h => String(h ?? '').trim());
+  const rows = filas2D.slice(1)
+    .filter(cols => cols.some(c => String(c ?? '').trim() !== ''))
+    .map(cols => {
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = String(cols[i] ?? '').trim(); });
+      return obj;
+    });
+  return { headers, rows };
+}
 
 /** Parser CSV simple (detecta separador , o ;). Soporta comillas. */
 export function parseCSV(text) {
