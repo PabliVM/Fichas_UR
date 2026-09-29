@@ -5,6 +5,8 @@
 import { state, setState }   from './state.js';
 import { LOGO_PATH } from './constants.js';
 import { safeText }          from './utils.js';
+import { logout } from './auth-service.js';
+import { isFirebaseUnconfigured } from './firebase-config.js';
 
 export function renderHeader() {
   const header = document.getElementById('rm-header');
@@ -25,10 +27,15 @@ export function renderHeader() {
       <button class="btn-theme" id="btn-theme" title="Cambiar modo">
         ${state.darkMode ? '☀️' : '🌙'}
       </button>
+      ${isFirebaseUnconfigured() ? '' : '<button class="btn btn-sm" id="btn-logout" title="Cerrar sesión">Salir</button>'}
     </div>
   `;
 
   document.getElementById('btn-theme').addEventListener('click', toggleTheme);
+
+  document.getElementById('btn-logout')?.addEventListener('click', async () => {
+    try { await logout(); } catch (err) { console.error('[Auth] No se pudo cerrar sesión:', err); }
+  });
 
   document.getElementById('sel-season').addEventListener('change', e => {
     setState({ season: e.target.value });
