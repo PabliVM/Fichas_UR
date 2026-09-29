@@ -4,6 +4,10 @@
 
 import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, uploadPlayerPhoto } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
+import { crearEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
+import { matchJugador } from './import-matching.js';
+import { calcularMediasPorJugador, buildAspectoPorCompetencia } from './medias.js';
+import { parseCSV, parseEsNumber, buildRowKey, clasificarFilas } from './importar-csv.js';
 import { renderHeader }  from './render-header.js';
 import { renderTabs } from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
@@ -64,25 +68,720 @@ function renderPanelSucesion(container) {
 
 let registroSubTab = localStorage.getItem('rm-registro-subtab') || 'registro'; // 'registro' | 'bbdd'
 
+// ── REGISTRO DE DATOS: contexto de evaluación, import CSV y BBDD ──
+// Colecciones nuevas 'evaluaciones' y 'registros' (evaluaciones-service.js).
+// No toca 'jugadores' ni 'config'. Ver auditoría 15 puntos.
+
+let regEvaluaciones  = null;  // cache; null = no cargado aún, [] = cargado y vacío
+let regEvalFormOpen  = false;
+let regEvalSel       = null;  // id de la evaluación activa para importar
+let regImport        = null;  // estado del wizard de importación (ver resetRegImport)
+
+let bbddFiltros  = { temporada: '', evaluacionId: '', jugadorId: '', posicionKey: '', evaluador: '', vista: 'todo' };
+let bbddResultado = null;     // { registros, mediasPorJugador } tras pulsar Buscar
+let bbddBusy = false;
+let fichaRealView = null;     // { jugadorId, positionKey } | null — "Ver ficha" desde BBDD
+let fichaRealSubPage = 1;
+
+// ── Ficha real (BBDD → Ficha 1/2) ──────────────────
+// Mismo objeto que ya esperan renderFichaPagina1/renderFichaDetalle — no se
+// toca su diseño ni su lógica, solo se rellena con la media consolidada real
+// en vez de null (auditoría §10-11). "Ver ficha" alimenta esto, no duplica.
+
+/** value → 'green'/'yellow'/'red' según state.scoreBands (asume orden alto→bajo, 3 bandas — el mismo criterio que ya usa Configuración → Bandas de color). */
+function bandKeyForValue(value, bands) {
+  if (value == null) return null;
+  const sorted = [...bands].sort((a, b) => b.min - a.min);
+  const idx = sorted.findIndex(b => value >= b.min);
+  if (idx === -1) return null;
+  return ['green', 'yellow', 'red'][idx] ?? 'red';
+}
+
+function buildFichaRealData(positionKey, media, jugador) {
+  const schema = state.criteriaSchemas[positionKey] || {};
+  const comp = media?.porCompetencia || {};
+  const rated = list => (list || []).map(label => ({ label, value: comp[label] ?? null }));
+  // Condicional: el CSV solo aporta una media por competencia (columna 1).
+  // La columna 2 (valueB) queda sin dato hasta que el import distinga las
+  // dos columnas de origen — limitación conocida, no inventada.
+  const condicional = (state.aspectosComunes.condicional || []).map(label => {
+    const ref = state.condicionalRefs?.[positionKey]?.[label] || {};
+    return { label, valueA: comp[label] ?? null, valueB: null, refA: ref.col3 ?? null, refB: ref.col4 ?? null };
+  });
+  return {
+    player: { name: jugador ? `${jugador.nombre} ${jugador.apellidos}`.trim() : 'Jugador', photoUrl: jugador?.fotoUrl || null },
+    blocks: {
+      mental:      { rp: [null, null], items: rated(state.aspectosComunes.mental) },
+      tecnico:     { rp: [null, null], items: rated(schema.tecnico ?? state.aspectosComunes.tecnico) },
+      tactico:     { rp: [null, null], items: rated(schema.tactico) },
+      condicional: { rp: null,         items: condicional },
+    },
+    plan: {
+      tecnico: ['', '', '', '', '', '', ''], tactico: ['', '', '', '', '', '', ''],
+      condicional: ['', '', '', '', '', '', ''], mental: ['', '', '', '', '', '', ''],
+    },
+  };
+}
+
+function buildFicha1RealData(positionKey, media, jugador) {
+  const schema = state.criteriaSchemas[positionKey] || {};
+  const mental = state.aspectosComunes.mental || [];
+  const mid = Math.ceil(mental.length / 2);
+  const positionLabel = state.positions.find(p => p.key === positionKey)?.label || FICHA1_DEMO_DATA.player.position;
+  const comp = media?.porCompetencia || {};
+  const tactico = schema.tactico || [];
+  const orderByTactico = selected => tactico.filter(t => (selected || []).includes(t));
+  const withStatus = label => ({ label, status: bandKeyForValue(comp[label], state.scoreBands) });
+
+  const perfiles = schema.perfiles || [];
+  const perfilCompetencias = schema.perfilCompetencias || {};
+  const statusBars = perfiles.map(nombre => {
+    const items = perfilCompetencias[nombre] || [];
+    const valores = items.map(it => comp[it]).filter(v => v != null);
+    const mediaPerfil = valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null;
+    return { label: nombre, color: bandKeyForValue(mediaPerfil, state.scoreBands) };
+  });
+
+  return {
+    ...FICHA1_DEMO_DATA,
+    player: {
+      ...FICHA1_DEMO_DATA.player,
+      name: jugador ? `${jugador.nombre} ${jugador.apellidos}`.trim() : 'Jugador',
+      position: positionLabel,
+      photoUrl: jugador?.fotoUrl || null,
+      heightOk: null,
+    },
+    statusBars: statusBars.length ? statusBars : FICHA1_DEMO_DATA.statusBars,
+    personalidad: {
+      col1: mental.slice(0, mid).map(withStatus),
+      col2: mental.slice(mid).map(withStatus),
+    },
+    competenciasOfensivas: orderByTactico(schema.competenciasOfensivas).map(withStatus),
+    competenciasDefensivas: orderByTactico(schema.competenciasDefensivas).map(withStatus),
+    frasesModelo: state.frasesModelo,
+  };
+}
+
+function buildFichaRealViewHTML() {
+  return `
+    <div class="mb-16 flex ficha-toolbar" style="justify-content:space-between;align-items:center;">
+      <button class="btn btn-ghost" id="ficha-real-volver">← Volver a resultados</button>
+      <div class="flex gap-8">
+        <button class="btn ${fichaRealSubPage === 1 ? 'btn-primary' : 'btn-sm'}" data-ficha-real-page="1">Ficha 1</button>
+        <button class="btn ${fichaRealSubPage === 2 ? 'btn-primary' : 'btn-sm'}" data-ficha-real-page="2">Ficha 2</button>
+      </div>
+    </div>
+    <div id="ficha1-real-wrap" class="ficha-wrap ${fichaRealSubPage === 1 ? '' : 'hidden'}"></div>
+    <div id="ficha-real-wrap" class="ficha-wrap ${fichaRealSubPage === 2 ? '' : 'hidden'}"></div>
+  `;
+}
+
+function renderFichaRealView(container) {
+  container.innerHTML = buildFichaRealViewHTML();
+  const jugador = state.players.find(p => p.id === fichaRealView.jugadorId);
+  const media = bbddResultado?.mediasPorJugador?.[fichaRealView.jugadorId] || null;
+  const positionKey = fichaRealView.positionKey;
+
+  renderFichaPagina1(container.querySelector('#ficha1-real-wrap'), buildFicha1RealData(positionKey, media, jugador), LOGO_PATH, state.fichaColors);
+  setGpsTolerance(state.condicionalTolerance);
+  renderFichaDetalle(container.querySelector('#ficha-real-wrap'), buildFichaRealData(positionKey, media, jugador), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
+
+  container.querySelector('#ficha-real-volver')?.addEventListener('click', () => {
+    fichaRealView = null;
+    renderBBDDSub(container);
+  });
+  container.querySelectorAll('[data-ficha-real-page]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      fichaRealSubPage = Number(btn.dataset.fichaRealPage);
+      renderFichaRealView(container);
+    });
+  });
+}
+
+function resetRegImport() {
+  regImport = {
+    step: 'archivo',   // 'archivo' | 'mapeo' | 'resumen'
+    headers: [], rows: [], mapping: {},
+    resultado: null,   // { nuevos, sinCambios, conCambios, errores }
+    pendientes: [],    // filas con jugador dudoso/sin match, a resolver a mano
+    decisiones: {},    // { rowKey: 'mantener'|'reemplazar' } para conCambios
+    busy: false,
+  };
+}
+
+async function ensureEvaluacionesLoaded(container) {
+  if (regEvaluaciones !== null) return;
+  if (isFirebaseUnconfigured()) { regEvaluaciones = []; return; }
+  try {
+    regEvaluaciones = await listarEvaluaciones();
+  } catch (err) {
+    console.error('[Firestore] No se pudieron cargar las evaluaciones:', err);
+    regEvaluaciones = [];
+    showError('No se pudieron cargar las evaluaciones.');
+  }
+  renderPanelRegistro(container);
+}
+
+function mediaGeneralDe(media) {
+  const vals = Object.values(media?.porAspecto || {}).filter(v => v != null);
+  if (!vals.length) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+// ── Registro: contexto de evaluación ──────────────
+
+function buildEvaluacionFormHTML() {
+  return `
+    <div class="card mb-16">
+      <div class="card-title">Nueva evaluación</div>
+      <div class="card-body">
+        <div class="flex gap-12" style="flex-wrap:wrap;">
+          <div class="field-group" style="min-width:150px;">
+            <label class="label">Temporada</label>
+            <select class="select" id="ev-temporada">${state.seasons.map(s => `<option value="${safeText(s)}">${safeText(s)}</option>`).join('')}</select>
+          </div>
+          <div class="field-group" style="min-width:220px;">
+            <label class="label">Nombre / periodo</label>
+            <input class="input" type="text" id="ev-nombre" placeholder="Ej. Evaluación enero" />
+          </div>
+          <div class="field-group" style="min-width:160px;">
+            <label class="label">Posición</label>
+            <select class="select" id="ev-posicion">${state.positions.map(p => `<option value="${p.key}">${safeText(p.label)}</option>`).join('')}</select>
+          </div>
+          <div class="field-group" style="min-width:160px;">
+            <label class="label">Tipo de evaluación</label>
+            <input class="input" type="text" id="ev-tipo" placeholder="Ej. Trimestral" />
+          </div>
+          <div class="field-group" style="min-width:140px;">
+            <label class="label">Fecha inicio</label>
+            <input class="input" type="date" id="ev-fecha-ini" />
+          </div>
+          <div class="field-group" style="min-width:140px;">
+            <label class="label">Fecha fin</label>
+            <input class="input" type="date" id="ev-fecha-fin" />
+          </div>
+        </div>
+        <div class="flex gap-8 mt-16">
+          <button class="btn btn-primary" id="ev-crear">Crear evaluación</button>
+          <button class="btn btn-ghost" id="ev-cancelar">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function buildEvaluacionesListHTML() {
+  if (!regEvaluaciones) return '<p class="text-xs text-muted">Cargando evaluaciones…</p>';
+  if (!regEvaluaciones.length) return '<p class="text-xs text-muted">Sin evaluaciones todavía.</p>';
+  const rows = regEvaluaciones.map(ev => `
+    <tr style="${regEvalSel === ev.id ? 'background:var(--bg-hover);' : ''}">
+      <td>${safeText(ev.temporada)}</td>
+      <td>${safeText(ev.nombre)}</td>
+      <td>${safeText(state.positions.find(p => p.key === ev.posicionKey)?.label || ev.posicionKey)}</td>
+      <td>${safeText(ev.tipo || '-')}</td>
+      <td>${safeText(ev.fechaInicio || '-')}${ev.fechaFin ? ' – ' + safeText(ev.fechaFin) : ''}</td>
+      <td><button class="btn btn-sm" data-ev-importar="${ev.id}">Importar CSV</button></td>
+    </tr>
+  `).join('');
+  return `
+    <div style="overflow-x:auto;">
+      <table class="table table-compact">
+        <thead><tr><th>Temporada</th><th>Nombre</th><th>Posición</th><th>Tipo</th><th>Fechas</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ── Registro: wizard de importación CSV ───────────
+
+function buildImportWizardHTML() {
+  const ev = regEvaluaciones.find(e => e.id === regEvalSel);
+  if (!ev) return '';
+  const posLabel = state.positions.find(p => p.key === ev.posicionKey)?.label || ev.posicionKey;
+  let body = '';
+
+  if (regImport.step === 'archivo') {
+    body = `
+      <p class="text-xs text-muted mb-16">Sube el archivo. En el siguiente paso indicas qué es cada columna — no hace falta que las columnas se llamen de una forma concreta.</p>
+      <input class="input" type="file" id="import-file" accept=".csv" />
+      <div class="flex gap-8 mt-16"><button class="btn btn-ghost" id="import-cancelar">Cancelar</button></div>
+    `;
+  } else if (regImport.step === 'mapeo') {
+    const aspectoPorCompetencia = buildAspectoPorCompetencia(state, ev.posicionKey);
+    const competencias = Object.keys(aspectoPorCompetencia);
+    const optionsFor = header => {
+      const sel = regImport.mapping[header] || '';
+      return [
+        `<option value="">— Ignorar columna —</option>`,
+        `<option value="jugador" ${sel === 'jugador' ? 'selected' : ''}>Jugador (nombre)</option>`,
+        `<option value="evaluador" ${sel === 'evaluador' ? 'selected' : ''}>Evaluador</option>`,
+        ...competencias.map(c => `<option value="${safeText(c)}" ${sel === c ? 'selected' : ''}>Competencia: ${safeText(c)} (${safeText(aspectoPorCompetencia[c])})</option>`),
+      ].join('');
+    };
+    body = `
+      <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas. Indica qué campo es cada columna del archivo (jugador, evaluador o una competencia de ${safeText(posLabel)}).</p>
+      <div style="overflow-x:auto;">
+        <table class="table table-compact">
+          <thead><tr><th>Columna del archivo</th><th>Ejemplo</th><th>Se importa como</th></tr></thead>
+          <tbody>
+            ${regImport.headers.map(h => `
+              <tr>
+                <td>${safeText(h)}</td>
+                <td class="text-muted">${safeText(regImport.rows[0]?.[h] ?? '')}</td>
+                <td><select class="select" data-map-col="${safeText(h)}">${optionsFor(h)}</select></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="flex gap-8 mt-16">
+        <button class="btn btn-primary" id="import-validar">Validar</button>
+        <button class="btn btn-ghost" id="import-cancelar">Cancelar</button>
+      </div>
+    `;
+  } else if (regImport.step === 'resumen') {
+    body = buildResumenImportHTML(regImport.resultado);
+  }
+
+  return `<div class="card mb-16"><div class="card-title">Importar CSV — ${safeText(ev.nombre)} (${safeText(posLabel)}, ${safeText(ev.temporada)})</div><div class="card-body">${body}</div></div>`;
+}
+
+function buildResumenImportHTML(r) {
+  if (!r) return '';
+  const pendHTML = regImport.pendientes.length ? `
+    <div class="mb-16">
+      <div class="text-xs text-muted mb-8" style="font-weight:700;text-transform:uppercase;">Pendientes de identificar (${regImport.pendientes.length})</div>
+      <table class="table table-compact">
+        <thead><tr><th>Nombre en archivo</th><th>Evaluador</th><th>Asignar a</th></tr></thead>
+        <tbody>
+          ${regImport.pendientes.map((f, i) => `
+            <tr>
+              <td>${safeText(f.jugadorNombreArchivo)}</td>
+              <td>${safeText(f.evaluador)}</td>
+              <td>
+                <select class="select" data-pend-select="${i}">
+                  <option value="">— Ignorar esta fila —</option>
+                  ${(f.matchCandidates || []).map(c => `<option value="${c.id}">${safeText(c.nombre)} ${safeText(c.apellidos)}</option>`).join('')}
+                </select>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <button class="btn btn-sm mt-8" id="import-aplicar-pendientes">Aplicar identificaciones</button>
+    </div>
+  ` : '';
+
+  const cambiosHTML = r.conCambios.length ? `
+    <div class="mb-16">
+      <div class="text-xs text-muted mb-8" style="font-weight:700;text-transform:uppercase;">Existentes con valores distintos (${r.conCambios.length}) — por defecto se mantiene el existente</div>
+      <table class="table table-compact">
+        <thead><tr><th>Jugador (archivo)</th><th>Evaluador</th><th>Decisión</th></tr></thead>
+        <tbody>
+          ${r.conCambios.map(f => `
+            <tr>
+              <td>${safeText(f.jugadorNombreArchivo)}</td>
+              <td>${safeText(f.evaluador)}</td>
+              <td>
+                <select class="select" data-decision="${safeText(f.rowKey)}">
+                  <option value="mantener" ${(regImport.decisiones[f.rowKey] || 'mantener') === 'mantener' ? 'selected' : ''}>Mantener existente</option>
+                  <option value="reemplazar" ${regImport.decisiones[f.rowKey] === 'reemplazar' ? 'selected' : ''}>Sustituir por el nuevo</option>
+                </select>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : '';
+
+  return `
+    <ul class="text-xs mb-16" style="line-height:1.8;">
+      <li><b>${r.nuevos.length}</b> nuevos — se importarán</li>
+      <li><b>${r.sinCambios.length}</b> existentes sin cambios — se ignoran</li>
+      <li><b>${r.conCambios.length}</b> existentes con cambios — decides abajo</li>
+      <li><b>${r.errores.length}</b> con error — no se importan</li>
+      <li><b>${regImport.pendientes.length}</b> pendientes de identificar</li>
+    </ul>
+    ${r.errores.length ? `<div class="text-xs text-muted mb-16">Errores: ${r.errores.map(f => safeText((f.error || '') + ' — ' + (f.jugadorNombreArchivo || ''))).join(' · ')}</div>` : ''}
+    ${pendHTML}
+    ${cambiosHTML}
+    <div class="flex gap-8 mt-16">
+      <button class="btn btn-primary" id="import-confirmar" ${regImport.busy ? 'disabled' : ''}>${regImport.busy ? 'Importando…' : 'Confirmar importación'}</button>
+      <button class="btn btn-ghost" id="import-cancelar">Cancelar</button>
+    </div>
+  `;
+}
+
+/** De filas parseadas + mapeo → clasificación NUEVO/SIN CAMBIOS/CON CAMBIOS/ERROR (auditoría §15). */
+async function procesarImport(container) {
+  const ev = regEvaluaciones.find(e => e.id === regEvalSel);
+  const colJugador   = Object.keys(regImport.mapping).find(h => regImport.mapping[h] === 'jugador');
+  const colEvaluador = Object.keys(regImport.mapping).find(h => regImport.mapping[h] === 'evaluador');
+
+  const filas = regImport.rows.map(row => {
+    const jugadorNombreArchivo = (row[colJugador] || '').trim();
+    const evaluador = (row[colEvaluador] || '').trim();
+    if (!jugadorNombreArchivo || !evaluador) {
+      return { error: 'Falta jugador o evaluador', jugadorNombreArchivo, evaluador };
+    }
+    const puntuaciones = {};
+    let invalido = false;
+    Object.entries(regImport.mapping).forEach(([header, target]) => {
+      if (!target || target === 'jugador' || target === 'evaluador') return;
+      const raw = row[header];
+      if (raw === '' || raw == null) return;
+      const val = parseEsNumber(raw);
+      if (val == null) { invalido = true; return; }
+      puntuaciones[target] = val;
+    });
+    if (invalido) return { error: 'Valor no numérico', jugadorNombreArchivo, evaluador };
+
+    const match = matchJugador(jugadorNombreArchivo, state.players);
+    if (match.status !== 'auto') {
+      return { jugadorNombreArchivo, evaluador, puntuaciones, matchStatus: match.status, matchCandidates: match.candidates };
+    }
+    const jugadorId = match.playerId;
+    const rowKey = buildRowKey({ evaluacionId: ev.id, jugadorId, jugadorNombreArchivo, evaluador });
+    return { jugadorNombreArchivo, evaluador, puntuaciones, jugadorId, rowKey };
+  });
+
+  regImport.pendientes = filas.filter(f => !f.error && !f.jugadorId);
+  const resueltas = filas.filter(f => f.error || f.jugadorId);
+
+  let existentes = [];
+  try {
+    existentes = await queryRegistros({ evaluacionId: ev.id });
+  } catch (err) {
+    console.error('[Firestore] No se pudieron leer los registros existentes:', err);
+    showError('No se pudo comprobar duplicados (revisa las reglas/índices de Firestore).');
+  }
+
+  regImport.resultado = clasificarFilas(resueltas, existentes);
+  regImport.decisiones = {};
+  regImport.step = 'resumen';
+  renderPanelRegistro(container);
+}
+
+function renderRegistroSub(container) {
+  const wizard = regEvalSel ? buildImportWizardHTML() : '';
+  container.innerHTML = `
+    <div class="card mb-16">
+      <div class="card-title">Evaluaciones (contexto de importación)</div>
+      <div class="card-body">
+        ${regEvalFormOpen ? buildEvaluacionFormHTML() : `<button class="btn btn-primary mb-16" id="reg-nueva-ev">+ Nueva evaluación</button>`}
+        ${buildEvaluacionesListHTML()}
+      </div>
+    </div>
+    ${wizard}
+  `;
+
+  container.querySelector('#reg-nueva-ev')?.addEventListener('click', () => {
+    regEvalFormOpen = true;
+    renderRegistroSub(container);
+  });
+  container.querySelector('#ev-cancelar')?.addEventListener('click', () => {
+    regEvalFormOpen = false;
+    renderRegistroSub(container);
+  });
+  container.querySelector('#ev-crear')?.addEventListener('click', async () => {
+    const data = {
+      temporada:   container.querySelector('#ev-temporada').value,
+      nombre:      container.querySelector('#ev-nombre').value.trim(),
+      posicionKey: container.querySelector('#ev-posicion').value,
+      tipo:        container.querySelector('#ev-tipo').value.trim() || null,
+      fechaInicio: container.querySelector('#ev-fecha-ini').value || null,
+      fechaFin:    container.querySelector('#ev-fecha-fin').value || null,
+    };
+    if (!data.nombre) { showError('Ponle un nombre/periodo a la evaluación.'); return; }
+    if (isFirebaseUnconfigured()) { showError('Configura Firebase para crear evaluaciones.'); return; }
+    try {
+      const id = await crearEvaluacion(data);
+      regEvaluaciones = [...regEvaluaciones, { id, ...data }];
+      regEvalFormOpen = false;
+      showSuccess('Evaluación creada.');
+      renderRegistroSub(container);
+    } catch (err) {
+      console.error('[Firestore] No se pudo crear la evaluación:', err);
+      showError('No se pudo crear la evaluación (revisa las reglas de Firestore).');
+    }
+  });
+
+  container.querySelectorAll('[data-ev-importar]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      regEvalSel = btn.dataset.evImportar;
+      resetRegImport();
+      renderRegistroSub(container);
+    });
+  });
+
+  container.querySelector('#import-file')?.addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const text = await file.text();
+    const { headers, rows } = parseCSV(text);
+    if (!headers.length) { showError('No se pudo leer el archivo (¿está vacío?).'); return; }
+    regImport.headers = headers;
+    regImport.rows = rows;
+    regImport.mapping = {};
+    regImport.step = 'mapeo';
+    renderRegistroSub(container);
+  });
+
+  container.querySelector('#import-cancelar')?.addEventListener('click', () => {
+    regEvalSel = null;
+    resetRegImport();
+    renderRegistroSub(container);
+  });
+
+  container.querySelectorAll('[data-map-col]').forEach(sel => {
+    sel.addEventListener('change', () => { regImport.mapping[sel.dataset.mapCol] = sel.value; });
+  });
+
+  container.querySelector('#import-validar')?.addEventListener('click', () => {
+    const cols = Object.values(regImport.mapping);
+    if (!cols.includes('jugador'))   { showError('Marca qué columna es el Jugador.'); return; }
+    if (!cols.includes('evaluador')) { showError('Marca qué columna es el Evaluador.'); return; }
+    procesarImport(container);
+  });
+
+  container.querySelectorAll('[data-decision]').forEach(sel => {
+    sel.addEventListener('change', () => { regImport.decisiones[sel.dataset.decision] = sel.value; });
+  });
+
+  container.querySelector('#import-aplicar-pendientes')?.addEventListener('click', async () => {
+    const resueltos = [];
+    const restantes = [];
+    const aliasUpdates = new Map(); // playerId -> Set(nombres del archivo)
+    regImport.pendientes.forEach((f, i) => {
+      const sel = container.querySelector(`[data-pend-select="${i}"]`);
+      const playerId = sel?.value || '';
+      if (!playerId) { restantes.push(f); return; }
+      const rowKey = buildRowKey({ evaluacionId: regEvalSel, jugadorId: playerId, jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador });
+      resueltos.push({ jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador, puntuaciones: f.puntuaciones, jugadorId: playerId, rowKey });
+      if (!aliasUpdates.has(playerId)) aliasUpdates.set(playerId, new Set());
+      aliasUpdates.get(playerId).add(f.jugadorNombreArchivo);
+    });
+
+    // Guarda las equivalencias confirmadas como alias — nunca sustituye el nombre oficial (auditoría §5)
+    for (const [playerId, nombres] of aliasUpdates) {
+      const player = state.players.find(p => p.id === playerId);
+      if (!player) continue;
+      const aliases = [...new Set([...(player.aliases || []), ...nombres])];
+      try {
+        if (!isFirebaseUnconfigured()) await updateDocument('jugadores', playerId, { aliases });
+        setState({ players: state.players.map(p => p.id === playerId ? { ...p, aliases } : p) });
+      } catch (err) {
+        console.error('[Firestore] No se pudo guardar el alias:', err);
+      }
+    }
+
+    regImport.pendientes = restantes;
+
+    let existentes = [];
+    try { existentes = await queryRegistros({ evaluacionId: regEvalSel }); } catch (err) { console.error('[Firestore]', err); }
+    const todas = [
+      ...resueltos,
+      ...regImport.resultado.nuevos,
+      ...regImport.resultado.sinCambios,
+      ...regImport.resultado.conCambios.map(({ existente, ...rest }) => rest),
+      ...regImport.resultado.errores,
+    ];
+    regImport.resultado = clasificarFilas(todas, existentes);
+    renderRegistroSub(container);
+  });
+
+  container.querySelector('#import-confirmar')?.addEventListener('click', async () => {
+    if (isFirebaseUnconfigured()) { showError('Configura Firebase para importar.'); return; }
+    const ev = regEvaluaciones.find(e => e.id === regEvalSel);
+    const r = regImport.resultado;
+    regImport.busy = true;
+    renderRegistroSub(container);
+    try {
+      for (const fila of r.nuevos) {
+        await crearRegistro({
+          evaluacionId: ev.id, temporada: ev.temporada, posicionKey: ev.posicionKey, tipo: ev.tipo || null,
+          jugadorId: fila.jugadorId, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
+          puntuaciones: fila.puntuaciones, rowKey: fila.rowKey, origen: 'csv',
+        });
+      }
+      let sustituidos = 0;
+      for (const fila of r.conCambios) {
+        if ((regImport.decisiones[fila.rowKey] || 'mantener') === 'reemplazar') {
+          await actualizarRegistro(fila.existente.id, {
+            puntuaciones: fila.puntuaciones, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
+          });
+          sustituidos++;
+        }
+      }
+      showSuccess(`Importado: ${r.nuevos.length} nuevos, ${sustituidos} sustituidos.`);
+      regEvalSel = null;
+      resetRegImport();
+      renderRegistroSub(container);
+    } catch (err) {
+      console.error('[Firestore] Error importando registros:', err);
+      showError('Error al importar (revisa las reglas de Firestore).');
+      regImport.busy = false;
+      renderRegistroSub(container);
+    }
+  });
+}
+
+// ── BBDD: filtros + medias/individuales/todo ──────
+
+function buildBBDDResultadosHTML() {
+  if (!bbddResultado) return '<p class="text-xs text-muted">Aplica filtros y pulsa Buscar.</p>';
+  const { registros, mediasPorJugador } = bbddResultado;
+  if (!registros.length) return '<p class="text-xs text-muted">Sin registros para estos filtros.</p>';
+
+  const jugadorLabel = id => {
+    const p = state.players.find(x => x.id === id);
+    return p ? `${p.nombre} ${p.apellidos}` : '(sin identificar)';
+  };
+
+  if (bbddFiltros.vista === 'individuales') {
+    const rows = registros.map(r => `
+      <tr><td>${safeText(jugadorLabel(r.jugadorId))}</td><td>${safeText(r.evaluador)}</td><td>${Object.keys(r.puntuaciones || {}).length} valores</td></tr>
+    `).join('');
+    return `<table class="table table-compact"><thead><tr><th>Jugador</th><th>Evaluador</th><th>Datos</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  const porJugador = {};
+  registros.forEach(r => { if (r.jugadorId) (porJugador[r.jugadorId] = porJugador[r.jugadorId] || []).push(r); });
+
+  const rows = Object.entries(mediasPorJugador).map(([jugadorId, media]) => {
+    const general = mediaGeneralDe(media);
+    const detalle = bbddFiltros.vista === 'todo' ? `
+      <tr><td colspan="4" style="padding-left:32px;">
+        ${(porJugador[jugadorId] || []).map(r => `<div class="text-xs text-muted">${safeText(r.evaluador)}: ${Object.entries(r.puntuaciones || {}).map(([k, v]) => `${safeText(k)}=${v}`).join(', ')}</div>`).join('')}
+      </td></tr>
+    ` : '';
+    return `
+      <tr style="font-weight:700;background:var(--bg-hover);">
+        <td>${safeText(jugadorLabel(jugadorId))}</td><td>MEDIA</td><td>${general != null ? general.toFixed(2) : '-'}</td>
+        <td>${jugadorId ? `<button class="btn btn-sm" data-ver-ficha="${jugadorId}">Ver ficha</button>` : ''}</td>
+      </tr>
+      ${detalle}
+    `;
+  }).join('');
+
+  return `<table class="table table-compact"><thead><tr><th>Jugador</th><th></th><th>Media general</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function buildBBDDPanelHTML() {
+  const evOptions = (regEvaluaciones || []).map(ev => `<option value="${ev.id}" ${bbddFiltros.evaluacionId === ev.id ? 'selected' : ''}>${safeText(ev.nombre)} (${safeText(ev.temporada)})</option>`).join('');
+  return `
+    <div class="card mb-16">
+      <div class="card-title">Filtros</div>
+      <div class="card-body">
+        <div class="flex gap-12" style="flex-wrap:wrap;">
+          <div class="field-group" style="min-width:200px;">
+            <label class="label">Evaluación</label>
+            <select class="select" id="bbdd-evaluacion"><option value="">— Todas —</option>${evOptions}</select>
+          </div>
+          <div class="field-group" style="min-width:150px;">
+            <label class="label">Temporada</label>
+            <select class="select" id="bbdd-temporada"><option value="">— Todas —</option>${state.seasons.map(s => `<option value="${safeText(s)}" ${bbddFiltros.temporada === s ? 'selected' : ''}>${safeText(s)}</option>`).join('')}</select>
+          </div>
+          <div class="field-group" style="min-width:160px;">
+            <label class="label">Posición</label>
+            <select class="select" id="bbdd-posicion"><option value="">— Todas —</option>${state.positions.map(p => `<option value="${p.key}" ${bbddFiltros.posicionKey === p.key ? 'selected' : ''}>${safeText(p.label)}</option>`).join('')}</select>
+          </div>
+          <div class="field-group" style="min-width:180px;">
+            <label class="label">Jugador</label>
+            <select class="select" id="bbdd-jugador"><option value="">— Todos —</option>${state.players.map(p => `<option value="${p.id}" ${bbddFiltros.jugadorId === p.id ? 'selected' : ''}>${safeText(p.nombre)} ${safeText(p.apellidos)}</option>`).join('')}</select>
+          </div>
+          <div class="field-group" style="min-width:160px;">
+            <label class="label">Evaluador</label>
+            <input class="input" type="text" id="bbdd-evaluador" value="${safeText(bbddFiltros.evaluador)}" placeholder="Nombre del evaluador" />
+          </div>
+          <div class="field-group" style="min-width:160px;">
+            <label class="label">Vista</label>
+            <select class="select" id="bbdd-vista">
+              <option value="todo" ${bbddFiltros.vista === 'todo' ? 'selected' : ''}>Todo</option>
+              <option value="medias" ${bbddFiltros.vista === 'medias' ? 'selected' : ''}>Solo medias</option>
+              <option value="individuales" ${bbddFiltros.vista === 'individuales' ? 'selected' : ''}>Solo registros individuales</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary mt-16" id="bbdd-buscar">${bbddBusy ? 'Buscando…' : 'Buscar'}</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Resultados</div>
+      <div class="card-body">${buildBBDDResultadosHTML()}</div>
+    </div>
+  `;
+}
+
+function renderBBDDSub(container) {
+  if (fichaRealView) { renderFichaRealView(container); return; }
+
+  container.innerHTML = buildBBDDPanelHTML();
+
+  container.querySelectorAll('[data-ver-ficha]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const jugadorId = btn.dataset.verFicha;
+      const regs = (bbddResultado?.registros || []).filter(r => r.jugadorId === jugadorId);
+      const positionKey = regs[0]?.posicionKey || state.positions[0]?.key;
+      fichaRealView = { jugadorId, positionKey };
+      fichaRealSubPage = 1;
+      renderBBDDSub(container);
+    });
+  });
+
+  container.querySelector('#bbdd-buscar')?.addEventListener('click', async () => {
+    bbddFiltros = {
+      temporada:    container.querySelector('#bbdd-temporada').value,
+      evaluacionId: container.querySelector('#bbdd-evaluacion').value,
+      jugadorId:    container.querySelector('#bbdd-jugador').value,
+      posicionKey:  container.querySelector('#bbdd-posicion').value,
+      evaluador:    container.querySelector('#bbdd-evaluador').value.trim(),
+      vista:        container.querySelector('#bbdd-vista').value,
+    };
+    if (isFirebaseUnconfigured()) { showError('Configura Firebase para consultar la BBDD.'); return; }
+    bbddBusy = true;
+    renderBBDDSub(container);
+    try {
+      const filtrosQuery = {};
+      ['evaluacionId', 'temporada', 'posicionKey', 'jugadorId', 'evaluador'].forEach(k => {
+        if (bbddFiltros[k]) filtrosQuery[k] = bbddFiltros[k];
+      });
+      const registros = await queryRegistros(filtrosQuery);
+      // Medias agrupadas por posición: cada registro usa el esquema de SU
+      // propia posición (histórica) — nunca la posición actual del jugador.
+      const porPosicion = {};
+      registros.forEach(r => { (porPosicion[r.posicionKey] = porPosicion[r.posicionKey] || []).push(r); });
+      const mediasPorJugador = {};
+      Object.entries(porPosicion).forEach(([posKey, regs]) => {
+        Object.assign(mediasPorJugador, calcularMediasPorJugador(regs, buildAspectoPorCompetencia(state, posKey)));
+      });
+      bbddResultado = { registros, mediasPorJugador };
+    } catch (err) {
+      console.error('[Firestore] No se pudo consultar la BBDD:', err);
+      showError('No se pudo consultar (revisa reglas/índices de Firestore).');
+      bbddResultado = { registros: [], mediasPorJugador: {} };
+    }
+    bbddBusy = false;
+    renderBBDDSub(container);
+  });
+}
+
 function renderPanelRegistro(container) {
+  ensureEvaluacionesLoaded(container);
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="mb-16 flex gap-8">
       <button class="btn ${registroSubTab === 'registro' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="registro">Registro</button>
       <button class="btn ${registroSubTab === 'bbdd' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="bbdd">BBDD</button>
     </div>
-    ${registroSubTab === 'registro' ? `
-      <div class="card">
-        <div class="card-title">Registro</div>
-        <div class="card-body">Tabla editable pendiente de implementar.</div>
-      </div>
-    ` : `
-      <div class="card">
-        <div class="card-title">BBDD</div>
-        <div class="card-body">Pendiente de definir.</div>
-      </div>
-    `}
+    <div id="registro-sub-content"></div>
   `;
+  const sub = container.querySelector('#registro-sub-content');
+  if (registroSubTab === 'registro') renderRegistroSub(sub);
+  else renderBBDDSub(sub);
+
   container.querySelectorAll('[data-registro-subtab]').forEach(btn => {
     btn.addEventListener('click', () => {
       registroSubTab = btn.dataset.registroSubtab;
