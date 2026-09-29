@@ -11,7 +11,7 @@
 import {
   collection, query, where, getDocs,
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { getDB, addDocument, updateDocument, readCollection } from './firebase-service.js';
+import { getDB, addDocument, updateDocument, deleteDocument, readCollection } from './firebase-service.js';
 
 // ── EVALUACIONES (contexto de importación) ────────
 // Forma: { temporada, nombre, posicionKey, tipo, fechaInicio, fechaFin }
@@ -22,6 +22,17 @@ export async function crearEvaluacion(data) {
 
 export async function listarEvaluaciones() {
   return readCollection('evaluaciones');
+}
+
+export async function actualizarEvaluacion(id, patch) {
+  return updateDocument('evaluaciones', id, patch);
+}
+
+/** Borra el contexto de evaluación. NO borra sus registros (auditoría §6:
+ *  los registros individuales no se eliminan salvo acción explícita sobre
+ *  ellos) — si quedan registros huérfanos, la llamada avisa antes con el conteo. */
+export async function eliminarEvaluacion(id) {
+  return deleteDocument('evaluaciones', id);
 }
 
 // ── REGISTROS (una fila = un evaluador puntuando a un jugador) ─
