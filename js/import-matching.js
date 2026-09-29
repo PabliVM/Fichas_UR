@@ -31,12 +31,21 @@ function isCloseMatch(a, b) {
   return a.includes(b) || b.includes(a);
 }
 
+/** Si hay varios candidatos y se conoce el equipo del archivo, se reduce a los que coinciden. */
+function narrowByTeam(candidates, teamKey) {
+  if (!teamKey || candidates.length <= 1) return candidates;
+  const porEquipo = candidates.filter(p => p.teamKey === teamKey);
+  return porEquipo.length ? porEquipo : candidates;
+}
+
 /**
  * @param {string} nameFromFile  texto tal cual viene en el archivo
  * @param {Array}  players       state.players
+ * @param {Object} [ctx]         { teamKey } — equipo leído del archivo (si se mapeó), para
+ *                                desempatar cuando hay varios jugadores con nombre parecido
  * @returns {{status:'auto'|'dudoso'|'sin-match', playerId:string|null, candidates:Array}}
  */
-export function matchJugador(nameFromFile, players) {
+export function matchJugador(nameFromFile, players, ctx = {}) {
   const target = normalize(nameFromFile);
   if (!target) return { status: 'sin-match', playerId: null, candidates: [] };
 
@@ -47,11 +56,19 @@ export function matchJugador(nameFromFile, players) {
   // 2) coincidencia exacta nombre+apellidos
   const exact = players.filter(p => fullName(p) === target);
   if (exact.length === 1) return { status: 'auto', playerId: exact[0].id, candidates: exact };
-  if (exact.length > 1) return { status: 'dudoso', playerId: null, candidates: exact };
+  if (exact.length > 1) {
+    const narrowed = narrowByTeam(exact, ctx.teamKey);
+    if (narrowed.length === 1) return { status: 'auto', playerId: narrowed[0].id, candidates: narrowed };
+    return { status: 'dudoso', playerId: null, candidates: narrowed };
+  }
 
   // 3) parecido (nombre incompleto, orden distinto) — requiere confirmación manual
   const close = players.filter(p => isCloseMatch(fullName(p), target));
-  if (close.length >= 1) return { status: 'dudoso', playerId: null, candidates: close };
+  if (close.length >= 1) {
+    const narrowed = narrowByTeam(close, ctx.teamKey);
+    if (narrowed.length === 1) return { status: 'auto', playerId: narrowed[0].id, candidates: narrowed };
+    return { status: 'dudoso', playerId: null, candidates: narrowed };
+  }
 
   return { status: 'sin-match', playerId: null, candidates: [] };
 }
