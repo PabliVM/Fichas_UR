@@ -8,25 +8,38 @@
 
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.18.7/package/xlsx.mjs';
 
-/** Excel (.xlsx/.xls) → misma forma {headers, rows} que parseCSV. Usa la primera hoja. */
+/** Genera ['Columna 1', 'Columna 2', ...] hasta n. */
+function columnLabels(n) {
+  return Array.from({ length: n }, (_, i) => `Columna ${i + 1}`);
+}
+
+/**
+ * Excel (.xlsx/.xls) → {headers, rows}. SIN fila de cabecera: toda fila es
+ * dato. headers son etiquetas sintéticas "Columna N" (contrato fijo: ver
+ * mapping de columnas 1-6 en app.js). Usa la primera hoja.
+ */
 export function parseXLSXBuffer(arrayBuffer) {
   const wb = XLSX.read(arrayBuffer, { type: 'array' });
   const hoja = wb.Sheets[wb.SheetNames[0]];
   if (!hoja) return { headers: [], rows: [] };
   const filas2D = XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
-  if (!filas2D.length) return { headers: [], rows: [] };
-  const headers = filas2D[0].map(h => String(h ?? '').trim());
-  const rows = filas2D.slice(1)
-    .filter(cols => cols.some(c => String(c ?? '').trim() !== ''))
-    .map(cols => {
-      const obj = {};
-      headers.forEach((h, i) => { obj[h] = String(cols[i] ?? '').trim(); });
-      return obj;
-    });
+  const filasConDatos = filas2D.filter(cols => cols.some(c => String(c ?? '').trim() !== ''));
+  if (!filasConDatos.length) return { headers: [], rows: [] };
+  const numCols = Math.max(...filasConDatos.map(cols => cols.length));
+  const headers = columnLabels(numCols);
+  const rows = filasConDatos.map(cols => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = String(cols[i] ?? '').trim(); });
+    return obj;
+  });
   return { headers, rows };
 }
 
-/** Parser CSV simple (detecta separador , o ;). Soporta comillas. */
+/**
+ * Parser CSV simple (detecta separador , o ;). Soporta comillas.
+ * SIN fila de cabecera: toda fila es dato. headers son etiquetas
+ * sintéticas "Columna N" (contrato fijo: ver mapping en app.js).
+ */
 export function parseCSV(text) {
   const firstLine = text.split(/\r?\n/, 1)[0] || '';
   const sep = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
@@ -45,8 +58,10 @@ export function parseCSV(text) {
     return out.map(s => s.trim());
   };
 
-  const headers = parseLine(lines[0]);
-  const rows = lines.slice(1).map(parseLine).map(cols => {
+  const filas = lines.map(parseLine);
+  const numCols = Math.max(...filas.map(cols => cols.length));
+  const headers = columnLabels(numCols);
+  const rows = filas.map(cols => {
     const obj = {};
     headers.forEach((h, i) => { obj[h] = cols[i] ?? ''; });
     return obj;
