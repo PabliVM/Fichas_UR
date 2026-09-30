@@ -20,6 +20,16 @@ import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
 import { exportFichaAsPDF } from './pdf-export.js';
 import { showError, showSuccess, safeText } from './utils.js';
 
+// ── EVITAR SALTO DE SCROLL AL RE-RENDERIZAR ───────
+// Reemplazar innerHTML de un panel entero resetea el scroll del navegador.
+// Se usa en botones que re-renderizan paneles grandes (Fichas tipo, etc.)
+// para que el usuario no "suba" solo por cambiar de posición/página.
+function preservandoScroll(fn) {
+  const y = window.scrollY;
+  fn();
+  requestAnimationFrame(() => window.scrollTo(0, y));
+}
+
 // ── AVISO FIREBASE ────────────────────────────────
 
 function firebaseNotice() {
@@ -142,9 +152,14 @@ function buildFicha1RealData(positionKey, media, jugador) {
   const perfiles = schema.perfiles || [];
   const perfilCompetencias = schema.perfilCompetencias || {};
   const statusBars = perfiles.map(nombre => {
-    const items = perfilCompetencias[nombre] || [];
-    const valores = items.map(it => comp[it]).filter(v => v != null);
-    const mediaPerfil = valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null;
+    // Preferido: puntuación directa del perfil (import CSV/Excel, columnas 4-6).
+    // Si no hay, fallback: media de las sub-competencias de perfilCompetencias.
+    let mediaPerfil = comp[nombre] != null ? comp[nombre] : null;
+    if (mediaPerfil == null) {
+      const items = perfilCompetencias[nombre] || [];
+      const valores = items.map(it => comp[it]).filter(v => v != null);
+      mediaPerfil = valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null;
+    }
     return { label: nombre, color: bandKeyForValue(mediaPerfil, state.scoreBands) };
   });
 
@@ -319,30 +334,53 @@ function buildImportWizardHTML() {
       <div class="flex gap-8 mt-16"><button class="btn btn-ghost" id="import-cancelar">Cancelar</button></div>
     `;
   } else if (regImport.step === 'mapeo') {
+    const schema = state.criteriaSchemas[ev.posicionKey] || {};
+    const perfiles = schema.perfiles || [];
     const aspectoPorCompetencia = buildAspectoPorCompetencia(state, ev.posicionKey);
     const competencias = Object.keys(aspectoPorCompetencia);
+    const colsFijas = regImport.headers.slice(0, 6);
+    const colsLibres = regImport.headers.slice(6);
+    const etiquetaFija = [
+      'Fecha y hora', 'Evaluador', 'Jugador',
+      `Perfil: ${perfiles[0] || '(sin definir)'}`,
+      `Perfil: ${perfiles[1] || '(sin definir)'}`,
+      `Perfil: ${perfiles[2] || '(sin definir)'}`,
+    ];
     const optionsFor = header => {
       const sel = regImport.mapping[header] || '';
       return [
         `<option value="">— Ignorar columna —</option>`,
-        `<option value="jugador" ${sel === 'jugador' ? 'selected' : ''}>Jugador (nombre)</option>`,
-        `<option value="evaluador" ${sel === 'evaluador' ? 'selected' : ''}>Evaluador</option>`,
         `<option value="equipo" ${sel === 'equipo' ? 'selected' : ''}>Equipo (opcional — ayuda a identificar al jugador)</option>`,
         ...competencias.flatMap(c => aspectoPorCompetencia[c] === 'condicional' ? [
-          `<option value="${safeText(c)}::A" ${sel === c + '::A' ? 'selected' : ''}>Condicional: ${safeText(c)} — valor 1 (col. 3)</option>`,
-          `<option value="${safeText(c)}::B" ${sel === c + '::B' ? 'selected' : ''}>Condicional: ${safeText(c)} — valor 2 (col. 4)</option>`,
+          `<option value="${safeText(c)}::A" ${sel === c + '::A' ? 'selected' : ''}>Condicional: ${safeText(c)} — valor 1</option>`,
+          `<option value="${safeText(c)}::B" ${sel === c + '::B' ? 'selected' : ''}>Condicional: ${safeText(c)} — valor 2</option>`,
         ] : [
           `<option value="${safeText(c)}" ${sel === c ? 'selected' : ''}>Competencia: ${safeText(c)} (${safeText(aspectoPorCompetencia[c])})</option>`,
         ]),
       ].join('');
     };
     body = `
-      <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas. Indica qué campo es cada columna del archivo (jugador, evaluador o una competencia de ${safeText(posLabel)}). Condicional admite dos columnas por item (valor 1 y valor 2).</p>
+      <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas. Sin cabecera: columnas 1-6 fijas (fecha, evaluador, jugador, 3 perfiles de ${safeText(posLabel)}). Columnas 7+: indica qué competencia es cada una.</p>
+      <div style="overflow-x:auto;">
+        <table class="table table-compact mb-16">
+          <thead><tr><th>Columna</th><th>Ejemplo</th><th>Es</th></tr></thead>
+          <tbody>
+            ${colsFijas.map((h, i) => `
+              <tr>
+                <td>${safeText(h)}</td>
+                <td class="text-muted">${safeText(regImport.rows[0]?.[h] ?? '')}</td>
+                <td>${safeText(etiquetaFija[i])}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${colsLibres.length ? `
       <div style="overflow-x:auto;">
         <table class="table table-compact">
           <thead><tr><th>Columna del archivo</th><th>Ejemplo</th><th>Se importa como</th></tr></thead>
           <tbody>
-            ${regImport.headers.map(h => `
+            ${colsLibres.map(h => `
               <tr>
                 <td>${safeText(h)}</td>
                 <td class="text-muted">${safeText(regImport.rows[0]?.[h] ?? '')}</td>
@@ -351,7 +389,7 @@ function buildImportWizardHTML() {
             `).join('')}
           </tbody>
         </table>
-      </div>
+      </div>` : ''}
       <div class="flex gap-8 mt-16">
         <button class="btn btn-primary" id="import-validar">Validar</button>
         <button class="btn btn-ghost" id="import-cancelar">Cancelar</button>
@@ -434,21 +472,36 @@ function buildResumenImportHTML(r) {
 /** De filas parseadas + mapeo → clasificación NUEVO/SIN CAMBIOS/CON CAMBIOS/ERROR (auditoría §15). */
 async function procesarImport(container) {
   const ev = regEvaluaciones.find(e => e.id === regEvalSel);
-  const colJugador   = Object.keys(regImport.mapping).find(h => regImport.mapping[h] === 'jugador');
-  const colEvaluador = Object.keys(regImport.mapping).find(h => regImport.mapping[h] === 'evaluador');
-  const colEquipo    = Object.keys(regImport.mapping).find(h => regImport.mapping[h] === 'equipo');
+  const schema = state.criteriaSchemas[ev.posicionKey] || {};
+  const perfiles = schema.perfiles || [];
+  // Contrato fijo (sin cabecera): 1=fecha, 2=evaluador, 3=jugador, 4-6=perfiles.
+  const colFecha = 'Columna 1', colEvaluador = 'Columna 2', colJugador = 'Columna 3';
+  const colPerfiles = ['Columna 4', 'Columna 5', 'Columna 6'];
+  const colEquipo = Object.keys(regImport.mapping).find(h => regImport.mapping[h] === 'equipo');
   const teamKeyPorLabel = raw => TEAMS.find(t => t.label.toLowerCase().trim() === String(raw || '').toLowerCase().trim())?.key || null;
 
   const filas = regImport.rows.map(row => {
     const jugadorNombreArchivo = (row[colJugador] || '').trim();
     const evaluador = (row[colEvaluador] || '').trim();
+    const fechaRegistro = (row[colFecha] || '').trim() || null;
     if (!jugadorNombreArchivo || !evaluador) {
       return { error: 'Falta jugador o evaluador', jugadorNombreArchivo, evaluador };
     }
     const puntuaciones = {};
     let invalido = false;
+
+    colPerfiles.forEach((col, i) => {
+      const nombre = perfiles[i];
+      if (!nombre) return;
+      const raw = row[col];
+      if (raw === '' || raw == null) return;
+      const val = parseEsNumber(raw);
+      if (val == null) { invalido = true; return; }
+      puntuaciones[nombre] = val;
+    });
+
     Object.entries(regImport.mapping).forEach(([header, target]) => {
-      if (!target || target === 'jugador' || target === 'evaluador' || target === 'equipo') return;
+      if (!target || target === 'equipo') return;
       const raw = row[header];
       if (raw === '' || raw == null) return;
       const val = parseEsNumber(raw);
@@ -462,11 +515,11 @@ async function procesarImport(container) {
     const teamKey = colEquipo ? teamKeyPorLabel(row[colEquipo]) : null;
     const match = matchJugador(jugadorNombreArchivo, state.players, { teamKey });
     if (match.status !== 'auto') {
-      return { jugadorNombreArchivo, evaluador, puntuaciones, matchStatus: match.status, matchCandidates: match.candidates };
+      return { jugadorNombreArchivo, evaluador, puntuaciones, fechaRegistro, matchStatus: match.status, matchCandidates: match.candidates };
     }
     const jugadorId = match.playerId;
     const rowKey = buildRowKey({ evaluacionId: ev.id, jugadorId, jugadorNombreArchivo, evaluador });
-    return { jugadorNombreArchivo, evaluador, puntuaciones, jugadorId, rowKey };
+    return { jugadorNombreArchivo, evaluador, puntuaciones, fechaRegistro, jugadorId, rowKey };
   });
 
   regImport.pendientes = filas.filter(f => !f.error && !f.jugadorId);
@@ -590,6 +643,7 @@ function renderRegistroSub(container) {
       return;
     }
     if (!parsed.headers.length) { showError('No se pudo leer el archivo (¿está vacío?).'); return; }
+    if (parsed.headers.length < 6) { showError('El archivo debe tener al menos 6 columnas: fecha, evaluador, jugador y 3 perfiles.'); return; }
     regImport.headers = parsed.headers;
     regImport.rows = parsed.rows;
     regImport.mapping = {};
@@ -608,9 +662,6 @@ function renderRegistroSub(container) {
   });
 
   container.querySelector('#import-validar')?.addEventListener('click', () => {
-    const cols = Object.values(regImport.mapping);
-    if (!cols.includes('jugador'))   { showError('Marca qué columna es el Jugador.'); return; }
-    if (!cols.includes('evaluador')) { showError('Marca qué columna es el Evaluador.'); return; }
     procesarImport(container);
   });
 
@@ -627,7 +678,7 @@ function renderRegistroSub(container) {
       const playerId = sel?.value || '';
       if (!playerId) { restantes.push(f); return; }
       const rowKey = buildRowKey({ evaluacionId: regEvalSel, jugadorId: playerId, jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador });
-      resueltos.push({ jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador, puntuaciones: f.puntuaciones, jugadorId: playerId, rowKey });
+      resueltos.push({ jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador, puntuaciones: f.puntuaciones, fechaRegistro: f.fechaRegistro, jugadorId: playerId, rowKey });
       if (!aliasUpdates.has(playerId)) aliasUpdates.set(playerId, new Set());
       aliasUpdates.get(playerId).add(f.jugadorNombreArchivo);
     });
@@ -671,7 +722,7 @@ function renderRegistroSub(container) {
         await crearRegistro({
           evaluacionId: ev.id, temporada: ev.temporada, posicionKey: ev.posicionKey, tipo: ev.tipo || null,
           jugadorId: fila.jugadorId, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
-          puntuaciones: fila.puntuaciones, rowKey: fila.rowKey, origen: 'csv',
+          puntuaciones: fila.puntuaciones, fechaRegistro: fila.fechaRegistro || null, rowKey: fila.rowKey, origen: 'csv',
         });
       }
       let sustituidos = 0;
@@ -679,6 +730,7 @@ function renderRegistroSub(container) {
         if ((regImport.decisiones[fila.rowKey] || 'mantener') === 'reemplazar') {
           await actualizarRegistro(fila.existente.id, {
             puntuaciones: fila.puntuaciones, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
+            fechaRegistro: fila.fechaRegistro || null,
           });
           sustituidos++;
         }
@@ -1657,7 +1709,7 @@ function renderPanelFichas(container, positionKey = 'portero') {
   container.querySelectorAll('[data-ficha-page]').forEach(btn => {
     btn.addEventListener('click', () => {
       fichasSubPage = Number(btn.dataset.fichaPage);
-      renderPanelFichas(container, positionKey);
+      preservandoScroll(() => renderPanelFichas(container, positionKey));
     });
   });
 
@@ -2041,7 +2093,7 @@ function renderPanelConfig(container) {
     btn.addEventListener('click', () => {
       fichaTipoPosition = btn.dataset.fichaTipoPos;
       fichasSubPage = 1; // cada posición se abre siempre en Ficha 1, no arrastra el "Individual 2" de la anterior
-      renderPanelConfig(container);
+      preservandoScroll(() => renderPanelConfig(container));
     });
   });
 
