@@ -103,12 +103,11 @@ export function columnasEfectivas(state, positionKey) {
   return out;
 }
 
-/** Mapeo precargado { 'Columna N': destino } para el import. Columnas 7+ solo si el archivo tiene >=44 columnas. */
+/** Mapeo precargado { 'Columna N': destino } para el import. Solo las columnas que existan en el archivo (un recorte con menos columnas también vale). */
 export function mapeoPorDefecto(state, positionKey, nCols) {
   const mapping = {};
   columnasEfectivas(state, positionKey).forEach(c => {
     if (!c.destino || c.num > nCols) return;
-    if (c.num >= 7 && nCols < 44) return;
     mapping[`Columna ${c.num}`] = c.destino;
   });
   return mapping;
