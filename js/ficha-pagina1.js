@@ -38,9 +38,12 @@ function statusMarkup(status) {
   if (key === 'green' || key === 'yellow' || key === 'red') {
     const sim = SIMBOLOS?.[key] || 'box';
     const hex = STATUS_HEX[key];
-    if (sim === 'check') return `<span class="p1-sym" style="color:${hex}">✔</span>`;
-    if (sim === 'dash')  return `<span class="p1-sym" style="color:${hex}">–</span>`;
-    if (sim === 'x')     return `<span class="p1-sym" style="color:${hex}">✘</span>`;
+    const svg = {
+      check: `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M7 34 L23 51 L58 12" fill="none" stroke="${hex}" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      dash:  `<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="4" y="25" width="56" height="15" rx="2" fill="${hex}"/></svg>`,
+      x:     `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M9 9 L55 55 M55 9 L9 55" fill="none" stroke="${hex}" stroke-width="5" stroke-linecap="round"/></svg>`,
+    }[sim];
+    if (svg) return `<span class="p1-sym">${svg}</span>`;
     return `<span class="p1-status-box" style="background:${hex}"></span>`;
   }
   return '<span class="p1-status-box p1-status-none"></span>'; // sin dato
