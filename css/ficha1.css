@@ -92,6 +92,8 @@
 }
 .p1-facts li::before { content: "• "; color: rgba(255,255,255,0.5); }
 .p1-check { color: var(--score-green); font-weight: 800; margin-left: 10px; }
+.p1-sym { font-weight: 800; margin-left: 10px; line-height: 1; }
+.p1-comp-status .p1-sym { font-size: 48px; margin-left: 0; } /* en competencias el contenedor no hereda tamaño de lista */
 
 /* R/P: reubicados junto a los datos, tamaño ×2 × 0.8 = ×1.6 sobre el
    original; desplazados un poco a la derecha (sin llegar al círculo). */
