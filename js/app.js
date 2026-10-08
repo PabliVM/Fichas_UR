@@ -2,7 +2,7 @@
 // APP.JS — Punto de entrada RM Perfiles
 // ================================================
 
-import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, uploadPlayerPhoto } from './firebase-service.js';
+import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { watchAuthState, login, resetPassword } from './auth-service.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
@@ -1975,12 +1975,19 @@ function renderPanelJugadores(container) {
 
       if (fotoFile && !isFirebaseUnconfigured()) {
         try {
-          const fotoUrl = await uploadPlayerPhoto(id, fotoFile);
+          // Foto 400×400 JPEG (~40-80 KB) guardada como data URL en el doc: sin Storage.
+          const fotoUrl = await new Promise((res, rej) => {
+            const fr = new FileReader();
+            fr.onload = () => res(fr.result);
+            fr.onerror = () => rej(fr.error || new Error('lectura de foto'));
+            fr.readAsDataURL(fotoFile);
+          });
+          if (fotoUrl.length > 700000) throw new Error('foto demasiado grande');
           await updateDocument('jugadores', id, { fotoUrl });
           setState({ players: state.players.map(p => p.id === id ? { ...p, fotoUrl } : p) });
         } catch (err) {
           console.error('[Storage] No se pudo subir la foto:', err);
-          showError(`Jugador guardado, pero la foto no se pudo subir [${err?.code || err?.message || 'error desconocido'}]. Revisa Firebase Storage (activado y reglas publicadas).`, 9000);
+          showError(`Jugador guardado, pero la foto no se pudo guardar [${err?.code || err?.message || 'error desconocido'}].`, 9000);
         }
       }
 
