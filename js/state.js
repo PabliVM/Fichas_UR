@@ -69,13 +69,11 @@ const _state = {
   },
   // Táctico varía por posición. Ofensivas/Defensivas (ficha 1) son un
   // SUBCONJUNTO seleccionado del Táctico de esa posición — no texto libre.
-  // Semilla portero: los 12 originales de Táctico + los 5+7 que antes vivían
-  // como texto libre en Ofensivas/Defensivas (migrados tal cual, sin fusionar
-  // con los ya existentes por tener redacción distinta — ⚠ revisar duplicados).
+  // Semilla portero: 12 tácticas = 5 ofensivas + 7 defensivas (los 12 antiguos
+  // duplicados se descartaron, aprobado por Pablo).
   criteriaSchemas: {
     portero: {
       tactico: [
-        'Circulación / Timing', 'Progresión en conducción', 'Pase ULDF.', '1vs1 en banda', 'Progresión juego interior', 'Juego asociativo en banda', 'Cap. asociativa bajo presión', 'Pase ULDF', 'Defensa espalda', 'Continuidad en el juego', 'Defensa Juego directo.', 'Defensa de área llegando.',
         'Continuidad en circulación', 'Pase largo para progresar', 'Progresión con pase desde juego interior', 'Capacidad asociativa bajo presión', 'Capacidad para iniciar acciones ofensivas',
         'Dominio del juego aéreo', 'Defensa espalda ULDF acciones divididas', 'Defensa juego directo', 'Acciones bajo palos', 'Comunicación línea defensiva llegada a área', 'Gestión línea defensiva organizando marcas y equilibrio', 'Dominio interpretar y actuar ABP',
       ],
@@ -88,6 +86,11 @@ const _state = {
   // condicionales. Sin semilla — no hay datos reales todavía.
   // Forma: { [posKey]: { [itemCondicional]: { col3: number|null, col4: number|null } } }
   condicionalRefs: {},
+  // Reglas de Fichas Espejo (Configuración → Fichas Espejo): de dónde sale
+  // y cómo se calcula cada número de la ficha. NO conectado aún a las fichas
+  // reales. Forma: { [posKey]: { 1|2: { [num]: { origen, campoId, operacion,
+  // vacios, decimales, labelAlGuardar } } } }
+  fichaEspejoReglas: {},
   // Tolerancia (±) para el guion amarillo del bloque CONDICIONAL (Ficha 2):
   // si |valor - refA| <= esto, sale guion; si no, check verde o X roja.
   // Editable en Configuración → Datos condicionales.
@@ -131,7 +134,7 @@ export const state = _state;
 // jugadores NO va aquí — colección propia 'jugadores' (ver loadPlayersFromFirestore).
 const CONFIG_COLLECTION = 'config';
 const CONFIG_DOC_ID = 'general';
-const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'condicionalTolerance', 'fichaGridOrder', 'flujoEvaluaciones', 'frasesModelo'];
+const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'fichaEspejoReglas', 'condicionalTolerance', 'fichaGridOrder', 'flujoEvaluaciones', 'frasesModelo'];
 
 let _persistTimer = null;
 function schedulePersist() {
