@@ -21,7 +21,7 @@ import { exportFichaAsPDF } from './pdf-export.js';
 import { showError, showSuccess, safeText } from './utils.js';
 import { renderFichasEspejo } from './ficha-espejo-ui.js';
 import { buildCatalogo, slugify } from './ficha-espejo.js';
-import { quitarCabeceras, normalizarFechas, mapeoPorDefecto, columnasEfectivas, TEXTOS_DESTINOS } from './importar-plantilla.js';
+import { quitarCabeceras, normalizarFechas, mapeoPorDefecto, columnasEfectivas, TEXTOS_DESTINOS, RP_DESTINOS } from './importar-plantilla.js';
 import { renderColumnasEncuesta } from './columnas-encuesta-ui.js';
 
 // ── EVITAR SALTO DE SCROLL AL RE-RENDERIZAR ───────
@@ -93,7 +93,7 @@ let regEvalEditId    = null;  // id de la evaluación que se está editando (nul
 let regEvalSel       = null;  // id de la evaluación activa para importar
 let regImport        = null;  // estado del wizard de importación (ver resetRegImport)
 
-let bbddFiltros  = { temporada: '', evaluacionId: '', jugadorId: '', posicionKey: '', evaluador: '', vista: 'todo' };
+let bbddFiltros  = { temporada: '', evaluacionId: '', jugadorId: '', posicionKey: '', evaluador: '', vista: 'individuales' };
 let bbddResultado = null;     // { registros, mediasPorJugador } tras pulsar Buscar
 let bbddBusy = false;
 let fichaRealView = null;     // { jugadorId, positionKey } | null — "Ver ficha" desde BBDD
@@ -193,6 +193,8 @@ function buildFicha1RealData(positionKey, media, jugador, aspectos) {
       weight: jugador?.weight ?? null,
       foot: jugador?.foot || '',
       heightOk: null,
+      rValue: aspectos?.rp?.r ?? null,
+      pValue: aspectos?.rp?.p ?? null,
     },
     statusBars: statusBars.length ? statusBars : FICHA1_DEMO_DATA.statusBars,
     personalidad: {
@@ -369,7 +371,7 @@ function buildImportWizardHTML() {
         `<option value="">— Ignorar columna —</option>`,
         o('@fecha', 'Fecha y hora'), o('@evaluador', 'Evaluador'), o('@jugador', 'Jugador'),
         o('equipo', 'Equipo (opcional — ayuda a identificar al jugador)'),
-        ...Object.entries(TEXTOS_DESTINOS).map(([k, l]) => o(k, l)),
+        ...Object.entries({ ...RP_DESTINOS, ...TEXTOS_DESTINOS }).map(([k, l]) => o(k, l)),
         ...perfiles.filter(Boolean).map(p => o(p, `Perfil: ${p}`)),
         ...competencias.flatMap(c => aspectoPorCompetencia[c] === 'condicional' ? [
           o(c + '::A', `Condicional: ${c} — valor 1`), o(c + '::B', `Condicional: ${c} — valor 2`),
@@ -504,6 +506,12 @@ async function procesarImport(container) {
       const t = String(row[header] ?? '').trim();
       if (t) textos[target.slice(5)] = t;
     });
+    const rp = {}; // R / P de la Ficha 1
+    Object.entries(regImport.mapping).forEach(([header, target]) => {
+      if (target !== '@r' && target !== '@p') return;
+      const v = parseEsNumber(row[header]);
+      if (v != null) rp[target.slice(1)] = v;
+    });
     let invalido = false;
 
     Object.entries(regImport.mapping).forEach(([header, target]) => {
@@ -522,11 +530,11 @@ async function procesarImport(container) {
     const teamKey = colEquipo ? teamKeyPorLabel(row[colEquipo]) : null;
     const match = matchJugador(jugadorNombreArchivo, state.players, { teamKey });
     if (match.status !== 'auto') {
-      return { jugadorNombreArchivo, evaluador, puntuaciones, puntuacionesId, textos, fechaRegistro, matchStatus: match.status, matchCandidates: match.candidates };
+      return { jugadorNombreArchivo, evaluador, puntuaciones, puntuacionesId, textos, rp, fechaRegistro, matchStatus: match.status, matchCandidates: match.candidates };
     }
     const jugadorId = match.playerId;
     const rowKey = buildRowKey({ evaluacionId: ev.id, jugadorId, jugadorNombreArchivo, evaluador });
-    return { jugadorNombreArchivo, evaluador, puntuaciones, puntuacionesId, textos, fechaRegistro, jugadorId, rowKey };
+    return { jugadorNombreArchivo, evaluador, puntuaciones, puntuacionesId, textos, rp, fechaRegistro, jugadorId, rowKey };
   });
 
   regImport.pendientes = filas.filter(f => !f.error && !f.jugadorId);
@@ -695,7 +703,7 @@ function renderRegistroSub(container) {
       const playerId = sel?.value || '';
       if (!playerId) { restantes.push(f); return; }
       const rowKey = buildRowKey({ evaluacionId: regEvalSel, jugadorId: playerId, jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador });
-      resueltos.push({ jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador, puntuaciones: f.puntuaciones, puntuacionesId: f.puntuacionesId, textos: f.textos || {}, fechaRegistro: f.fechaRegistro, jugadorId: playerId, rowKey });
+      resueltos.push({ jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador, puntuaciones: f.puntuaciones, puntuacionesId: f.puntuacionesId, textos: f.textos || {}, rp: f.rp || {}, fechaRegistro: f.fechaRegistro, jugadorId: playerId, rowKey });
       if (!aliasUpdates.has(playerId)) aliasUpdates.set(playerId, new Set());
       aliasUpdates.get(playerId).add(f.jugadorNombreArchivo);
     });
@@ -739,14 +747,14 @@ function renderRegistroSub(container) {
         await crearRegistro({
           evaluacionId: ev.id, temporada: ev.temporada, posicionKey: ev.posicionKey, tipo: ev.tipo || null,
           jugadorId: fila.jugadorId, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
-          puntuaciones: fila.puntuaciones, puntuacionesId: fila.puntuacionesId || {}, textos: fila.textos || {}, fechaRegistro: fila.fechaRegistro || null, rowKey: fila.rowKey, origen: 'csv',
+          puntuaciones: fila.puntuaciones, puntuacionesId: fila.puntuacionesId || {}, textos: fila.textos || {}, rp: fila.rp || {}, fechaRegistro: fila.fechaRegistro || null, rowKey: fila.rowKey, origen: 'csv',
         });
       }
       let sustituidos = 0;
       for (const fila of r.conCambios) {
         if ((regImport.decisiones[fila.rowKey] || 'mantener') === 'reemplazar') {
           await actualizarRegistro(fila.existente.id, {
-            puntuaciones: fila.puntuaciones, puntuacionesId: fila.puntuacionesId || {}, textos: fila.textos || {}, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
+            puntuaciones: fila.puntuaciones, puntuacionesId: fila.puntuacionesId || {}, textos: fila.textos || {}, rp: fila.rp || {}, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
             fechaRegistro: fila.fechaRegistro || null,
           });
           sustituidos++;
@@ -781,7 +789,9 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
     if (c.destino === '@fecha') return `<td style="white-space:nowrap;">${safeText(fmtFecha(r.fechaRegistro))}</td>`;
     if (c.destino === '@evaluador') return `<td>${safeText(r.evaluador)}</td>`;
     if (c.destino === '@jugador') return `<td style="white-space:nowrap;font-weight:600;">${safeText(jugadorLabel(r.jugadorId))}</td>`;
-    return `<td><input class="input" type="text" inputmode="decimal" style="width:46px;padding:2px 4px;text-align:center;" data-reg-edit="${r.id}" data-clave="${safeText(c.destino)}" value="${safeText(r.puntuaciones?.[c.destino] ?? '')}" /></td>`;
+    if (c.destino.startsWith('@txt_')) return `<td style="max-width:220px;font-size:11px;">${safeText(r.textos?.[c.destino.slice(5)] ?? '')}</td>`;
+    const valor = c.destino === '@r' || c.destino === '@p' ? r.rp?.[c.destino.slice(1)] : r.puntuaciones?.[c.destino];
+    return `<td><input class="input" type="text" inputmode="decimal" style="width:46px;padding:2px 4px;text-align:center;" data-reg-edit="${r.id}" data-clave="${safeText(c.destino)}" value="${safeText(valor ?? '')}" /></td>`;
   };
   const rows = registros.map(r => `<tr>${cols.map(c => celda(r, c)).join('')}</tr>`).join('');
   return `
@@ -792,10 +802,17 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
     </table></div>`;
 }
 
+/** Posición cuyas columnas se muestran aunque no haya datos: la del filtro, la de la evaluación elegida o la primera. */
+function posicionBBDD() {
+  const ev = bbddFiltros.evaluacionId ? (regEvaluaciones || []).find(e => e.id === bbddFiltros.evaluacionId) : null;
+  return bbddFiltros.posicionKey || ev?.posicionKey || state.positions[0]?.key || null;
+}
+
 function buildBBDDResultadosHTML() {
-  if (!bbddResultado) return '<p class="text-xs text-muted">Aplica filtros y pulsa Buscar.</p>';
+  const tablaVacia = () => { const pk = posicionBBDD(); return pk ? buildTablaEncuestaHTML([], pk, () => '') : ''; };
+  if (!bbddResultado) return tablaVacia() + '<p class="text-xs text-muted mt-8">Aplica filtros y pulsa Buscar.</p>';
   const { registros, mediasPorJugador } = bbddResultado;
-  if (!registros.length) return '<p class="text-xs text-muted">Sin registros para estos filtros.</p>';
+  if (!registros.length) return tablaVacia() + '<p class="text-xs text-muted mt-8">Sin registros para estos filtros.</p>';
 
   const jugadorLabel = id => {
     const p = state.players.find(x => x.id === id);
@@ -865,7 +882,7 @@ function buildBBDDPanelHTML() {
             <select class="select" id="bbdd-vista">
               <option value="todo" ${bbddFiltros.vista === 'todo' ? 'selected' : ''}>Todo</option>
               <option value="medias" ${bbddFiltros.vista === 'medias' ? 'selected' : ''}>Solo medias</option>
-              <option value="individuales" ${bbddFiltros.vista === 'individuales' ? 'selected' : ''}>Solo registros individuales</option>
+              <option value="individuales" ${bbddFiltros.vista === 'individuales' ? 'selected' : ''}>Tabla de la encuesta (registros individuales)</option>
             </select>
           </div>
         </div>
@@ -895,6 +912,19 @@ function renderBBDDSub(container) {
     });
   });
 
+  ['#bbdd-posicion', '#bbdd-evaluacion'].forEach(sel => container.querySelector(sel)?.addEventListener('change', () => {
+    // actualiza la vista previa de columnas (sin buscar) conservando el resto de filtros
+    bbddFiltros = {
+      temporada:    container.querySelector('#bbdd-temporada').value,
+      evaluacionId: container.querySelector('#bbdd-evaluacion').value,
+      jugadorId:    container.querySelector('#bbdd-jugador').value,
+      posicionKey:  container.querySelector('#bbdd-posicion').value,
+      evaluador:    container.querySelector('#bbdd-evaluador').value.trim(),
+      vista:        container.querySelector('#bbdd-vista').value,
+    };
+    renderBBDDSub(container);
+  }));
+
   container.querySelectorAll('[data-reg-edit]').forEach(inp => {
     inp.addEventListener('change', async () => {
       const reg = (bbddResultado?.registros || []).find(r => r.id === inp.dataset.regEdit);
@@ -903,6 +933,13 @@ function renderBBDDSub(container) {
       const raw = inp.value.trim();
       const val = raw === '' ? null : parseEsNumber(raw);
       if (raw !== '' && val == null) { showError('La nota debe ser un número.'); inp.value = reg.puntuaciones?.[clave] ?? ''; return; }
+      if (clave === '@r' || clave === '@p') { // R / P de la Ficha 1
+        const rp = { ...(reg.rp || {}) };
+        if (val == null) delete rp[clave.slice(1)]; else rp[clave.slice(1)] = val;
+        try { await actualizarRegistro(reg.id, { rp }); reg.rp = rp; inp.value = val ?? ''; showSuccess('Nota guardada.'); }
+        catch (err) { showError('No se pudo guardar la nota (revisa las reglas de Firestore).'); inp.value = reg.rp?.[clave.slice(1)] ?? ''; }
+        return;
+      }
       const puntuaciones = { ...(reg.puntuaciones || {}) };
       const puntuacionesId = { ...(reg.puntuacionesId || {}) };
       const idClave = buildCatalogo(state, reg.posicionKey).lista.find(c => c.clave === clave)?.id;
@@ -1693,7 +1730,9 @@ function renderFichaJugador(container, p) {
   const origenTxt = k => guardadosTxt?.[k] ?? filasTexto(k);
   let textosExtra = 0;
   const cinco = arr => { textosExtra = Math.max(textosExtra, arr.length - 5); return Array.from({ length: 5 }, (_, i) => arr[i] || ''); };
+  const mediaRP = k => { const v = regsEval.map(r => r.rp?.[k]).filter(x => typeof x === 'number'); if (!v.length) return null; const m = v.reduce((x, y) => x + y, 0) / v.length; return String(Math.round(m * 10) / 10).replace('.', ','); };
   const aspectosTxt = {
+    rp: { r: mediaRP('r'), p: mediaRP('p') },
     ofensivos: { potenciar: cinco(origenTxt('of_pot')), mejorar: cinco(origenTxt('of_mej')) },
     defensivos: { potenciar: cinco(origenTxt('def_pot')), mejorar: cinco(origenTxt('def_mej')) },
   };
