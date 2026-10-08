@@ -892,9 +892,10 @@ function buildBBDDResultadosHTML() {
 
   const rows = Object.entries(mediasPorJugador).map(([jugadorId, media]) => {
     const general = mediaGeneralDe(media);
+    const regsJ = porJugador[jugadorId] || [];
     const detalle = bbddFiltros.vista === 'todo' ? `
-      <tr><td colspan="4" style="padding-left:32px;">
-        ${(porJugador[jugadorId] || []).map(r => `<div class="text-xs text-muted">${safeText(r.evaluador)}: ${Object.entries(r.puntuaciones || {}).map(([k, v]) => `${safeText(k)}=${v}`).join(', ')}</div>`).join('')}
+      <tr><td colspan="4" style="padding:6px 0 14px 0;">
+        ${[...new Set(regsJ.map(r => r.posicionKey))].map(pk => buildTablaEncuestaHTML(regsJ.filter(r => r.posicionKey === pk), pk, jugadorLabel)).join('')}
       </td></tr>
     ` : '';
     return `
