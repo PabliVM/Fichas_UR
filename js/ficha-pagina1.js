@@ -29,11 +29,20 @@ function buildP1Header(logoPath, pageLabel) {
   `;
 }
 
+// Símbolos por banda ('check'|'dash'|'x'|'box'), los pone renderFichaPagina1 desde data.simbolos
+// (Configuración → Colores de las medias). Sin dato → cuadro de color como siempre.
+let SIMBOLOS = null;
 function statusMarkup(status) {
   if (status === true) return '<span class="p1-check">✔</span>';
-  if (status === false || status === 'red') return `<span class="p1-status-box" style="background:${STATUS_HEX.red}"></span>`;
-  if (status === 'yellow') return `<span class="p1-status-box" style="background:${STATUS_HEX.yellow}"></span>`;
-  if (status === 'green') return `<span class="p1-status-box" style="background:${STATUS_HEX.green}"></span>`;
+  const key = status === false ? 'red' : status;
+  if (key === 'green' || key === 'yellow' || key === 'red') {
+    const sim = SIMBOLOS?.[key] || 'box';
+    const hex = STATUS_HEX[key];
+    if (sim === 'check') return `<span class="p1-sym" style="color:${hex}">✔</span>`;
+    if (sim === 'dash')  return `<span class="p1-sym" style="color:${hex}">–</span>`;
+    if (sim === 'x')     return `<span class="p1-sym" style="color:${hex}">✘</span>`;
+    return `<span class="p1-status-box" style="background:${hex}"></span>`;
+  }
   return '<span class="p1-status-box p1-status-none"></span>'; // sin dato
 }
 
@@ -405,6 +414,7 @@ function initPitchDragDrop(container, data, positionKey) {
  * @param {string} logoPath
  */
 export function renderFichaPagina1(container, data, logoPath, colors) {
+  SIMBOLOS = data.simbolos || null;
   const { player } = data;
   const isGoalkeeper = /porter[oa]/i.test(player.position || '');
   const positionKey = (player.position || '').toLowerCase().trim(); // coincide con las keys de PROFILES (constants.js)
