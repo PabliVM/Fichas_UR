@@ -118,6 +118,15 @@ function bandKeyForValue(value, bands) {
   return ['green', 'yellow', 'red'][idx] ?? 'red';
 }
 
+/** Símbolo de la Ficha 1 por banda (alta→baja = green/yellow/red). Por defecto ✔ / – / ✘; configurable en Colores de las medias. */
+const SIMBOLOS_DEF = ['check', 'dash', 'x'];
+function simbolosFicha1() {
+  const sorted = [...state.scoreBands].sort((a, b) => b.min - a.min);
+  const out = {};
+  ['green', 'yellow', 'red'].forEach((k, i) => { out[k] = sorted[i] ? (sorted[i].simbolo || SIMBOLOS_DEF[i]) : 'box'; });
+  return out;
+}
+
 function buildFichaRealData(positionKey, media, jugador, evalId) {
   const schema = state.criteriaSchemas[positionKey] || {};
   const comp = media?.porCompetencia || {};
@@ -193,6 +202,7 @@ function buildFicha1RealData(positionKey, media, jugador) {
     competenciasOfensivas: orderByTactico(schema.competenciasOfensivas).map(withStatus),
     competenciasDefensivas: orderByTactico(schema.competenciasDefensivas).map(withStatus),
     frasesModelo: state.frasesModelo,
+    simbolos: simbolosFicha1(),
   };
 }
 
@@ -2202,6 +2212,7 @@ function buildFicha1DemoFromSchema(positionKey) {
     competenciasOfensivas: orderByTactico(schema.competenciasOfensivas).map(label => ({ label, status: null })),
     competenciasDefensivas: orderByTactico(schema.competenciasDefensivas).map(label => ({ label, status: null })),
     frasesModelo: state.frasesModelo,
+    simbolos: simbolosFicha1(),
   };
 }
 
@@ -2383,6 +2394,10 @@ function renderPanelConfig(container) {
               <input type="color" value="${b.color}" data-band-color="${i}" style="width:40px;height:32px;padding:2px;border-radius:4px;border:1px solid var(--border-default);" />
               <span class="text-xs text-muted">a partir de</span>
               <input class="input" type="number" step="0.1" min="0" max="10" value="${b.min}" data-band-min="${i}" style="width:80px;" />
+              <span class="text-xs text-muted">en Ficha 1:</span>
+              <select class="select" data-band-simbolo="${i}" style="width:150px;">
+                ${[['check', '✔ Check'], ['dash', '– Raya'], ['x', '✘ X'], ['box', '■ Cuadro de color']].map(([k, l]) => `<option value="${k}" ${(b.simbolo || SIMBOLOS_DEF[i] || 'box') === k ? 'selected' : ''}>${l}</option>`).join('')}
+              </select>
               <button class="btn btn-sm" data-band-del="${i}" ${bandsSorted.length <= 1 ? 'disabled' : ''}>Quitar</button>
             </div>
           `).join('')}
@@ -2676,6 +2691,16 @@ function renderPanelConfig(container) {
       setState({ scoreBands: bands });
       document.dispatchEvent(new CustomEvent('rm:thresholds-changed'));
       showSuccess('Color actualizado.');
+    });
+  });
+
+  container.querySelectorAll('[data-band-simbolo]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const i = Number(sel.dataset.bandSimbolo);
+      const bands = [...bandsSorted];
+      bands[i] = { ...bands[i], simbolo: sel.value };
+      setState({ scoreBands: bands });
+      showSuccess('Símbolo actualizado.');
     });
   });
 
