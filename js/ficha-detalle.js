@@ -13,8 +13,13 @@ import { scoreColor, safeText } from './utils.js';
 import { buildRadarSVG } from './radar-chart.js';
 
 /** Color del cuarto del círculo para un bloque: el de su banda, o blanco si no hay dato. */
-function blockCircleColor(rp, bands) {
-  const avg = rp && rp[0] != null ? rp[0] : null;
+function blockAvg(block) {
+  if (block?.rp && block.rp[0] != null) return block.rp[0];
+  const vals = (block?.items || []).map(i => i.value).filter(v => typeof v === 'number' && !Number.isNaN(v));
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+}
+function blockCircleColor(block, bands) {
+  const avg = blockAvg(block);
   return avg != null ? (scoreColor(avg, bands) || '#ffffff') : '#ffffff';
 }
 
@@ -137,6 +142,9 @@ function centerFichaCircle(root) {
 // ── BLOQUE CON RADAR (mental / técnico / táctico) ──
 
 function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos }) {
+  const avg = blockAvg({ rp, items });
+  const avgColor = avg != null ? (scoreColor(avg, bands) || '#ffffff') : null;
+  const avgHTML = avg != null ? ` <span class="ficha-q-media" style="color:${avgColor};margin-left:40px;font-weight:800;">${formatNum(avg)}</span>` : '';
   // Con muchas items (ej. Táctico portero, 24) la lista lateral no cabe
   // en la altura fija de la ficha si mantiene el tamaño pensado para ~12.
   // A partir de 18 items se reduce letra/gap solo de esta lista, para no
@@ -164,7 +172,7 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos }) {
   return `
     <section class="ficha-quadrant q-${blockKey} pos-${pos} ${side === 'left' ? 'q-left' : 'q-right'}">
       <header class="ficha-q-header">
-        <span class="ficha-q-title">${safeText(title)}</span>
+        <span class="ficha-q-title">${safeText(title)}${avgHTML}</span>
       </header>
       <div class="ficha-q-body">
         ${side === 'left' ? listBlock + radarBlock : radarBlock + listBlock}
@@ -403,10 +411,10 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
   const order = gridOrder || DEFAULT_GRID_ORDER;
 
   const blockColors = {
-    mental:      blockCircleColor(blocks.mental.rp,      bands),
-    tecnico:     blockCircleColor(blocks.tecnico.rp,      bands),
-    tactico:     blockCircleColor(blocks.tactico.rp,      bands),
-    condicional: blockCircleColor(blocks.condicional.rp,  bands),
+    mental:      blockCircleColor(blocks.mental,      bands),
+    tecnico:     blockCircleColor(blocks.tecnico,      bands),
+    tactico:     blockCircleColor(blocks.tactico,      bands),
+    condicional: blockCircleColor(blocks.condicional,  bands),
   };
 
   const rpText = rp => (rp && rp[0] != null && rp[1] != null) ? `${formatNum(rp[0])}/${formatNum(rp[1])}` : null;
