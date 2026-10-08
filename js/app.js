@@ -1637,6 +1637,7 @@ function renderFichaJugador(container, p) {
           ${filasEval.map((f, i) => `<option value="${f.eid}" ${f.eid === evSel.eid ? 'selected' : ''}>${safeText(evLabel(f.eid))}${i === 0 ? ' — final' : ''}</option>`).join('')}
         </select>
       </div>` : '<p class="text-xs text-muted mb-16">Sin evaluaciones importadas: ficha tipo de la posición, sin notas.</p>'}
+      <div class="mb-16"><button class="btn btn-primary btn-print-ficha" id="jug-ficha-pdf">⬇ Descargar PDF</button></div>
       <div id="jug-ficha-wrap" class="ficha-wrap"></div>`;
 
   container.innerHTML = `
@@ -1673,6 +1674,20 @@ function renderFichaJugador(container, p) {
     }
   }
 
+  container.querySelector('#jug-ficha-pdf')?.addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    const fichaEl = container.querySelector('#jug-ficha-wrap .ficha-detalle');
+    if (!fichaEl) return;
+    btn.disabled = true; btn.textContent = 'Generando PDF…';
+    try {
+      const nombre = `${p.nombre || ''} ${p.apellidos || ''}`.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'jugador';
+      await exportFichaAsPDF(fichaEl, `${nombre}-${jugFichaTab}.pdf`);
+    } catch (err) {
+      showError('No se pudo generar el PDF: ' + err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = '⬇ Descargar PDF';
+    }
+  });
   container.querySelectorAll('[data-jug-tab]').forEach(btn => btn.addEventListener('click', () => {
     jugFichaTab = btn.dataset.jugTab;
     preservandoScroll(() => renderPanelJugadores(container));
