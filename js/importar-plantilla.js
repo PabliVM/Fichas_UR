@@ -40,17 +40,66 @@ export function normalizarFechas(rows) {
   });
 }
 
-/** Mapeo precargado { 'Columna N': competencia } para la posición. Solo si el archivo tiene ≥44 columnas. */
-export function mapeoPorDefecto(state, positionKey, nCols) {
-  const mapping = {};
-  if (nCols < 44) return mapping;
+/** Tipo y valores por defecto de cada columna 1..51 (ver cabecera del archivo). */
+export const TOTAL_COLUMNAS = 51;
+export function tipoColumna(n) {
+  if (n === 1) return 'Fecha';
+  if (n === 2) return 'Evaluador';
+  if (n === 3) return 'Jugador';
+  if (n <= 6) return 'Perfil (Ficha 1)';
+  if (n <= 18) return 'Táctico (Ficha 2)';
+  if (n <= 22) return 'Texto (Ficha 1)';
+  if (n <= 31) return 'Mental (Ficha 2)';
+  if (n === 32) return 'Perfil técnico';
+  if (n <= 44) return 'Técnico (Ficha 2)';
+  if (n <= 49) return 'NO BBDD';
+  return n === 50 ? 'R (Ficha 1)' : 'P (Ficha 1)';
+}
+const TEXTOS = { 19: 'Ofensivos a potenciar', 20: 'Ofensivos a mejorar', 21: 'Defensivos a potenciar', 22: 'Defensivos a mejorar' };
+
+/**
+ * Columnas efectivas de la posición: plantilla por defecto + cambios del usuario
+ * (state.columnasEncuesta[pos][n] = { nombre?, destino? }).
+ * destino = competencia a la que van las notas ('' = no se importa). 1-3 y 19-22 (texto) no son editables.
+ * @returns {Array<{num,tipo,nombre,destino,fija}>}
+ */
+export function columnasEfectivas(state, positionKey) {
   const schema = state.criteriaSchemas[positionKey] || {};
   const tact = schema.tactico || [];
   const mental = state.aspectosComunes.mental || [];
   const tec = schema.tecnico || state.aspectosComunes.tecnico || [];
-  const poner = (desde, lista, n) => { for (let i = 0; i < n; i++) if (lista[i]) mapping[`Columna ${desde + i}`] = lista[i]; };
-  poner(7, tact, 12);
-  poner(23, mental, 9);
-  poner(33, tec, 12);
+  const perfiles = schema.perfiles || [];
+  const over = state.columnasEncuesta?.[positionKey] || {};
+  const out = [];
+  for (let n = 1; n <= TOTAL_COLUMNAS; n++) {
+    let nombre = '', destino = '', fija = false;
+    if (n === 1) { nombre = 'Fecha y hora'; fija = true; }
+    else if (n === 2) { nombre = 'Evaluador'; fija = true; }
+    else if (n === 3) { nombre = 'Jugador'; fija = true; }
+    else if (n <= 6) { nombre = destino = perfiles[n - 4] || ''; fija = true; }
+    else if (n <= 18) nombre = destino = tact[n - 7] || '';
+    else if (n <= 22) { nombre = TEXTOS[n]; fija = true; }
+    else if (n <= 31) nombre = destino = mental[n - 23] || '';
+    else if (n === 32) nombre = 'Perfil técnico';
+    else if (n <= 44) nombre = destino = tec[n - 33] || '';
+    else if (n <= 49) nombre = 'NO BBDD';
+    else nombre = n === 50 ? 'R' : 'P';
+    const o = over[n];
+    if (o && !fija) {
+      if (o.nombre) nombre = o.nombre;
+      if ('destino' in o) destino = o.destino || '';
+    }
+    out.push({ num: n, tipo: tipoColumna(n), nombre, destino, fija });
+  }
+  return out;
+}
+
+/** Mapeo precargado { 'Columna N': competencia } para el import. Solo si el archivo tiene >=44 columnas. */
+export function mapeoPorDefecto(state, positionKey, nCols) {
+  const mapping = {};
+  if (nCols < 44) return mapping;
+  columnasEfectivas(state, positionKey).forEach(c => {
+    if (c.num >= 7 && !c.fija && c.destino && c.num <= nCols) mapping[`Columna ${c.num}`] = c.destino;
+  });
   return mapping;
 }
