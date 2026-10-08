@@ -9,7 +9,19 @@
 // bloque — en blanco cuando aún no hay dato.
 // ================================================
 
-import { scoreColor, safeText } from './utils.js';
+import { safeText } from './utils.js';
+
+// Color de la banda (Configuración → Rango de colores). Propio de este módulo para no depender de la versión de utils.js desplegada.
+const BANDAS_DEF = [{ color: '#22c55e', min: 4 }, { color: '#eab308', min: 3 }, { color: '#ef4444', min: 0 }];
+function scoreColor(value, bands) {
+  const v = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : value;
+  if (v == null || Number.isNaN(v)) return null;
+  const lista = (Array.isArray(bands) && bands.length ? bands : BANDAS_DEF)
+    .map(b => ({ color: b.color, min: Number(b.min) })).filter(b => !Number.isNaN(b.min))
+    .sort((a, b) => b.min - a.min);
+  const banda = lista.find(b => v >= b.min);
+  return banda ? banda.color : null;
+}
 import { buildRadarSVG } from './radar-chart.js';
 
 /** Color del cuarto del círculo para un bloque: el de su banda, o blanco si no hay dato. */
