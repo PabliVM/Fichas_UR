@@ -8,7 +8,7 @@
 import { state, setState } from './state.js';
 import { safeText } from './utils.js';
 import { buildAspectoPorCompetencia } from './medias.js';
-import { columnasEfectivas } from './importar-plantilla.js';
+import { columnasEfectivas, TEXTOS_DESTINOS } from './importar-plantilla.js';
 
 let cePos = null;
 
@@ -26,7 +26,7 @@ export function renderColumnasEncuesta(container) {
   const aspecto = buildAspectoPorCompetencia(state, cePos);
   const competencias = Object.keys(aspecto).filter(c => aspecto[c] !== 'condicional');
   const perfiles = (state.criteriaSchemas[cePos]?.perfiles || []).filter(Boolean);
-  const ESPECIALES = { '@fecha': 'Fecha y hora', '@evaluador': 'Evaluador', '@jugador': 'Jugador', 'equipo': 'Equipo (opcional)' };
+  const ESPECIALES = { '@fecha': 'Fecha y hora', '@evaluador': 'Evaluador', '@jugador': 'Jugador', 'equipo': 'Equipo (opcional)', ...TEXTOS_DESTINOS };
   const usos = {};
   cols.forEach(c => { if (c.destino) usos[c.destino] = (usos[c.destino] || 0) + 1; });
   const hayCambios = Object.keys(state.columnasEncuesta?.[cePos] || {}).length > 0;
