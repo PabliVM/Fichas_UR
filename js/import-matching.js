@@ -17,18 +17,25 @@ function fullName(p) {
   return normalize(`${p.nombre || ''} ${p.apellidos || ''}`);
 }
 
-/** Mismas palabras (aunque incompleto o en distinto orden) o una contiene a la otra. */
+const tokens = str => str.split(' ').filter(Boolean);
+/** Un token del archivo "encaja" con uno del jugador si es igual, empieza igual (≥3 letras: "alf" → "alfredo") o es su inicial ("a"). */
+function tokenFits(t, pt) {
+  if (t === pt) return true;
+  if (t.length >= 3 && pt.startsWith(t)) return true;
+  return t.length === 1 && pt[0] === t;
+}
+/** Todas las palabras de uno encajan en el otro (en cualquier orden): apellido solo, nombre solo, "A. Sotres", nombre acortado… */
 function isCloseMatch(a, b) {
   if (!a || !b) return false;
-  if (a === b) return true;
-  const wa = a.split(' ').filter(Boolean);
-  const wb = b.split(' ').filter(Boolean);
-  if (wa.length && wb.length) {
-    const setB = new Set(wb);
-    const inter = wa.filter(w => setB.has(w)).length;
-    if (inter >= 1 && inter >= Math.min(wa.length, wb.length)) return true;
-  }
-  return a.includes(b) || b.includes(a);
+  const wa = tokens(a), wb = tokens(b);
+  if (!wa.length || !wb.length) return false;
+  const subset = (x, y) => x.every(t => y.some(pt => tokenFits(t, pt)));
+  return subset(wa, wb) || subset(wb, wa);
+}
+/** Mismas palabras exactas, aunque en distinto orden ("sotres alfredo"). */
+function sameWords(a, b) {
+  const wa = tokens(a).sort().join(' '), wb = tokens(b).sort().join(' ');
+  return !!wa && wa === wb;
 }
 
 /** Si hay varios candidatos y se conoce el equipo del archivo, se reduce a los que coinciden. */
@@ -62,12 +69,19 @@ export function matchJugador(nameFromFile, players, ctx = {}) {
     return { status: 'dudoso', playerId: null, candidates: narrowed };
   }
 
-  // 3) parecido (nombre incompleto, orden distinto) — requiere confirmación manual
-  const close = players.filter(p => isCloseMatch(fullName(p), target));
-  if (close.length >= 1) {
-    const narrowed = narrowByTeam(close, ctx.teamKey);
+  // 2b) mismas palabras en otro orden ("Sotres Alfredo")
+  const reorder = players.filter(p => sameWords(fullName(p), target));
+  if (reorder.length >= 1) {
+    const narrowed = narrowByTeam(reorder, ctx.teamKey);
     if (narrowed.length === 1) return { status: 'auto', playerId: narrowed[0].id, candidates: narrowed };
     return { status: 'dudoso', playerId: null, candidates: narrowed };
+  }
+
+  // 3) parecido (solo apellido, solo nombre, acortado, sin tildes…) — SIEMPRE requiere confirmación:
+  //    se propone el candidato y, al confirmarlo, se guarda como alias para la próxima vez.
+  const close = players.filter(p => isCloseMatch(fullName(p), target));
+  if (close.length >= 1) {
+    return { status: 'dudoso', playerId: null, candidates: narrowByTeam(close, ctx.teamKey) };
   }
 
   return { status: 'sin-match', playerId: null, candidates: [] };
