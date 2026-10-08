@@ -102,8 +102,12 @@ export function buildRowKey({ evaluacionId, jugadorId, jugadorNombreArchivo, eva
 export function clasificarFilas(filas, existentes) {
   const porKey = new Map(existentes.map(r => [r.rowKey, r]));
   const nuevos = [], sinCambios = [], conCambios = [], errores = [];
-  filas.forEach(fila => {
+  // Mismo evaluador + jugador repetido dentro del archivo: se usa la ÚLTIMA fila, las anteriores se marcan.
+  const ultimaPorKey = new Map();
+  filas.forEach((f, i) => { if (!f.error && f.rowKey) ultimaPorKey.set(f.rowKey, i); });
+  filas.forEach((fila, i) => {
     if (fila.error) { errores.push(fila); return; }
+    if (fila.rowKey && ultimaPorKey.get(fila.rowKey) !== i) { errores.push({ ...fila, error: 'Repetida en el archivo (se usa la última)' }); return; }
     const existente = porKey.get(fila.rowKey);
     if (!existente) { nuevos.push(fila); return; }
     const igual = JSON.stringify(existente.puntuaciones || {}) === JSON.stringify(fila.puntuaciones || {})
