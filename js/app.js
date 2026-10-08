@@ -1734,8 +1734,8 @@ function renderPanelJugadores(container) {
     return `
       <tr>
         <td>${p.fotoUrl ? `<img src="${p.fotoUrl}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" />` : ''}</td>
-        <td>${safeText(p.nombre || '')}</td>
-        <td>${safeText(p.apellidos || '')}</td>
+        <td><a href="#" data-jug-ficha="${p.id}" style="font-weight:600;color:inherit;text-decoration:underline;cursor:pointer;">${safeText(p.nombre || '')}</a></td>
+        <td><a href="#" data-jug-ficha="${p.id}" style="font-weight:600;color:inherit;text-decoration:underline;cursor:pointer;">${safeText(p.apellidos || '')}</a></td>
         <td>${year ?? '-'}</td>
         <td>${age ?? '-'}</td>
         <td>${safeText(teamLabel)}</td>
@@ -1793,7 +1793,8 @@ function renderPanelJugadores(container) {
     refiltrar(false);
   });
   container.querySelectorAll('[data-jug-ficha]').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async ev => {
+      ev.preventDefault();
       await cargarEvaluacionesSilencioso();
       jugFichaId = btn.dataset.jugFicha;
       jugFichaTab = 'datos';
