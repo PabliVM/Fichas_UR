@@ -86,8 +86,17 @@ export const FICHA2_OFFICIAL_DIMENSIONS = {
 };
 
 export const TEAMS = [
+  { key: 'castilla',  label: 'Castilla'      },
   { key: 'rmc',       label: 'Real Madrid C' },
   { key: 'juvenil-a', label: 'Juvenil A'     },
+  { key: 'juvenil-b', label: 'Juvenil B'     },
+  { key: 'juvenil-c', label: 'Juvenil C'     },
+  { key: 'cadete-a',  label: 'Cadete A'      },
+  { key: 'cadete-b',  label: 'Cadete B'      },
+  { key: 'cadete-c',  label: 'Cadete C'      },
+  { key: 'infantil-a', label: 'Infantil A'   },
+  { key: 'infantil-b', label: 'Infantil B'   },
+  { key: 'alevin-a',  label: 'Alevín A'      },
 ];
 
 export const PROFILES = [
