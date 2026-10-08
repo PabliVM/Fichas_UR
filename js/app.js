@@ -429,6 +429,10 @@ function buildResumenImportHTML(r) {
     <div class="mb-16">
       <div class="text-xs text-muted mb-8" style="font-weight:700;text-transform:uppercase;">Pendientes de identificar (${grupos.length} nombres, ${regImport.pendientes.length} filas)</div>
       <p class="text-xs text-muted mb-8">Elige a quién corresponde cada nombre: vale para todas sus filas y se guarda como alias, así la próxima vez se reconoce solo.</p>
+      <div class="text-xs mb-8" style="background:#fef3c7;border:1px solid #f59e0b;color:#78350f;padding:8px 10px;border-radius:6px;line-height:1.5;">
+        ⚠ <b>Estos jugadores no se meten en la BBDD porque no se sabe quiénes son. Comprobadlos:</b><br>
+        ${grupos.map(g => `${safeText(g.nombre)} (${g.filas.length})`).join(' · ')}
+      </div>
       <table class="table table-compact">
         <thead><tr><th>Nombre en archivo</th><th>Filas</th><th>Asignar a</th></tr></thead>
         <tbody>
@@ -783,7 +787,8 @@ function renderRegistroSub(container) {
           sustituidos++;
         }
       }
-      showSuccess(`Importado: ${r.nuevos.length} nuevos, ${sustituidos} sustituidos.`);
+      const noIdent = [...new Set(regImport.pendientes.map(f => f.jugadorNombreArchivo))];
+      showSuccess(`Importado: ${r.nuevos.length} nuevos, ${sustituidos} sustituidos.` + (noIdent.length ? ` NO importados (sin identificar, comprobad): ${noIdent.join(', ')}.` : ''));
       regEvalSel = null;
       resetRegImport();
       renderRegistroSub(container);
