@@ -56,6 +56,12 @@ export function tipoColumna(n) {
   return n === 50 ? 'R (Ficha 1)' : 'P (Ficha 1)';
 }
 const TEXTOS = { 19: 'Ofensivos a potenciar', 20: 'Ofensivos a mejorar', 21: 'Defensivos a potenciar', 22: 'Defensivos a mejorar' };
+/** Destinos de TEXTO (respuestas abiertas) → recuadros de la Ficha 1. El registro los guarda en `textos`. */
+export const TEXTOS_DESTINOS = {
+  '@txt_of_pot': 'Texto: ofensivos a potenciar', '@txt_of_mej': 'Texto: ofensivos a mejorar',
+  '@txt_def_pot': 'Texto: defensivos a potenciar', '@txt_def_mej': 'Texto: defensivos a mejorar',
+};
+const TEXTO_POR_COL = { 19: '@txt_of_pot', 20: '@txt_of_mej', 21: '@txt_def_pot', 22: '@txt_def_mej' };
 
 /**
  * Columnas efectivas de la posición: plantilla por defecto + cambios del usuario
@@ -79,7 +85,7 @@ export function columnasEfectivas(state, positionKey) {
     else if (n === 3) { nombre = 'Jugador'; destino = '@jugador'; }
     else if (n <= 6) nombre = destino = perfiles[n - 4] || '';
     else if (n <= 18) nombre = destino = tact[n - 7] || '';
-    else if (n <= 22) nombre = TEXTOS[n];
+    else if (n <= 22) { nombre = TEXTOS[n]; destino = TEXTO_POR_COL[n]; }
     else if (n <= 31) nombre = destino = mental[n - 23] || '';
     else if (n === 32) nombre = 'Perfil técnico';
     else if (n <= 44) nombre = destino = tec[n - 33] || '';
