@@ -21,7 +21,8 @@ import { exportFichaAsPDF } from './pdf-export.js';
 import { showError, showSuccess, safeText } from './utils.js';
 import { renderFichasEspejo } from './ficha-espejo-ui.js';
 import { buildCatalogo, slugify } from './ficha-espejo.js';
-import { quitarCabeceras, normalizarFechas, mapeoPorDefecto } from './importar-plantilla.js';
+import { quitarCabeceras, normalizarFechas, mapeoPorDefecto, columnasEfectivas } from './importar-plantilla.js';
+import { renderColumnasEncuesta } from './columnas-encuesta-ui.js';
 
 // ── EVITAR SALTO DE SCROLL AL RE-RENDERIZAR ───────
 // Reemplazar innerHTML de un panel entero resetea el scroll del navegador.
@@ -778,13 +779,9 @@ function renderRegistroSub(container) {
 
 /** Columnas de la encuesta (ver importar-plantilla.js) para una posición, con el nombre de cada competencia. */
 function columnasEncuesta(positionKey) {
-  const schema = state.criteriaSchemas[positionKey] || {};
-  const cols = [];
-  (schema.perfiles || []).slice(0, 3).forEach((c, i) => cols.push({ num: 4 + i, label: c, grupo: 'Perfil (Ficha 1)' }));
-  (schema.tactico || []).slice(0, 12).forEach((c, i) => cols.push({ num: 7 + i, label: c, grupo: 'Táctico' }));
-  (state.aspectosComunes.mental || []).slice(0, 9).forEach((c, i) => cols.push({ num: 23 + i, label: c, grupo: 'Mental' }));
-  (schema.tecnico || state.aspectosComunes.tecnico || []).slice(0, 12).forEach((c, i) => cols.push({ num: 33 + i, label: c, grupo: 'Técnico' }));
-  return cols;
+  return columnasEfectivas(state, positionKey)
+    .filter(c => c.num >= 4 && c.destino)
+    .map(c => ({ num: c.num, label: c.nombre, clave: c.destino, grupo: c.tipo }));
 }
 
 /** Tabla de registros con las columnas de la encuesta; las notas son editables y se guardan al salir de la celda. */
@@ -799,7 +796,7 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
       <td style="white-space:nowrap;">${safeText(fmtFecha(r.fechaRegistro))}</td>
       <td>${safeText(r.evaluador)}</td>
       <td style="white-space:nowrap;font-weight:600;">${safeText(jugadorLabel(r.jugadorId))}</td>
-      ${cols.map(c => `<td><input class="input" type="text" inputmode="decimal" style="width:46px;padding:2px 4px;text-align:center;" data-reg-edit="${r.id}" data-clave="${safeText(c.label)}" value="${safeText(r.puntuaciones?.[c.label] ?? '')}" /></td>`).join('')}
+      ${cols.map(c => `<td><input class="input" type="text" inputmode="decimal" style="width:46px;padding:2px 4px;text-align:center;" data-reg-edit="${r.id}" data-clave="${safeText(c.clave)}" value="${safeText(r.puntuaciones?.[c.clave] ?? '')}" /></td>`).join('')}
     </tr>`).join('');
   return `
     <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · columnas según la encuesta (nº de columna al pasar el ratón). Edita una nota y sal de la celda para guardar.</p>
@@ -1144,6 +1141,7 @@ const CONFIG_GROUPS = [
     label: 'Fichas tipo',
     tabs: [
       { key: 'fichas-individual',  label: 'Individual' },
+      { key: 'columnas-encuesta',  label: 'Columnas encuesta' },
       { key: 'fichas-espejo',      label: 'Fichas Espejo' },
       { key: 'fichas-campograma',  label: 'Campograma' },
       { key: 'fichas-mapa-nivel',  label: 'Mapa de nivel' },
@@ -2528,6 +2526,16 @@ function renderPanelConfig(container) {
     </div>
     `}
 
+    ${configSubTab !== 'columnas-encuesta' ? '' : `
+    <div class="card mb-16">
+      <div class="card-title">Columnas de la encuesta (1-51)</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">Por posición: cómo se llama cada columna en la BBDD y a qué competencia va su nota. Se usa en el import (mapeo precargado) y en la tabla de BBDD. Después, Fichas Espejo decide cómo se calcula (media, etc.).</p>
+        <div id="columnas-encuesta-wrap"></div>
+      </div>
+    </div>
+    `}
+
     ${configSubTab !== 'fichas-espejo' ? '' : `
     <div class="card mb-16">
       <div class="card-title">Fichas Espejo — origen y cálculo de cada número</div>
@@ -2631,6 +2639,9 @@ function renderPanelConfig(container) {
 
   const fichasTipoWrap = container.querySelector('#fichas-tipo-wrap');
   if (fichasTipoWrap) renderPanelFichas(fichasTipoWrap, fichaTipoPosition);
+
+  const columnasEncuestaWrap = container.querySelector('#columnas-encuesta-wrap');
+  if (columnasEncuestaWrap) renderColumnasEncuesta(columnasEncuestaWrap);
 
   const fichasEspejoWrap = container.querySelector('#fichas-espejo-wrap');
   if (fichasEspejoWrap) renderFichasEspejo(fichasEspejoWrap);
