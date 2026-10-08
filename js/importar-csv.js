@@ -1,113 +1,116 @@
 // ================================================
-// IMPORTAR-PLANTILLA.JS — Plantilla POR DEFECTO de las encuestas (Google Forms); todo editable en Configuración → Columnas encuesta.
-// Funciones puras (sin Firebase ni DOM).
-//
-// Columnas (1-based):
-//  1 fecha · 2 evaluador · 3 jugador · 4-6 perfiles (Ficha 1)
-//  7-18  12 competencias tácticas (Ficha 2)    → schema.tactico[0..11]
-//  19-22 textos Ficha 1 (ofensivos/defensivos potenciar/mejorar) → no se importan
-//  23-31 9 competencias mentales (Ficha 2)     → aspectosComunes.mental[0..8]
-//  32    "Perfil técnico" (influye en el círculo técnico) → sin destino definido, se ignora
-//  33-44 12 competencias técnicas (Ficha 2)    → schema.tecnico[0..11]
-//  45-49 "NO BBDD" → se ignoran
-//  50-51 R / P individual (Ficha 1) → sin destino definido, se ignoran
+// IMPORTAR-CSV.JS — Parseo genérico (CSV y Excel) +
+// deduplicación idempotente. NO asume nombres de
+// columna: el usuario mapea cada columna del archivo
+// a un campo/competencia conocido antes de importar
+// (auditoría §4).
 // ================================================
 
-const RE_FECHA = /^\s*\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|^\s*\d{4}-\d{2}-\d{2}/;
+import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.18.7/package/xlsx.mjs';
 
-/** Quita las filas previas a la primera con fecha en la columna 1 (números, ficha/aspecto, preguntas). */
-export function quitarCabeceras(rows, colFecha = 'Columna 1') {
-  const idx = rows.findIndex(r => RE_FECHA.test(r[colFecha] || ''));
-  if (idx <= 0) return { rows, omitidas: 0 };
-  return { rows: rows.slice(idx), omitidas: idx };
+/** Genera ['Columna 1', 'Columna 2', ...] hasta n. */
+function columnLabels(n) {
+  return Array.from({ length: n }, (_, i) => `Columna ${i + 1}`);
 }
-
-/** "9/23/2026 13:35:29" (m/d) o "23/09/2026 …" (d/m) → "2026-09-23T13:35:29". Orden decidido por todo el archivo. */
-export function normalizarFechas(rows, colFecha = 'Columna 1') {
-  const parse = s => {
-    const m = String(s || '').trim().match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
-    return m ? { a: +m[1], b: +m[2], y: +m[3], h: +(m[4] || 0), mi: +(m[5] || 0), s: +(m[6] || 0) } : null;
-  };
-  const ps = rows.map(r => parse(r[colFecha])).filter(Boolean);
-  const dmy = ps.some(p => p.a > 12) ? true : ps.some(p => p.b > 12) ? false : false; // ambiguo → m/d (como el export de tus encuestas)
-  const p2 = n => String(n).padStart(2, '0');
-  return rows.map(r => {
-    const p = parse(r[colFecha]);
-    if (!p) return r;
-    const y = p.y < 100 ? 2000 + p.y : p.y;
-    const [d, mo] = dmy ? [p.a, p.b] : [p.b, p.a];
-    return { ...r, [colFecha]: `${y}-${p2(mo)}-${p2(d)}T${p2(p.h)}:${p2(p.mi)}:${p2(p.s)}` };
-  });
-}
-
-/** Tipo y valores por defecto de cada columna 1..51 (ver cabecera del archivo). */
-export const TOTAL_COLUMNAS = 51;
-export function tipoColumna(n) {
-  if (n === 1) return 'Fecha';
-  if (n === 2) return 'Evaluador';
-  if (n === 3) return 'Jugador';
-  if (n <= 6) return 'Perfil (Ficha 1)';
-  if (n <= 18) return 'Táctico (Ficha 2)';
-  if (n <= 22) return 'Texto (Ficha 1)';
-  if (n <= 31) return 'Mental (Ficha 2)';
-  if (n === 32) return 'Perfil técnico';
-  if (n <= 44) return 'Técnico (Ficha 2)';
-  if (n <= 49) return 'NO BBDD';
-  return n === 50 ? 'R (Ficha 1)' : 'P (Ficha 1)';
-}
-const TEXTOS = { 19: 'Ofensivos a potenciar', 20: 'Ofensivos a mejorar', 21: 'Defensivos a potenciar', 22: 'Defensivos a mejorar' };
-/** Destinos de TEXTO (respuestas abiertas) → recuadros de la Ficha 1. El registro los guarda en `textos`. */
-export const TEXTOS_DESTINOS = {
-  '@txt_of_pot': 'Texto: ofensivos a potenciar', '@txt_of_mej': 'Texto: ofensivos a mejorar',
-  '@txt_def_pot': 'Texto: defensivos a potenciar', '@txt_def_mej': 'Texto: defensivos a mejorar',
-};
-const TEXTO_POR_COL = { 19: '@txt_of_pot', 20: '@txt_of_mej', 21: '@txt_def_pot', 22: '@txt_def_mej' };
 
 /**
- * Columnas efectivas de la posición: plantilla por defecto + cambios del usuario
- * (state.columnasEncuesta[pos][n] = { nombre?, destino? }). TODAS son editables.
- * destino: '' = no se importa · '@fecha' | '@evaluador' | '@jugador' | 'equipo' ·
- *          o el nombre de una competencia / perfil (la nota va ahí).
- * @returns {Array<{num,tipo,nombre,destino}>}
+ * Excel (.xlsx/.xls) → {headers, rows}. SIN fila de cabecera: toda fila es
+ * dato. headers son etiquetas sintéticas "Columna N" (contrato fijo: ver
+ * mapping de columnas 1-6 en app.js). Usa la primera hoja.
  */
-export function columnasEfectivas(state, positionKey) {
-  const schema = state.criteriaSchemas[positionKey] || {};
-  const tact = schema.tactico || [];
-  const mental = state.aspectosComunes.mental || [];
-  const tec = schema.tecnico || state.aspectosComunes.tecnico || [];
-  const perfiles = schema.perfiles || [];
-  const over = state.columnasEncuesta?.[positionKey] || {};
-  const out = [];
-  for (let n = 1; n <= TOTAL_COLUMNAS; n++) {
-    let nombre = '', destino = '';
-    if (n === 1) { nombre = 'Fecha y hora'; destino = '@fecha'; }
-    else if (n === 2) { nombre = 'Evaluador'; destino = '@evaluador'; }
-    else if (n === 3) { nombre = 'Jugador'; destino = '@jugador'; }
-    else if (n <= 6) nombre = destino = perfiles[n - 4] || '';
-    else if (n <= 18) nombre = destino = tact[n - 7] || '';
-    else if (n <= 22) { nombre = TEXTOS[n]; destino = TEXTO_POR_COL[n]; }
-    else if (n <= 31) nombre = destino = mental[n - 23] || '';
-    else if (n === 32) nombre = 'Perfil técnico';
-    else if (n <= 44) nombre = destino = tec[n - 33] || '';
-    else if (n <= 49) nombre = 'NO BBDD';
-    else nombre = n === 50 ? 'R' : 'P';
-    const o = over[n];
-    if (o) {
-      if (o.nombre) nombre = o.nombre;
-      if ('destino' in o) destino = o.destino || '';
-    }
-    out.push({ num: n, tipo: tipoColumna(n), nombre, destino });
-  }
-  return out;
+export function parseXLSXBuffer(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: 'array' });
+  const hoja = wb.Sheets[wb.SheetNames[0]];
+  if (!hoja) return { headers: [], rows: [] };
+  const filas2D = XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
+  const filasConDatos = filas2D.filter(cols => cols.some(c => String(c ?? '').trim() !== ''));
+  if (!filasConDatos.length) return { headers: [], rows: [] };
+  const numCols = Math.max(...filasConDatos.map(cols => cols.length));
+  const headers = columnLabels(numCols);
+  const rows = filasConDatos.map(cols => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = String(cols[i] ?? '').trim(); });
+    return obj;
+  });
+  return { headers, rows };
 }
 
-/** Mapeo precargado { 'Columna N': destino } para el import. Columnas 7+ solo si el archivo tiene >=44 columnas. */
-export function mapeoPorDefecto(state, positionKey, nCols) {
-  const mapping = {};
-  columnasEfectivas(state, positionKey).forEach(c => {
-    if (!c.destino || c.num > nCols) return;
-    if (c.num >= 7 && nCols < 44) return;
-    mapping[`Columna ${c.num}`] = c.destino;
+/**
+ * Parser CSV simple (detecta separador , o ;). Soporta comillas.
+ * SIN fila de cabecera: toda fila es dato. headers son etiquetas
+ * sintéticas "Columna N" (contrato fijo: ver mapping en app.js).
+ */
+export function parseCSV(text) {
+  const firstLine = text.split(/\r?\n/, 1)[0] || '';
+  const sep = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
+  const lines = text.replace(/\r\n/g, '\n').split('\n').filter(l => l.trim() !== '');
+  if (!lines.length) return { headers: [], rows: [] };
+
+  const parseLine = line => {
+    const out = []; let cur = ''; let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQuotes = !inQuotes; continue; }
+      if (ch === sep && !inQuotes) { out.push(cur); cur = ''; continue; }
+      cur += ch;
+    }
+    out.push(cur);
+    return out.map(s => s.trim());
+  };
+
+  const filas = lines.map(parseLine);
+  const numCols = Math.max(...filas.map(cols => cols.length));
+  const headers = columnLabels(numCols);
+  const rows = filas.map(cols => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = cols[i] ?? ''; });
+    return obj;
   });
-  return mapping;
+  return { headers, rows };
+}
+
+/** "1,8" o "1.8" → 1.8 (mismo criterio que el guion de Condicional en ficha-detalle.js). */
+export function parseEsNumber(str) {
+  if (str == null) return null;
+  let s = String(str).trim();
+  if (s === '') return null;
+  if (s.includes(',') && s.includes('.')) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (s.includes(',')) {
+    s = s.replace(',', '.');
+  }
+  const n = parseFloat(s);
+  return Number.isNaN(n) ? null : n;
+}
+
+/**
+ * Clave única de un registro, para detectar duplicados al reimportar el
+ * mismo archivo (auditoría §15). PROVISIONAL: se ajustará cuando se
+ * conozcan las columnas reales, si un evaluador puede puntuar al mismo
+ * jugador más de una vez dentro de la misma evaluación.
+ */
+export function buildRowKey({ evaluacionId, jugadorId, jugadorNombreArchivo, evaluador }) {
+  return [evaluacionId, jugadorId || `sin-id:${(jugadorNombreArchivo || '').toLowerCase()}`, evaluador || '—'].join('|');
+}
+
+/**
+ * Clasifica filas nuevas frente a lo ya existente en Firestore para esa
+ * evaluación → NUEVO / EXISTENTE SIN CAMBIOS / EXISTENTE CON CAMBIOS / ERROR.
+ * @param {Array} filas       [{ rowKey, jugadorId, evaluador, puntuaciones, jugadorNombreArchivo, error? }]
+ * @param {Array} existentes  registros ya en Firestore de esta evaluación
+ */
+export function clasificarFilas(filas, existentes) {
+  const porKey = new Map(existentes.map(r => [r.rowKey, r]));
+  const nuevos = [], sinCambios = [], conCambios = [], errores = [];
+  filas.forEach(fila => {
+    if (fila.error) { errores.push(fila); return; }
+    const existente = porKey.get(fila.rowKey);
+    if (!existente) { nuevos.push(fila); return; }
+    const igual = JSON.stringify(existente.puntuaciones || {}) === JSON.stringify(fila.puntuaciones || {})
+      && JSON.stringify(existente.textos || {}) === JSON.stringify(fila.textos || {})
+      && JSON.stringify(existente.rp || {}) === JSON.stringify(fila.rp || {});
+    if (igual) sinCambios.push(fila);
+    else conCambios.push({ ...fila, existente });
+  });
+  return { nuevos, sinCambios, conCambios, errores };
 }
