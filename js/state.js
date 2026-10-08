@@ -91,6 +91,9 @@ const _state = {
   // reales. Forma: { [posKey]: { 1|2: { [num]: { origen, campoId, operacion,
   // vacios, decimales, labelAlGuardar } } } }
   fichaEspejoReglas: {},
+  // Columnas 1-51 de la encuesta (Configuración → Columnas encuesta): solo los CAMBIOS sobre
+  // la plantilla. Forma: { [posKey]: { [n]: { nombre?, destino? } } } (ver importar-plantilla.js).
+  columnasEncuesta: {},
   // Tolerancia (±) para el guion amarillo del bloque CONDICIONAL (Ficha 2):
   // si |valor - refA| <= esto, sale guion; si no, check verde o X roja.
   // Editable en Configuración → Datos condicionales.
@@ -134,7 +137,7 @@ export const state = _state;
 // jugadores NO va aquí — colección propia 'jugadores' (ver loadPlayersFromFirestore).
 const CONFIG_COLLECTION = 'config';
 const CONFIG_DOC_ID = 'general';
-const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'fichaEspejoReglas', 'condicionalTolerance', 'fichaGridOrder', 'flujoEvaluaciones', 'frasesModelo'];
+const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'fichaEspejoReglas', 'columnasEncuesta', 'condicionalTolerance', 'fichaGridOrder', 'flujoEvaluaciones', 'frasesModelo'];
 
 let _persistTimer = null;
 function schedulePersist() {
