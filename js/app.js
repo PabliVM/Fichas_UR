@@ -800,7 +800,8 @@ function renderRegistroSub(container) {
 
 /** Columnas de la encuesta (ver importar-plantilla.js) para una posición, con el nombre de cada competencia. */
 function columnasEncuesta(positionKey) {
-  return columnasEfectivas(state, positionKey).filter(c => c.destino && c.destino !== 'equipo');
+  // TODAS las columnas (1-51), tengan o no destino: así la tabla refleja siempre tu plantilla.
+  return columnasEfectivas(state, positionKey);
 }
 
 /** Tabla de registros con las columnas de la encuesta; las notas son editables y se guardan al salir de la celda. */
@@ -808,19 +809,49 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
   const cols = columnasEncuesta(positionKey);
   const posLabel = state.positions.find(p => p.key === positionKey)?.label || positionKey;
   const fmtFecha = f => { const m = String(f || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}:\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}` : (f || '—'); };
-  const celda = (r, c) => {
-    if (c.destino === '@fecha') return `<td style="white-space:nowrap;">${safeText(fmtFecha(r.fechaRegistro))}</td>`;
-    if (c.destino === '@evaluador') return `<td>${safeText(r.evaluador)}</td>`;
-    if (c.destino === '@jugador') return `<td style="white-space:nowrap;font-weight:600;">${safeText(jugadorLabel(r.jugadorId))}</td>`;
-    if (c.destino.startsWith('@txt_')) return `<td style="max-width:220px;font-size:11px;">${safeText(r.textos?.[c.destino.slice(5)] ?? '')}</td>`;
-    const valor = c.destino === '@r' || c.destino === '@p' ? r.rp?.[c.destino.slice(1)] : r.puntuaciones?.[c.destino];
-    return `<td><input class="input" type="text" inputmode="decimal" style="width:46px;padding:2px 4px;text-align:center;" data-reg-edit="${r.id}" data-clave="${safeText(c.destino)}" value="${safeText(valor ?? '')}" /></td>`;
+  // Fecha / evaluador / jugador se ven siempre (aunque la columna no se importe a ninguna competencia):
+  // los marcados con @ y, si no hay marca, las columnas 1, 2 y 3 sin destino.
+  const tieneToken = t => cols.some(c => c.destino === t);
+  const tipoCol = c => {
+    if (['@fecha', '@evaluador', '@jugador'].includes(c.destino)) return c.destino;
+    if (!c.destino && c.num === 1 && !tieneToken('@fecha')) return '@fecha';
+    if (!c.destino && c.num === 2 && !tieneToken('@evaluador')) return '@evaluador';
+    if (!c.destino && c.num === 3 && !tieneToken('@jugador')) return '@jugador';
+    return c.destino;
   };
-  const rows = registros.map(r => `<tr>${cols.map(c => celda(r, c)).join('')}</tr>`).join('');
+  const celda = (r, c) => {
+    const t = tipoCol(c);
+    if (t === '@fecha') return `<td class="bt-nowrap">${safeText(fmtFecha(r.fechaRegistro))}</td>`;
+    if (t === '@evaluador') return `<td>${safeText(r.evaluador)}</td>`;
+    if (t === '@jugador') return `<td class="bt-nowrap bt-bold">${safeText(jugadorLabel(r.jugadorId))}</td>`;
+    if (!t || t === 'equipo') return `<td class="bt-vacia"></td>`;
+    if (t.startsWith('@txt_')) return `<td class="bt-texto">${safeText(r.textos?.[t.slice(5)] ?? '')}</td>`;
+    const valor = t === '@r' || t === '@p' ? r.rp?.[t.slice(1)] : r.puntuaciones?.[t];
+    return `<td class="bt-num"><input class="input" type="text" inputmode="decimal" data-reg-edit="${r.id}" data-clave="${safeText(t)}" value="${safeText(valor ?? '')}" /></td>`;
+  };
+  const rows = registros.length
+    ? registros.map(r => `<tr>${cols.map(c => celda(r, c)).join('')}</tr>`).join('')
+    : `<tr>${cols.map(() => '<td class="bt-vacia"></td>').join('')}</tr>`;
   return `
-    <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · cabeceras según Configuración → Columnas encuesta. Edita una nota y sal de la celda para guardar.</p>
-    <div style="overflow-x:auto;"><table class="table table-compact">
-      <thead><tr>${cols.map(c => `<th title="Columna ${c.num} de la encuesta" style="min-width:60px;font-size:10px;line-height:1.2;vertical-align:bottom;"><div style="opacity:.5;">${c.num}</div>${safeText(c.nombre)}</th>`).join('')}</tr></thead>
+    <style>
+      .bt-wrap { overflow-x:auto; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
+      .bt { border-collapse:collapse; width:max-content; min-width:100%; background:#fff; color:#0f1117; font-size:12px; }
+      .bt th { background:var(--header-bg, #1d4ed8); color:#fff; font-size:11px; font-weight:700; line-height:1.25; text-transform:uppercase; letter-spacing:.2px;
+               text-align:center; vertical-align:middle; padding:8px 6px; width:96px; min-width:96px; max-width:96px; border-left:1px solid rgba(255,255,255,.35); overflow-wrap:anywhere; hyphens:auto; }
+      .bt th:first-child { border-left:none; }
+      .bt th .bt-n { display:block; font-size:10px; font-weight:600; opacity:.75; margin-bottom:3px; }
+      .bt td { background:#fff; color:#0f1117; padding:5px 6px; border-left:1px solid #cbd5e1; border-top:1px solid #cbd5e1; text-align:center; vertical-align:middle; }
+      .bt td:first-child { border-left:none; }
+      .bt tbody tr:nth-child(even) td { background:#f8fafc; }
+      .bt .bt-nowrap { white-space:nowrap; }
+      .bt .bt-bold { font-weight:700; text-align:left; }
+      .bt .bt-texto { max-width:220px; font-size:11px; text-align:left; }
+      .bt .bt-vacia { height:30px; }
+      .bt .bt-num input { width:56px; padding:3px 4px; text-align:center; background:#fff; color:#0f1117; border:1px solid #cbd5e1; border-radius:4px; }
+    </style>
+    <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración → Columnas encuesta. Edita una nota y sal de la celda para guardar.</p>
+    <div class="bt-wrap"><table class="bt">
+      <thead><tr>${cols.map(c => `<th title="Columna ${c.num} de la encuesta"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}</tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`;
 }
