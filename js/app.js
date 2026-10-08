@@ -1468,6 +1468,145 @@ function buildHistoricoHTML(entries) {
   return `<table class="table table-compact"><tbody>${rows}</tbody></table>`;
 }
 
+// ── Jugadores: filtros + ficha de jugador ──────────
+let jugFiltros = { q: '', teamKey: '', positionKey: '', year: '', foot: '' };
+let jugFichaId = null;             // null = lista; <id> = ficha de ese jugador abierta
+const jugFichaRegs = {};           // { [playerId]: registros[] } — evaluaciones recibidas
+const jugFichaLoading = new Set(); // evita lanzar la misma carga dos veces
+
+const normalizeTxt = str => String(str || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+function jugadorPasaFiltros(p) {
+  const f = jugFiltros;
+  if (f.q) {
+    const txt = normalizeTxt(`${p.nombre || ''} ${p.apellidos || ''}`);
+    if (!f.q.split(/\s+/).filter(Boolean).every(w => txt.includes(normalizeTxt(w)))) return false;
+  }
+  if (f.teamKey && p.teamKey !== f.teamKey) return false;
+  if (f.positionKey && p.positionKey !== f.positionKey) return false;
+  if (f.year && String(calcAgeAndYear(p.birthDate).year) !== String(f.year)) return false;
+  if (f.foot && p.foot !== f.foot) return false;
+  return true;
+}
+
+function buildJugadoresFiltrosHTML() {
+  const years = [...new Set(state.players.map(p => calcAgeAndYear(p.birthDate).year).filter(Boolean))].sort((a, b) => b - a);
+  const sel = (id, label, opts, val) => `
+    <div class="field-group" style="min-width:140px;"><label class="label">${label}</label>
+      <select class="select" id="${id}"><option value="">Todos</option>${opts.map(([v, l]) => `<option value="${safeText(String(v))}" ${String(val) === String(v) ? 'selected' : ''}>${safeText(l)}</option>`).join('')}</select>
+    </div>`;
+  return `
+    <div class="card mb-16"><div class="card-body">
+      <div class="flex gap-12" style="flex-wrap:wrap;align-items:flex-end;">
+        <div class="field-group" style="min-width:220px;"><label class="label">Buscar (nombre o apellidos)</label>
+          <input class="input" type="text" id="jug-f-q" value="${safeText(jugFiltros.q)}" placeholder="Ej. Pérez" /></div>
+        ${sel('jug-f-team', 'Equipo', TEAMS.map(t => [t.key, t.label]), jugFiltros.teamKey)}
+        ${sel('jug-f-pos', 'Posición', state.positions.map(p => [p.key, p.label]), jugFiltros.positionKey)}
+        ${sel('jug-f-year', 'Año nacimiento', years.map(y => [y, String(y)]), jugFiltros.year)}
+        ${sel('jug-f-foot', 'Lateralidad', ['Diestro', 'Zurdo', 'Ambidiestro'].map(x => [x, x]), jugFiltros.foot)}
+        <button class="btn btn-sm" id="jug-f-clear">Limpiar filtros</button>
+      </div>
+    </div></div>`;
+}
+
+async function cargarDatosFicha(container, id) {
+  jugFichaLoading.add(id);
+  try {
+    if (isFirebaseUnconfigured()) {
+      jugFichaRegs[id] = jugFichaRegs[id] || [];
+      jugadorHistoricoCache[id] = jugadorHistoricoCache[id] || [];
+    } else {
+      await Promise.all([
+        jugFichaRegs[id] ? null : queryRegistros({ jugadorId: id }).then(r => { jugFichaRegs[id] = r; }).catch(err => { console.error('[Firestore] Registros del jugador:', err); jugFichaRegs[id] = []; }),
+        jugadorHistoricoCache[id] ? null : readSubCollection('jugadores', id, 'historico').then(h => { jugadorHistoricoCache[id] = h; }).catch(err => { console.error('[Firestore] Histórico:', err); jugadorHistoricoCache[id] = []; }),
+      ]);
+    }
+  } finally {
+    jugFichaLoading.delete(id);
+  }
+  if (jugFichaId === id && !jugadorFormId) renderPanelJugadores(container);
+}
+
+function renderFichaJugador(container, p) {
+  const id = p.id;
+  if ((!jugFichaRegs[id] || !jugadorHistoricoCache[id]) && !jugFichaLoading.has(id)) cargarDatosFicha(container, id);
+
+  const { age, year } = calcAgeAndYear(p.birthDate);
+  const teamLabel = TEAMS.find(t => t.key === p.teamKey)?.label;
+  const posLabel  = state.positions.find(pos => pos.key === p.positionKey)?.label;
+  const dato = (label, v) => `<div style="min-width:150px;"><div class="text-xs text-muted">${label}</div><div style="font-weight:600;">${v == null || v === '' ? '—' : safeText(String(v))}</div></div>`;
+  const fmt = v => v == null ? '—' : Number(v).toFixed(1).replace('.', ',');
+  const evInfo = eid => (regEvaluaciones || []).find(e => e.id === eid);
+  const evLabel = eid => { const e = evInfo(eid); return e ? `${e.temporada} · ${e.nombre}` : eid; };
+
+  // Condicional por evaluación
+  const items = state.aspectosComunes.condicional || [];
+  const porEval = p.condicionalPorEval || {};
+  const evCond = Object.keys(porEval).filter(eid => Object.keys(porEval[eid] || {}).length);
+  const condHTML = evCond.length ? `
+    <div style="overflow-x:auto;"><table class="table table-compact">
+      <thead><tr><th>Evaluación</th>${items.map(i => `<th>${safeText(i)}</th>`).join('')}</tr></thead>
+      <tbody>${evCond.map(eid => `<tr><td>${safeText(evLabel(eid))}</td>${items.map(i => `<td>${safeText(porEval[eid][slugify(i)] ?? '—')}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table></div>` : '<p class="text-xs text-muted">Sin datos condicionales. Se añaden en Editar.</p>';
+
+  // Evaluaciones recibidas
+  const regs = jugFichaRegs[id];
+  let evalHTML = '<p class="text-xs text-muted">Cargando…</p>';
+  if (regs) {
+    const grupos = {};
+    regs.forEach(r => { (grupos[r.evaluacionId || 'sin-evaluacion'] = grupos[r.evaluacionId || 'sin-evaluacion'] || []).push(r); });
+    const filas = Object.entries(grupos).map(([eid, rs]) => {
+      const ev = evInfo(eid);
+      const posKey = ev?.posicionKey || rs[0]?.posicionKey;
+      const media = calcularMediasPorJugador(rs.map(r => ({ ...r, jugadorId: id })), buildAspectoPorCompetencia(state, posKey))[id];
+      return { eid, ev, posKey, n: new Set(rs.map(r => r.evaluador)).size, media, orden: ev?.fechaInicio || '' };
+    }).sort((a, b) => String(b.orden).localeCompare(String(a.orden)));
+    evalHTML = filas.length ? `
+      <div style="overflow-x:auto;"><table class="table table-compact">
+        <thead><tr><th>Evaluación</th><th>Posición</th><th>Evaluadores</th><th>Mental</th><th>Técnico</th><th>Táctico</th><th>Media general</th></tr></thead>
+        <tbody>${filas.map(f => `<tr>
+          <td>${safeText(f.eid === 'sin-evaluacion' ? '(sin evaluación asociada)' : evLabel(f.eid))}</td>
+          <td>${safeText(state.positions.find(x => x.key === f.posKey)?.label || f.posKey || '—')}</td>
+          <td>${f.n}</td>
+          <td>${fmt(f.media?.porAspecto?.mental)}</td><td>${fmt(f.media?.porAspecto?.tecnico)}</td><td>${fmt(f.media?.porAspecto?.tactico)}</td>
+          <td><b>${fmt(mediaGeneralDe(f.media))}</b></td></tr>`).join('')}</tbody>
+      </table></div>` : '<p class="text-xs text-muted">Todavía no hay evaluaciones importadas de este jugador.</p>';
+  }
+
+  container.innerHTML = `
+    ${firebaseNotice()}
+    <div class="flex gap-8 mb-16">
+      <button class="btn btn-ghost" id="jug-ficha-volver">← Volver a la lista</button>
+      <button class="btn btn-primary" id="jug-ficha-editar">Editar</button>
+    </div>
+    <div class="card mb-16"><div class="card-body">
+      <div class="flex gap-16" style="align-items:center;flex-wrap:wrap;">
+        ${p.fotoUrl ? `<img src="${p.fotoUrl}" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;" />` : '<div style="width:96px;height:96px;border-radius:50%;background:var(--bg-hover);"></div>'}
+        <div>
+          <div style="font-size:22px;font-weight:800;">${safeText(`${p.nombre || ''} ${p.apellidos || ''}`.trim() || 'Jugador')}</div>
+          <div class="text-muted">${safeText([teamLabel, posLabel, year ? `Año ${year}` : null, age != null ? `${age} años` : null].filter(Boolean).join(' · ') || 'Sin datos de equipo/posición')}</div>
+        </div>
+      </div>
+      <div class="flex gap-24 mt-16" style="flex-wrap:wrap;">
+        ${dato('Fecha de nacimiento', p.birthDate)}${dato('Lateralidad', p.foot)}${dato('Edad madurativa', p.maturationalAge)}
+        ${dato('Peso', p.weight != null ? p.weight + ' kg' : null)}${dato('Altura', p.height != null ? p.height + ' m' : null)}${dato('Complexión', p.complexion)}
+      </div>
+    </div></div>
+    <div class="card mb-16"><div class="card-title">Evaluaciones</div><div class="card-body">${evalHTML}</div></div>
+    <div class="card mb-16"><div class="card-title">Datos condicionales</div><div class="card-body">${condHTML}</div></div>
+    <div class="card mb-16"><div class="card-title">Histórico (peso, altura, equipo, posición…)</div><div class="card-body">
+      ${jugadorHistoricoCache[id] ? buildHistoricoHTML(jugadorHistoricoCache[id]) : '<p class="text-xs text-muted">Cargando…</p>'}
+    </div></div>
+  `;
+
+  container.querySelector('#jug-ficha-volver')?.addEventListener('click', () => { jugFichaId = null; renderPanelJugadores(container); });
+  container.querySelector('#jug-ficha-editar')?.addEventListener('click', async () => {
+    await cargarEvaluacionesSilencioso();
+    jugadorFormId = id;
+    renderPanelJugadores(container);
+  });
+}
+
 let jugadorHistoricoOpenId = null; // qué jugador tiene el histórico desplegado
 let jugadorHistoricoCache  = {};   // { [playerId]: entries[] } — evita releer si ya se abrió
 
@@ -1477,7 +1616,16 @@ function renderPanelJugadores(container) {
     : null;
   if (jugadorFormId && jugadorFormId !== 'new' && !editingPlayer) jugadorFormId = null; // se borró, cierra el form
 
-  const rows = state.players.map(p => {
+  // Ficha de jugador abierta (y sin formulario de edición encima) → vista de ficha
+  if (jugFichaId && !jugadorFormId) {
+    const fichaPlayer = state.players.find(pl => pl.id === jugFichaId);
+    if (fichaPlayer) { renderFichaJugador(container, fichaPlayer); return; }
+    jugFichaId = null; // el jugador ya no existe
+  }
+  const soloForm = !!(jugFichaId && jugadorFormId); // editando desde la ficha: se oculta la lista
+
+  const jugadoresFiltrados = state.players.filter(jugadorPasaFiltros);
+  const rows = jugadoresFiltrados.map(p => {
     const { age, year } = calcAgeAndYear(p.birthDate);
     const teamLabel = TEAMS.find(t => t.key === p.teamKey)?.label || '-';
     const posLabel  = state.positions.find(pos => pos.key === p.positionKey)?.label || '-';
@@ -1498,6 +1646,7 @@ function renderPanelJugadores(container) {
         <td>${p.weight != null ? p.weight + ' kg' : '-'}</td>
         <td>${p.height != null ? p.height + ' m' : '-'}</td>
         <td>
+          <button class="btn btn-sm" data-jug-ficha="${p.id}">Ficha</button>
           <button class="btn btn-sm" data-jug-edit="${p.id}">Editar</button>
           <button class="btn btn-sm" data-jug-hist="${p.id}">${jugadorHistoricoOpenId === p.id ? 'Ocultar histórico' : 'Histórico'}</button>
           <button class="btn btn-sm" data-jug-del="${p.id}">Borrar</button>
@@ -1510,8 +1659,9 @@ function renderPanelJugadores(container) {
   container.innerHTML = `
     ${firebaseNotice()}
     ${jugadorFormId ? buildJugadorFormHTML(editingPlayer) : ''}
-    <div class="card">
-      <div class="card-title">Jugadores (${state.players.length})</div>
+    ${soloForm ? '' : buildJugadoresFiltrosHTML()}
+    <div class="card" ${soloForm ? 'style="display:none;"' : ''}>
+      <div class="card-title">Jugadores (${jugadoresFiltrados.length}${jugadoresFiltrados.length !== state.players.length ? ` de ${state.players.length}` : ''})</div>
       <div class="card-body">
         ${jugadorFormId ? '' : '<button class="btn btn-primary mb-16" id="jug-add">+ Añadir jugador</button>'}
         <div style="overflow-x:auto;">
@@ -1522,12 +1672,36 @@ function renderPanelJugadores(container) {
                 <th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th></th>
               </tr>
             </thead>
-            <tbody>${rows || '<tr><td colspan="10" class="text-muted">Sin jugadores todavía.</td></tr>'}</tbody>
+            <tbody>${rows || `<tr><td colspan="10" class="text-muted">${state.players.length ? 'Ningún jugador coincide con los filtros.' : 'Sin jugadores todavía.'}</td></tr>`}</tbody>
           </table>
         </div>
       </div>
     </div>
   `;
+
+  // Filtros: la búsqueda por texto mantiene el foco al re-pintar
+  const refiltrar = conFoco => {
+    renderPanelJugadores(container);
+    if (conFoco) {
+      const inp = container.querySelector('#jug-f-q');
+      if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+    }
+  };
+  container.querySelector('#jug-f-q')?.addEventListener('input', e => { jugFiltros.q = e.target.value; refiltrar(true); });
+  [['#jug-f-team', 'teamKey'], ['#jug-f-pos', 'positionKey'], ['#jug-f-year', 'year'], ['#jug-f-foot', 'foot']].forEach(([sel, key]) => {
+    container.querySelector(sel)?.addEventListener('change', e => { jugFiltros[key] = e.target.value; refiltrar(false); });
+  });
+  container.querySelector('#jug-f-clear')?.addEventListener('click', () => {
+    jugFiltros = { q: '', teamKey: '', positionKey: '', year: '', foot: '' };
+    refiltrar(false);
+  });
+  container.querySelectorAll('[data-jug-ficha]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await cargarEvaluacionesSilencioso();
+      jugFichaId = btn.dataset.jugFicha;
+      renderPanelJugadores(container);
+    });
+  });
 
   container.querySelector('#jug-add')?.addEventListener('click', async () => {
     await cargarEvaluacionesSilencioso();
