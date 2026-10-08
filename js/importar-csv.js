@@ -41,27 +41,31 @@ export function parseXLSXBuffer(arrayBuffer) {
  * sintéticas "Columna N" (contrato fijo: ver mapping en app.js).
  */
 export function parseCSV(text) {
-  const firstLine = text.split(/\r?\n/, 1)[0] || '';
+  text = String(text || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const firstLine = text.split('\n', 1)[0] || '';
   const sep = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
-  const lines = text.replace(/\r\n/g, '\n').split('\n').filter(l => l.trim() !== '');
-  if (!lines.length) return { headers: [], rows: [] };
 
-  const parseLine = line => {
-    const out = []; let cur = ''; let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') { inQuotes = !inQuotes; continue; }
-      if (ch === sep && !inQuotes) { out.push(cur); cur = ''; continue; }
-      cur += ch;
-    }
-    out.push(cur);
-    return out.map(s => s.trim());
-  };
+  // Estado sobre TODO el texto: una celda entre comillas puede contener saltos de línea
+  // (respuestas abiertas de la encuesta) y "" dentro de comillas es una comilla.
+  const filas = [];
+  let fila = [], cur = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else inQuotes = false; }
+      else cur += ch;
+    } else if (ch === '"') inQuotes = true;
+    else if (ch === sep) { fila.push(cur); cur = ''; }
+    else if (ch === '\n') { fila.push(cur); filas.push(fila); fila = []; cur = ''; }
+    else cur += ch;
+  }
+  if (cur !== '' || fila.length) { fila.push(cur); filas.push(fila); }
 
-  const filas = lines.map(parseLine);
-  const numCols = Math.max(...filas.map(cols => cols.length));
+  const conDatos = filas.map(cols => cols.map(s => s.trim())).filter(cols => cols.some(c => c !== ''));
+  if (!conDatos.length) return { headers: [], rows: [] };
+  const numCols = Math.max(...conDatos.map(cols => cols.length));
   const headers = columnLabels(numCols);
-  const rows = filas.map(cols => {
+  const rows = conDatos.map(cols => {
     const obj = {};
     headers.forEach((h, i) => { obj[h] = cols[i] ?? ''; });
     return obj;
