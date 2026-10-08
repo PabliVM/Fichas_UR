@@ -1758,6 +1758,15 @@ function renderPanelJugadores(container) {
     });
   });
 
+  // Vista previa de la foto al elegir el archivo (antes no pasaba nada hasta guardar)
+  container.querySelector('#jug-foto')?.addEventListener('change', e => {
+    const f = e.target.files[0];
+    const prev = container.querySelector('#jug-foto-preview');
+    if (!f || !prev) return;
+    prev.src = URL.createObjectURL(f);
+    prev.style.display = 'block';
+  });
+
   container.querySelector('#jug-add')?.addEventListener('click', async () => {
     await cargarEvaluacionesSilencioso();
     jugadorFormId = 'new';
@@ -1897,7 +1906,7 @@ function renderPanelJugadores(container) {
           setState({ players: state.players.map(p => p.id === id ? { ...p, fotoUrl } : p) });
         } catch (err) {
           console.error('[Storage] No se pudo subir la foto:', err);
-          showError('Jugador guardado, pero la foto no se pudo subir (revisa Firebase Storage).');
+          showError(`Jugador guardado, pero la foto no se pudo subir [${err?.code || err?.message || 'error desconocido'}]. Revisa Firebase Storage (activado y reglas publicadas).`, 9000);
         }
       }
 
