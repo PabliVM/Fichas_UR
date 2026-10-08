@@ -408,26 +408,46 @@ function buildImportWizardHTML() {
   return `<div class="card mb-16"><div class="card-title">Importar CSV — ${safeText(ev.nombre)} (${safeText(posLabel)}, ${safeText(ev.temporada)})</div><div class="card-body">${body}</div></div>`;
 }
 
+/** Pendientes agrupados por nombre (sin tildes/mayúsculas): una decisión por nombre vale para todas sus filas. */
+function gruposPendientes() {
+  const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const mapa = new Map();
+  regImport.pendientes.forEach(f => {
+    const k = norm(f.jugadorNombreArchivo);
+    if (!mapa.has(k)) mapa.set(k, { nombre: f.jugadorNombreArchivo, filas: [], candidates: f.matchCandidates || [] });
+    mapa.get(k).filas.push(f);
+  });
+  return [...mapa.values()];
+}
+
 function buildResumenImportHTML(r) {
   if (!r) return '';
-  const pendHTML = regImport.pendientes.length ? `
+  const grupos = gruposPendientes();
+  const todos = [...state.players].sort((x, y) => `${x.apellidos} ${x.nombre}`.localeCompare(`${y.apellidos} ${y.nombre}`, 'es'));
+  const etiqueta = p => `${p.nombre || ''} ${p.apellidos || ''}`.trim() + (p.teamKey ? ` (${TEAMS.find(t => t.key === p.teamKey)?.label || p.teamKey})` : '');
+  const pendHTML = grupos.length ? `
     <div class="mb-16">
-      <div class="text-xs text-muted mb-8" style="font-weight:700;text-transform:uppercase;">Pendientes de identificar (${regImport.pendientes.length})</div>
+      <div class="text-xs text-muted mb-8" style="font-weight:700;text-transform:uppercase;">Pendientes de identificar (${grupos.length} nombres, ${regImport.pendientes.length} filas)</div>
+      <p class="text-xs text-muted mb-8">Elige a quién corresponde cada nombre: vale para todas sus filas y se guarda como alias, así la próxima vez se reconoce solo.</p>
       <table class="table table-compact">
-        <thead><tr><th>Nombre en archivo</th><th>Evaluador</th><th>Asignar a</th></tr></thead>
+        <thead><tr><th>Nombre en archivo</th><th>Filas</th><th>Asignar a</th></tr></thead>
         <tbody>
-          ${regImport.pendientes.map((f, i) => `
+          ${grupos.map((g, i) => {
+            const ids = new Set(g.candidates.map(c => c.id));
+            const unico = g.candidates.length === 1 ? g.candidates[0].id : '';
+            return `
             <tr>
-              <td>${safeText(f.jugadorNombreArchivo)}</td>
-              <td>${safeText(f.evaluador)}</td>
+              <td>${safeText(g.nombre)}</td>
+              <td>${g.filas.length}</td>
               <td>
                 <select class="select" data-pend-select="${i}">
-                  <option value="">— Ignorar esta fila —</option>
-                  ${(f.matchCandidates || []).map(c => `<option value="${c.id}">${safeText(c.nombre)} ${safeText(c.apellidos)}</option>`).join('')}
+                  <option value="">— Ignorar estas filas —</option>
+                  ${g.candidates.length ? `<optgroup label="Parecidos">${g.candidates.map(c => `<option value="${c.id}" ${c.id === unico ? 'selected' : ''}>${safeText(etiqueta(c))}</option>`).join('')}</optgroup>` : ''}
+                  <optgroup label="Todos los jugadores">${todos.filter(p => !ids.has(p.id)).map(p => `<option value="${p.id}">${safeText(etiqueta(p))}</option>`).join('')}</optgroup>
                 </select>
               </td>
-            </tr>
-          `).join('')}
+            </tr>`;
+          }).join('')}
         </tbody>
       </table>
       <button class="btn btn-sm mt-8" id="import-aplicar-pendientes">Aplicar identificaciones</button>
@@ -698,8 +718,11 @@ function renderRegistroSub(container) {
     const resueltos = [];
     const restantes = [];
     const aliasUpdates = new Map(); // playerId -> Set(nombres del archivo)
-    regImport.pendientes.forEach((f, i) => {
-      const sel = container.querySelector(`[data-pend-select="${i}"]`);
+    const grupos = gruposPendientes();
+    const grupoDe = new Map(); // fila → índice de grupo
+    grupos.forEach((g, gi) => g.filas.forEach(f => grupoDe.set(f, gi)));
+    regImport.pendientes.forEach(f => {
+      const sel = container.querySelector(`[data-pend-select="${grupoDe.get(f)}"]`);
       const playerId = sel?.value || '';
       if (!playerId) { restantes.push(f); return; }
       const rowKey = buildRowKey({ evaluacionId: regEvalSel, jugadorId: playerId, jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador });
