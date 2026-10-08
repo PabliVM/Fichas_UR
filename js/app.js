@@ -1527,6 +1527,9 @@ async function cargarDatosFicha(container, id) {
   if (jugFichaId === id && !jugadorFormId) renderPanelJugadores(container);
 }
 
+let jugFichaTab = 'datos';     // 'datos' | 'ficha1' | 'ficha2'
+let jugFichaEvalId = null;     // evaluación elegida para Ficha 1/2 (null = la última/final)
+
 function renderFichaJugador(container, p) {
   const id = p.id;
   if ((!jugFichaRegs[id] || !jugadorHistoricoCache[id]) && !jugFichaLoading.has(id)) cargarDatosFicha(container, id);
@@ -1539,7 +1542,25 @@ function renderFichaJugador(container, p) {
   const evInfo = eid => (regEvaluaciones || []).find(e => e.id === eid);
   const evLabel = eid => { const e = evInfo(eid); return e ? `${e.temporada} · ${e.nombre}` : eid; };
 
-  // Condicional por evaluación
+  // Evaluaciones del jugador (una fila por evaluación), de la más reciente a la más antigua.
+  // "Evaluación final" = la más reciente (por fecha fin/inicio; si no hay fechas, la última creada).
+  const regs = jugFichaRegs[id];
+  let filas = [];
+  if (regs) {
+    const grupos = {};
+    regs.forEach(r => { const k = r.evaluacionId || 'sin-evaluacion'; (grupos[k] = grupos[k] || []).push(r); });
+    filas = Object.entries(grupos).map(([eid, rs]) => {
+      const ev = evInfo(eid);
+      const posKey = ev?.posicionKey || rs[0]?.posicionKey;
+      const media = calcularMediasPorJugador(rs.map(r => ({ ...r, jugadorId: id })), buildAspectoPorCompetencia(state, posKey))[id];
+      const idx = (regEvaluaciones || []).findIndex(e => e.id === eid);
+      return { eid, ev, posKey, n: new Set(rs.map(r => r.evaluador)).size, media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
+    }).sort((a, b) => String(b.orden).localeCompare(String(a.orden)));
+  }
+  const filasEval = filas.filter(f => f.eid !== 'sin-evaluacion' && f.ev);
+  const evSel = filasEval.find(f => f.eid === jugFichaEvalId) || filasEval[0] || null; // por defecto, la final
+
+  // ── Pestaña "Datos personales"
   const items = state.aspectosComunes.condicional || [];
   const porEval = p.condicionalPorEval || {};
   const evCond = Object.keys(porEval).filter(eid => Object.keys(porEval[eid] || {}).length);
@@ -1549,29 +1570,46 @@ function renderFichaJugador(container, p) {
       <tbody>${evCond.map(eid => `<tr><td>${safeText(evLabel(eid))}</td>${items.map(i => `<td>${safeText(porEval[eid][slugify(i)] ?? '—')}</td>`).join('')}</tr>`).join('')}</tbody>
     </table></div>` : '<p class="text-xs text-muted">Sin datos condicionales. Se añaden en Editar.</p>';
 
-  // Evaluaciones recibidas
-  const regs = jugFichaRegs[id];
   let evalHTML = '<p class="text-xs text-muted">Cargando…</p>';
   if (regs) {
-    const grupos = {};
-    regs.forEach(r => { (grupos[r.evaluacionId || 'sin-evaluacion'] = grupos[r.evaluacionId || 'sin-evaluacion'] || []).push(r); });
-    const filas = Object.entries(grupos).map(([eid, rs]) => {
-      const ev = evInfo(eid);
-      const posKey = ev?.posicionKey || rs[0]?.posicionKey;
-      const media = calcularMediasPorJugador(rs.map(r => ({ ...r, jugadorId: id })), buildAspectoPorCompetencia(state, posKey))[id];
-      return { eid, ev, posKey, n: new Set(rs.map(r => r.evaluador)).size, media, orden: ev?.fechaInicio || '' };
-    }).sort((a, b) => String(b.orden).localeCompare(String(a.orden)));
     evalHTML = filas.length ? `
       <div style="overflow-x:auto;"><table class="table table-compact">
         <thead><tr><th>Evaluación</th><th>Posición</th><th>Evaluadores</th><th>Mental</th><th>Técnico</th><th>Táctico</th><th>Media general</th></tr></thead>
-        <tbody>${filas.map(f => `<tr>
-          <td>${safeText(f.eid === 'sin-evaluacion' ? '(sin evaluación asociada)' : evLabel(f.eid))}</td>
+        <tbody>${filas.map((f, i) => `<tr>
+          <td>${safeText(f.eid === 'sin-evaluacion' ? '(sin evaluación asociada)' : evLabel(f.eid))}${f === filasEval[0] ? ' <b>(final)</b>' : ''}</td>
           <td>${safeText(state.positions.find(x => x.key === f.posKey)?.label || f.posKey || '—')}</td>
           <td>${f.n}</td>
           <td>${fmt(f.media?.porAspecto?.mental)}</td><td>${fmt(f.media?.porAspecto?.tecnico)}</td><td>${fmt(f.media?.porAspecto?.tactico)}</td>
           <td><b>${fmt(mediaGeneralDe(f.media))}</b></td></tr>`).join('')}</tbody>
       </table></div>` : '<p class="text-xs text-muted">Todavía no hay evaluaciones importadas de este jugador.</p>';
   }
+
+  const datosHTML = `
+    <div class="card mb-16"><div class="card-title">Datos personales</div><div class="card-body">
+      <div class="flex gap-24" style="flex-wrap:wrap;">
+        ${dato('Nombre', p.nombre)}${dato('Apellidos', p.apellidos)}${dato('Equipo', teamLabel)}${dato('Posición', posLabel)}
+        ${dato('Fecha de nacimiento', p.birthDate)}${dato('Año', year)}${dato('Edad', age != null ? age + ' años' : null)}
+        ${dato('Lateralidad', p.foot)}${dato('Edad madurativa', p.maturationalAge)}
+        ${dato('Peso', p.weight != null ? p.weight + ' kg' : null)}${dato('Altura', p.height != null ? p.height + ' m' : null)}${dato('Complexión', p.complexion)}
+      </div>
+    </div></div>
+    <div class="card mb-16"><div class="card-title">Evaluaciones</div><div class="card-body">${evalHTML}</div></div>
+    <div class="card mb-16"><div class="card-title">Datos condicionales</div><div class="card-body">${condHTML}</div></div>
+    <div class="card mb-16"><div class="card-title">Histórico (peso, altura, equipo, posición…)</div><div class="card-body">
+      ${jugadorHistoricoCache[id] ? buildHistoricoHTML(jugadorHistoricoCache[id]) : '<p class="text-xs text-muted">Cargando…</p>'}
+    </div></div>`;
+
+  // ── Pestañas Ficha 1 / Ficha 2 (evaluación elegida; por defecto la final)
+  const fichaTabHTML = !regs ? '<p class="text-xs text-muted">Cargando…</p>'
+    : !evSel ? '<p class="text-xs text-muted">Este jugador no tiene evaluaciones importadas todavía.</p>'
+    : `
+      <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
+        <label class="text-xs text-muted" for="jug-ficha-eval">Evaluación</label>
+        <select class="select" id="jug-ficha-eval" style="max-width:360px;">
+          ${filasEval.map((f, i) => `<option value="${f.eid}" ${f.eid === evSel.eid ? 'selected' : ''}>${safeText(evLabel(f.eid))}${i === 0 ? ' — final' : ''}</option>`).join('')}
+        </select>
+      </div>
+      <div id="jug-ficha-wrap" class="ficha-wrap"></div>`;
 
   container.innerHTML = `
     ${firebaseNotice()}
@@ -1581,24 +1619,39 @@ function renderFichaJugador(container, p) {
     </div>
     <div class="card mb-16"><div class="card-body">
       <div class="flex gap-16" style="align-items:center;flex-wrap:wrap;">
-        ${p.fotoUrl ? `<img src="${p.fotoUrl}" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;" />` : '<div style="width:96px;height:96px;border-radius:50%;background:var(--bg-hover);"></div>'}
+        ${p.fotoUrl ? `<img src="${p.fotoUrl}" alt="" style="width:80px;height:80px;border-radius:50%;object-fit:cover;" />` : '<div style="width:80px;height:80px;border-radius:50%;background:var(--bg-hover);"></div>'}
         <div>
           <div style="font-size:22px;font-weight:800;">${safeText(`${p.nombre || ''} ${p.apellidos || ''}`.trim() || 'Jugador')}</div>
           <div class="text-muted">${safeText([teamLabel, posLabel, year ? `Año ${year}` : null, age != null ? `${age} años` : null].filter(Boolean).join(' · ') || 'Sin datos de equipo/posición')}</div>
         </div>
       </div>
-      <div class="flex gap-24 mt-16" style="flex-wrap:wrap;">
-        ${dato('Fecha de nacimiento', p.birthDate)}${dato('Lateralidad', p.foot)}${dato('Edad madurativa', p.maturationalAge)}
-        ${dato('Peso', p.weight != null ? p.weight + ' kg' : null)}${dato('Altura', p.height != null ? p.height + ' m' : null)}${dato('Complexión', p.complexion)}
-      </div>
     </div></div>
-    <div class="card mb-16"><div class="card-title">Evaluaciones</div><div class="card-body">${evalHTML}</div></div>
-    <div class="card mb-16"><div class="card-title">Datos condicionales</div><div class="card-body">${condHTML}</div></div>
-    <div class="card mb-16"><div class="card-title">Histórico (peso, altura, equipo, posición…)</div><div class="card-body">
-      ${jugadorHistoricoCache[id] ? buildHistoricoHTML(jugadorHistoricoCache[id]) : '<p class="text-xs text-muted">Cargando…</p>'}
-    </div></div>
+    <div class="flex gap-8 mb-16">
+      <button class="btn ${jugFichaTab === 'datos' ? 'btn-primary' : 'btn-sm'}" data-jug-tab="datos">Datos personales</button>
+      <button class="btn ${jugFichaTab === 'ficha1' ? 'btn-primary' : 'btn-sm'}" data-jug-tab="ficha1">Ficha 1</button>
+      <button class="btn ${jugFichaTab === 'ficha2' ? 'btn-primary' : 'btn-sm'}" data-jug-tab="ficha2">Ficha 2</button>
+    </div>
+    ${jugFichaTab === 'datos' ? datosHTML : fichaTabHTML}
   `;
 
+  if (jugFichaTab !== 'datos' && evSel) {
+    const wrap = container.querySelector('#jug-ficha-wrap');
+    if (jugFichaTab === 'ficha1') {
+      renderFichaPagina1(wrap, buildFicha1RealData(evSel.posKey, evSel.media, p), LOGO_PATH, state.fichaColors);
+    } else {
+      setGpsTolerance(state.condicionalTolerance);
+      renderFichaDetalle(wrap, buildFichaRealData(evSel.posKey, evSel.media, p), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
+    }
+  }
+
+  container.querySelectorAll('[data-jug-tab]').forEach(btn => btn.addEventListener('click', () => {
+    jugFichaTab = btn.dataset.jugTab;
+    preservandoScroll(() => renderPanelJugadores(container));
+  }));
+  container.querySelector('#jug-ficha-eval')?.addEventListener('change', e => {
+    jugFichaEvalId = e.target.value;
+    preservandoScroll(() => renderPanelJugadores(container));
+  });
   container.querySelector('#jug-ficha-volver')?.addEventListener('click', () => { jugFichaId = null; renderPanelJugadores(container); });
   container.querySelector('#jug-ficha-editar')?.addEventListener('click', async () => {
     await cargarEvaluacionesSilencioso();
@@ -1699,6 +1752,8 @@ function renderPanelJugadores(container) {
     btn.addEventListener('click', async () => {
       await cargarEvaluacionesSilencioso();
       jugFichaId = btn.dataset.jugFicha;
+      jugFichaTab = 'datos';
+      jugFichaEvalId = null; // por defecto, evaluación final
       renderPanelJugadores(container);
     });
   });
