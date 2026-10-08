@@ -1369,11 +1369,18 @@ function buildJugadorFormHTML(player) {
     <div class="card mb-16">
       <div class="card-title">${player ? 'Editar jugador' : 'Nuevo jugador'}</div>
       <div class="card-body">
-        <div class="flex gap-12 mb-16" style="align-items:center;">
+        <div class="flex gap-12 mb-16" style="align-items:center;flex-wrap:wrap;">
           <img id="jug-foto-preview" src="${p.fotoUrl || ''}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;background:var(--bg-hover);display:${p.fotoUrl ? 'block' : 'none'};" />
           <div class="field-group">
             <label class="label">Foto</label>
             <input class="input" type="file" id="jug-foto" accept="image/*" />
+          </div>
+          <div id="jug-crop" style="display:none;">
+            <div id="jug-crop-view" style="width:180px;height:180px;border-radius:50%;overflow:hidden;position:relative;background:var(--bg-hover);cursor:grab;touch-action:none;border:2px solid var(--blue-500, #3b82f6);">
+              <img id="jug-crop-img" alt="" draggable="false" style="position:absolute;left:0;top:0;max-width:none;user-select:none;pointer-events:none;" />
+            </div>
+            <input type="range" id="jug-crop-zoom" min="1" max="3" step="0.01" value="1" style="width:180px;display:block;margin-top:8px;" />
+            <div class="text-xs text-muted">Arrastra para mover · desliza para ampliar</div>
           </div>
         </div>
         <div class="flex gap-12" style="flex-wrap:wrap;">
@@ -1758,13 +1765,76 @@ function renderPanelJugadores(container) {
     });
   });
 
-  // Vista previa de la foto al elegir el archivo (antes no pasaba nada hasta guardar)
+  // Foto: al elegir archivo se abre un recorte circular (mover + zoom). Al guardar se sube el recorte.
+  const CROP_V = 180;
+  let crop = null;
+  const cropImgEl = container.querySelector('#jug-crop-img');
+  const cropViewEl = container.querySelector('#jug-crop-view');
+  const cropZoomEl = container.querySelector('#jug-crop-zoom');
+  const aplicarCrop = () => {
+    if (!crop) return;
+    const scale = crop.min * crop.zoom;
+    const w = crop.natW * scale, h = crop.natH * scale;
+    crop.x = Math.min(0, Math.max(CROP_V - w, crop.x));
+    crop.y = Math.min(0, Math.max(CROP_V - h, crop.y));
+    cropImgEl.style.width = w + 'px';
+    cropImgEl.style.height = h + 'px';
+    cropImgEl.style.left = crop.x + 'px';
+    cropImgEl.style.top = crop.y + 'px';
+  };
   container.querySelector('#jug-foto')?.addEventListener('change', e => {
     const f = e.target.files[0];
-    const prev = container.querySelector('#jug-foto-preview');
-    if (!f || !prev) return;
-    prev.src = URL.createObjectURL(f);
-    prev.style.display = 'block';
+    if (!f) { crop = null; container.querySelector('#jug-crop').style.display = 'none'; return; }
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      const min = Math.max(CROP_V / img.naturalWidth, CROP_V / img.naturalHeight);
+      crop = { img, natW: img.naturalWidth, natH: img.naturalHeight, min, zoom: 1,
+               x: (CROP_V - img.naturalWidth * min) / 2, y: (CROP_V - img.naturalHeight * min) / 2 };
+      cropImgEl.src = url;
+      cropZoomEl.value = 1;
+      container.querySelector('#jug-crop').style.display = 'block';
+      const prev = container.querySelector('#jug-foto-preview');
+      if (prev) prev.style.display = 'none';
+      aplicarCrop();
+    };
+    img.onerror = () => { crop = null; showError('No se pudo leer esa imagen.'); };
+    img.src = url;
+  });
+  cropZoomEl?.addEventListener('input', () => {
+    if (!crop) return;
+    const old = crop.min * crop.zoom;
+    const cx = (CROP_V / 2 - crop.x) / old, cy = (CROP_V / 2 - crop.y) / old; // punto central en coords de imagen
+    crop.zoom = Number(cropZoomEl.value);
+    const nuevo = crop.min * crop.zoom;
+    crop.x = CROP_V / 2 - cx * nuevo;
+    crop.y = CROP_V / 2 - cy * nuevo;
+    aplicarCrop();
+  });
+  let cropDrag = null;
+  cropViewEl?.addEventListener('pointerdown', e => {
+    if (!crop) return;
+    cropDrag = { px: e.clientX, py: e.clientY, x: crop.x, y: crop.y };
+    cropViewEl.setPointerCapture(e.pointerId);
+    cropViewEl.style.cursor = 'grabbing';
+  });
+  cropViewEl?.addEventListener('pointermove', e => {
+    if (!cropDrag || !crop) return;
+    crop.x = cropDrag.x + (e.clientX - cropDrag.px);
+    crop.y = cropDrag.y + (e.clientY - cropDrag.py);
+    aplicarCrop();
+  });
+  const finDrag = () => { cropDrag = null; if (cropViewEl) cropViewEl.style.cursor = 'grab'; };
+  cropViewEl?.addEventListener('pointerup', finDrag);
+  cropViewEl?.addEventListener('pointercancel', finDrag);
+  /** Recorte visible → JPEG 400×400 (ligero, ~40-80 KB). */
+  const exportarCrop = () => new Promise(resolve => {
+    const OUT = 400;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = OUT;
+    const scale = crop.min * crop.zoom;
+    canvas.getContext('2d').drawImage(crop.img, -crop.x / scale, -crop.y / scale, CROP_V / scale, CROP_V / scale, 0, 0, OUT, OUT);
+    canvas.toBlob(b => resolve(b ? new File([b], 'foto.jpg', { type: 'image/jpeg' }) : null), 'image/jpeg', 0.9);
   });
 
   container.querySelector('#jug-add')?.addEventListener('click', async () => {
@@ -1869,8 +1939,12 @@ function renderPanelJugadores(container) {
       complexion: container.querySelector('#jug-complexion').value.trim() || null,
     };
     if (condicionalPorEval) baseData.condicionalPorEval = condicionalPorEval;
-    const fotoFile = container.querySelector('#jug-foto').files[0] || null;
+    let fotoFile = container.querySelector('#jug-foto').files[0] || null;
     if (!baseData.nombre) { showError('El nombre es obligatorio.'); return; }
+    const saveBtn = container.querySelector('#jug-save');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Guardando…';
+    if (fotoFile && crop) fotoFile = (await exportarCrop()) || fotoFile; // sube el recorte, no el original
 
     // ¿Cambió algún dato con histórico respecto al valor actual? Solo se
     // añade una entrada de histórico si de verdad hay un cambio — evita
@@ -1915,7 +1989,9 @@ function renderPanelJugadores(container) {
       renderPanelJugadores(container);
     } catch (err) {
       console.error('[Firestore] No se pudo guardar el jugador:', err);
-      showError('No se pudo guardar el jugador (revisa las reglas de Firestore o la conexión).');
+      showError(`No se pudo guardar el jugador [${err?.code || err?.message || 'error desconocido'}] (revisa las reglas de Firestore o la conexión).`, 9000);
+      saveBtn.disabled = false;
+      saveBtn.textContent = jugadorFormId === 'new' ? 'Añadir jugador' : 'Guardar cambios';
     }
   });
 }
