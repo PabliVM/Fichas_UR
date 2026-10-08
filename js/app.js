@@ -21,6 +21,7 @@ import { exportFichaAsPDF } from './pdf-export.js';
 import { showError, showSuccess, safeText } from './utils.js';
 import { renderFichasEspejo } from './ficha-espejo-ui.js';
 import { buildCatalogo, slugify } from './ficha-espejo.js';
+import { quitarCabeceras, normalizarFechas, mapeoPorDefecto } from './importar-plantilla.js';
 
 // ── EVITAR SALTO DE SCROLL AL RE-RENDERIZAR ───────
 // Reemplazar innerHTML de un panel entero resetea el scroll del navegador.
@@ -371,7 +372,7 @@ function buildImportWizardHTML() {
       ].join('');
     };
     body = `
-      <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas. Sin cabecera: columnas 1-6 fijas (fecha, evaluador, jugador, 3 perfiles de ${safeText(posLabel)}). Columnas 7+: indica qué competencia es cada una.</p>
+      <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas${regImport.omitidas ? ` (${regImport.omitidas} filas de cabecera omitidas)` : ''}${regImport.precargado ? '. Mapeo precargado según la plantilla de encuesta (tácticas 7-18, mentales 23-31, técnicas 33-44): revísalo' : ''}. Columnas 1-6 fijas (fecha, evaluador, jugador, 3 perfiles de ${safeText(posLabel)}). Columnas 7+: indica qué competencia es cada una.</p>
       <div style="overflow-x:auto;">
         <table class="table table-compact mb-16">
           <thead><tr><th>Columna</th><th>Ejemplo</th><th>Es</th></tr></thead>
@@ -663,9 +664,15 @@ function renderRegistroSub(container) {
     }
     if (!parsed.headers.length) { showError('No se pudo leer el archivo (¿está vacío?).'); return; }
     if (parsed.headers.length < 6) { showError('El archivo debe tener al menos 6 columnas: fecha, evaluador, jugador y 3 perfiles.'); return; }
+    // Estructura fija de las encuestas: se omiten filas de cabecera (números/aspecto/preguntas),
+    // la fecha se normaliza a ISO y el mapeo de columnas 7+ llega precargado (editable).
+    const limpio = quitarCabeceras(parsed.rows);
+    const evImp = regEvaluaciones.find(x => x.id === regEvalSel);
     regImport.headers = parsed.headers;
-    regImport.rows = parsed.rows;
-    regImport.mapping = {};
+    regImport.rows = normalizarFechas(limpio.rows);
+    regImport.omitidas = limpio.omitidas;
+    regImport.mapping = mapeoPorDefecto(state, evImp?.posicionKey, parsed.headers.length);
+    regImport.precargado = Object.keys(regImport.mapping).length > 0;
     regImport.step = 'mapeo';
     renderRegistroSub(container);
   });
