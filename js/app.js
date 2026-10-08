@@ -1574,7 +1574,17 @@ function renderFichaJugador(container, p) {
       return { eid, ev, posKey, n: new Set(rs.map(r => r.evaluador)).size, media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
     }).sort((a, b) => String(b.orden).localeCompare(String(a.orden)));
   }
-  const filasEval = filas.filter(f => f.eid !== 'sin-evaluacion' && f.ev);
+  let filasEval = filas.filter(f => f.eid !== 'sin-evaluacion' && f.ev);
+  if (regs) { // evaluaciones con datos condicionales del jugador aunque no tenga registros importados
+    const conDatos = new Set([...Object.keys(p.condicionalPorEval || {}), ...Object.keys(p.condicionalMaxPorEval || {})]);
+    conDatos.forEach(eid => {
+      const ev = evInfo(eid);
+      if (!ev || filasEval.some(f => f.eid === eid)) return;
+      const idx = (regEvaluaciones || []).findIndex(e => e.id === eid);
+      filasEval.push({ eid, ev, posKey: ev.posicionKey || p.positionKey, n: 0, media: null, orden: `${ev.fechaFin || ev.fechaInicio || ''}|${String(idx).padStart(5, '0')}` });
+    });
+    filasEval.sort((x, y) => String(y.orden).localeCompare(String(x.orden)));
+  }
   const evSel = filasEval.find(f => f.eid === jugFichaEvalId) || filasEval[0] || null; // por defecto, la final
 
   // ── Pestaña "Datos personales"
