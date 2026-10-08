@@ -776,6 +776,42 @@ function renderRegistroSub(container) {
 
 // ── BBDD: filtros + medias/individuales/todo ──────
 
+/** Columnas de la encuesta (ver importar-plantilla.js) para una posición, con el nombre de cada competencia. */
+function columnasEncuesta(positionKey) {
+  const schema = state.criteriaSchemas[positionKey] || {};
+  const cols = [];
+  (schema.perfiles || []).slice(0, 3).forEach((c, i) => cols.push({ num: 4 + i, label: c, grupo: 'Perfil (Ficha 1)' }));
+  (schema.tactico || []).slice(0, 12).forEach((c, i) => cols.push({ num: 7 + i, label: c, grupo: 'Táctico' }));
+  (state.aspectosComunes.mental || []).slice(0, 9).forEach((c, i) => cols.push({ num: 23 + i, label: c, grupo: 'Mental' }));
+  (schema.tecnico || state.aspectosComunes.tecnico || []).slice(0, 12).forEach((c, i) => cols.push({ num: 33 + i, label: c, grupo: 'Técnico' }));
+  return cols;
+}
+
+/** Tabla de registros con las columnas de la encuesta; las notas son editables y se guardan al salir de la celda. */
+function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
+  const cols = columnasEncuesta(positionKey);
+  const posLabel = state.positions.find(p => p.key === positionKey)?.label || positionKey;
+  const fmtFecha = f => { const m = String(f || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}:\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}` : (f || '—'); };
+  const grupos = []; // cabecera de grupo con colspan
+  cols.forEach(c => { const g = grupos[grupos.length - 1]; if (g && g.nombre === c.grupo) g.n++; else grupos.push({ nombre: c.grupo, n: 1 }); });
+  const rows = registros.map(r => `
+    <tr>
+      <td style="white-space:nowrap;">${safeText(fmtFecha(r.fechaRegistro))}</td>
+      <td>${safeText(r.evaluador)}</td>
+      <td style="white-space:nowrap;font-weight:600;">${safeText(jugadorLabel(r.jugadorId))}</td>
+      ${cols.map(c => `<td><input class="input" type="text" inputmode="decimal" style="width:46px;padding:2px 4px;text-align:center;" data-reg-edit="${r.id}" data-clave="${safeText(c.label)}" value="${safeText(r.puntuaciones?.[c.label] ?? '')}" /></td>`).join('')}
+    </tr>`).join('');
+  return `
+    <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · columnas según la encuesta (nº de columna al pasar el ratón). Edita una nota y sal de la celda para guardar.</p>
+    <div style="overflow-x:auto;"><table class="table table-compact">
+      <thead>
+        <tr><th colspan="3"></th>${grupos.map(g => `<th colspan="${g.n}" style="text-align:center;">${safeText(g.nombre)}</th>`).join('')}</tr>
+        <tr><th>Fecha</th><th>Evaluador</th><th>Jugador</th>${cols.map(c => `<th title="Columna ${c.num} de la encuesta" style="min-width:60px;font-size:10px;line-height:1.2;vertical-align:bottom;">${safeText(c.label)}</th>`).join('')}</tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
 function buildBBDDResultadosHTML() {
   if (!bbddResultado) return '<p class="text-xs text-muted">Aplica filtros y pulsa Buscar.</p>';
   const { registros, mediasPorJugador } = bbddResultado;
@@ -787,10 +823,12 @@ function buildBBDDResultadosHTML() {
   };
 
   if (bbddFiltros.vista === 'individuales') {
+    const posKeys = [...new Set(registros.map(r => r.posicionKey))];
+    if (posKeys.length === 1) return buildTablaEncuestaHTML(registros, posKeys[0], jugadorLabel);
     const rows = registros.map(r => `
       <tr><td>${safeText(jugadorLabel(r.jugadorId))}</td><td>${safeText(r.evaluador)}</td><td>${Object.keys(r.puntuaciones || {}).length} valores</td></tr>
     `).join('');
-    return `<table class="table table-compact"><thead><tr><th>Jugador</th><th>Evaluador</th><th>Datos</th></tr></thead><tbody>${rows}</tbody></table>`;
+    return `<p class="text-xs text-muted mb-8">Filtra por una posición (o una evaluación) para ver la tabla con las columnas de la encuesta, editable.</p><table class="table table-compact"><thead><tr><th>Jugador</th><th>Evaluador</th><th>Datos</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   const porJugador = {};
@@ -874,6 +912,37 @@ function renderBBDDSub(container) {
       fichaRealView = { jugadorId, positionKey };
       fichaRealSubPage = 1;
       renderBBDDSub(container);
+    });
+  });
+
+  container.querySelectorAll('[data-reg-edit]').forEach(inp => {
+    inp.addEventListener('change', async () => {
+      const reg = (bbddResultado?.registros || []).find(r => r.id === inp.dataset.regEdit);
+      if (!reg) return;
+      const clave = inp.dataset.clave;
+      const raw = inp.value.trim();
+      const val = raw === '' ? null : parseEsNumber(raw);
+      if (raw !== '' && val == null) { showError('La nota debe ser un número.'); inp.value = reg.puntuaciones?.[clave] ?? ''; return; }
+      const puntuaciones = { ...(reg.puntuaciones || {}) };
+      const puntuacionesId = { ...(reg.puntuacionesId || {}) };
+      const idClave = buildCatalogo(state, reg.posicionKey).lista.find(c => c.clave === clave)?.id;
+      if (val == null) { delete puntuaciones[clave]; if (idClave) delete puntuacionesId[idClave]; }
+      else { puntuaciones[clave] = val; if (idClave) puntuacionesId[idClave] = val; }
+      try {
+        await actualizarRegistro(reg.id, { puntuaciones, puntuacionesId });
+        reg.puntuaciones = puntuaciones; reg.puntuacionesId = puntuacionesId;
+        const porPosicion = {};
+        bbddResultado.registros.forEach(r => { (porPosicion[r.posicionKey] = porPosicion[r.posicionKey] || []).push(r); });
+        const medias = {};
+        Object.entries(porPosicion).forEach(([pk, regs]) => Object.assign(medias, calcularMediasPorJugador(regs, buildAspectoPorCompetencia(state, pk))));
+        bbddResultado.mediasPorJugador = medias;
+        inp.value = val ?? '';
+        showSuccess('Nota guardada.');
+      } catch (err) {
+        console.error('[Firestore] No se pudo guardar la nota:', err);
+        showError('No se pudo guardar la nota (revisa las reglas de Firestore).');
+        inp.value = reg.puntuaciones?.[clave] ?? '';
+      }
     });
   });
 
