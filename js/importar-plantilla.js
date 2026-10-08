@@ -61,6 +61,8 @@ export const TEXTOS_DESTINOS = {
   '@txt_of_pot': 'Texto: ofensivos a potenciar', '@txt_of_mej': 'Texto: ofensivos a mejorar',
   '@txt_def_pot': 'Texto: defensivos a potenciar', '@txt_def_mej': 'Texto: defensivos a mejorar',
 };
+/** Destinos R / P de la Ficha 1 (valoración del rendimiento actual / proyección). El registro los guarda en `rp`. */
+export const RP_DESTINOS = { '@r': 'Ficha 1: R (rendimiento)', '@p': 'Ficha 1: P (proyección)' };
 const TEXTO_POR_COL = { 19: '@txt_of_pot', 20: '@txt_of_mej', 21: '@txt_def_pot', 22: '@txt_def_mej' };
 
 /**
@@ -90,7 +92,7 @@ export function columnasEfectivas(state, positionKey) {
     else if (n === 32) nombre = 'Perfil técnico';
     else if (n <= 44) nombre = destino = tec[n - 33] || '';
     else if (n <= 49) nombre = 'NO BBDD';
-    else nombre = n === 50 ? 'R' : 'P';
+    else { nombre = n === 50 ? 'R' : 'P'; destino = n === 50 ? '@r' : '@p'; }
     const o = over[n];
     if (o) {
       if (o.nombre) nombre = o.nombre;
