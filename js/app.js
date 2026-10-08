@@ -19,6 +19,8 @@ import { renderFichaPagina1 } from './ficha-pagina1.js';
 import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
 import { exportFichaAsPDF } from './pdf-export.js';
 import { showError, showSuccess, safeText } from './utils.js';
+import { renderFichasEspejo } from './ficha-espejo-ui.js';
+import { buildCatalogo, slugify } from './ficha-espejo.js';
 
 // ── EVITAR SALTO DE SCROLL AL RE-RENDERIZAR ───────
 // Reemplazar innerHTML de un panel entero resetea el scroll del navegador.
@@ -474,6 +476,11 @@ async function procesarImport(container) {
   const ev = regEvaluaciones.find(e => e.id === regEvalSel);
   const schema = state.criteriaSchemas[ev.posicionKey] || {};
   const perfiles = schema.perfiles || [];
+  // IDs estables (ficha-espejo.js): además de puntuaciones{nombre}, cada registro
+  // nuevo guarda puntuacionesId{id}. Retrocompatible: lo antiguo se sigue leyendo por nombre.
+  const catalogo = buildCatalogo(state, ev.posicionKey);
+  const idPorClave = {};
+  catalogo.lista.forEach(c => { if (!(c.clave in idPorClave)) idPorClave[c.clave] = c.id; });
   // Contrato fijo (sin cabecera): 1=fecha, 2=evaluador, 3=jugador, 4-6=perfiles.
   const colFecha = 'Columna 1', colEvaluador = 'Columna 2', colJugador = 'Columna 3';
   const colPerfiles = ['Columna 4', 'Columna 5', 'Columna 6'];
@@ -488,6 +495,7 @@ async function procesarImport(container) {
       return { error: 'Falta jugador o evaluador', jugadorNombreArchivo, evaluador };
     }
     const puntuaciones = {};
+    const puntuacionesId = {};
     let invalido = false;
 
     colPerfiles.forEach((col, i) => {
@@ -498,6 +506,7 @@ async function procesarImport(container) {
       const val = parseEsNumber(raw);
       if (val == null) { invalido = true; return; }
       puntuaciones[nombre] = val;
+      if (idPorClave[nombre]) puntuacionesId[idPorClave[nombre]] = val;
     });
 
     Object.entries(regImport.mapping).forEach(([header, target]) => {
@@ -509,17 +518,18 @@ async function procesarImport(container) {
       // Condicional con dos columnas: "Item::A" → Item (valor 1), "Item::B" → Item__B (valor 2)
       const key = target.endsWith('::A') ? target.slice(0, -3) : target.endsWith('::B') ? target.slice(0, -3) + '__B' : target;
       puntuaciones[key] = val;
+      if (idPorClave[key]) puntuacionesId[idPorClave[key]] = val;
     });
     if (invalido) return { error: 'Valor no numérico', jugadorNombreArchivo, evaluador };
 
     const teamKey = colEquipo ? teamKeyPorLabel(row[colEquipo]) : null;
     const match = matchJugador(jugadorNombreArchivo, state.players, { teamKey });
     if (match.status !== 'auto') {
-      return { jugadorNombreArchivo, evaluador, puntuaciones, fechaRegistro, matchStatus: match.status, matchCandidates: match.candidates };
+      return { jugadorNombreArchivo, evaluador, puntuaciones, puntuacionesId, fechaRegistro, matchStatus: match.status, matchCandidates: match.candidates };
     }
     const jugadorId = match.playerId;
     const rowKey = buildRowKey({ evaluacionId: ev.id, jugadorId, jugadorNombreArchivo, evaluador });
-    return { jugadorNombreArchivo, evaluador, puntuaciones, fechaRegistro, jugadorId, rowKey };
+    return { jugadorNombreArchivo, evaluador, puntuaciones, puntuacionesId, fechaRegistro, jugadorId, rowKey };
   });
 
   regImport.pendientes = filas.filter(f => !f.error && !f.jugadorId);
@@ -678,7 +688,7 @@ function renderRegistroSub(container) {
       const playerId = sel?.value || '';
       if (!playerId) { restantes.push(f); return; }
       const rowKey = buildRowKey({ evaluacionId: regEvalSel, jugadorId: playerId, jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador });
-      resueltos.push({ jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador, puntuaciones: f.puntuaciones, fechaRegistro: f.fechaRegistro, jugadorId: playerId, rowKey });
+      resueltos.push({ jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador, puntuaciones: f.puntuaciones, puntuacionesId: f.puntuacionesId, fechaRegistro: f.fechaRegistro, jugadorId: playerId, rowKey });
       if (!aliasUpdates.has(playerId)) aliasUpdates.set(playerId, new Set());
       aliasUpdates.get(playerId).add(f.jugadorNombreArchivo);
     });
@@ -722,14 +732,14 @@ function renderRegistroSub(container) {
         await crearRegistro({
           evaluacionId: ev.id, temporada: ev.temporada, posicionKey: ev.posicionKey, tipo: ev.tipo || null,
           jugadorId: fila.jugadorId, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
-          puntuaciones: fila.puntuaciones, fechaRegistro: fila.fechaRegistro || null, rowKey: fila.rowKey, origen: 'csv',
+          puntuaciones: fila.puntuaciones, puntuacionesId: fila.puntuacionesId || {}, fechaRegistro: fila.fechaRegistro || null, rowKey: fila.rowKey, origen: 'csv',
         });
       }
       let sustituidos = 0;
       for (const fila of r.conCambios) {
         if ((regImport.decisiones[fila.rowKey] || 'mantener') === 'reemplazar') {
           await actualizarRegistro(fila.existente.id, {
-            puntuaciones: fila.puntuaciones, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
+            puntuaciones: fila.puntuaciones, puntuacionesId: fila.puntuacionesId || {}, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
             fechaRegistro: fila.fechaRegistro || null,
           });
           sustituidos++;
@@ -1049,6 +1059,7 @@ const CONFIG_GROUPS = [
     label: 'Fichas tipo',
     tabs: [
       { key: 'fichas-individual',  label: 'Individual' },
+      { key: 'fichas-espejo',      label: 'Fichas Espejo' },
       { key: 'fichas-campograma',  label: 'Campograma' },
       { key: 'fichas-mapa-nivel',  label: 'Mapa de nivel' },
     ],
@@ -1343,6 +1354,13 @@ function calcAgeAndYear(birthDateStr) {
 // ya se hacía con weight/height — solo se amplía el mismo patrón.
 const HISTORICO_FIELDS = ['teamKey', 'positionKey', 'weight', 'height', 'complexion'];
 
+async function cargarEvaluacionesSilencioso() {
+  if (regEvaluaciones !== null) return;
+  if (isFirebaseUnconfigured()) { regEvaluaciones = []; return; }
+  try { regEvaluaciones = await listarEvaluaciones(); }
+  catch (err) { console.error('[Firestore] No se pudieron cargar las evaluaciones:', err); regEvaluaciones = []; }
+}
+
 function buildJugadorFormHTML(player) {
   const p = player || {};
   const teamOptions = TEAMS.map(t => `<option value="${t.key}" ${p.teamKey === t.key ? 'selected' : ''}>${safeText(t.label)}</option>`).join('');
@@ -1408,6 +1426,20 @@ function buildJugadorFormHTML(player) {
             <input class="input" type="text" id="jug-complexion" value="${safeText(p.complexion ?? '')}" />
           </div>
         </div>
+        ${(state.aspectosComunes.condicional || []).length ? `
+        <div class="text-xs text-muted mt-16 mb-8" style="font-weight:700;text-transform:uppercase;">Datos condicionales (un valor por evaluación)</div>
+        ${(regEvaluaciones || []).length ? `
+        <div class="field-group mb-8" style="min-width:260px;max-width:360px;">
+          <label class="label">Evaluación</label>
+          <select class="select" id="jug-cond-eval">${regEvaluaciones.map((e, i) => `<option value="${e.id}" ${i === 0 ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>
+        </div>
+        <div class="flex gap-12" style="flex-wrap:wrap;">
+          ${state.aspectosComunes.condicional.map(item => `
+            <div class="field-group" style="min-width:120px;">
+              <label class="label">${safeText(item)}</label>
+              <input class="input" type="text" inputmode="decimal" data-jug-cond="${safeText(slugify(item))}" value="" />
+            </div>`).join('')}
+        </div>` : '<p class="text-xs text-muted">Crea primero una evaluación (Registro de datos) para poder guardar datos condicionales.</p>'}` : ''}
         <div class="flex gap-8 mt-16">
           <button class="btn btn-primary" id="jug-save">${player ? 'Guardar cambios' : 'Añadir jugador'}</button>
           <button class="btn btn-ghost" id="jug-cancel">Cancelar</button>
@@ -1497,7 +1529,8 @@ function renderPanelJugadores(container) {
     </div>
   `;
 
-  container.querySelector('#jug-add')?.addEventListener('click', () => {
+  container.querySelector('#jug-add')?.addEventListener('click', async () => {
+    await cargarEvaluacionesSilencioso();
     jugadorFormId = 'new';
     renderPanelJugadores(container);
   });
@@ -1506,7 +1539,8 @@ function renderPanelJugadores(container) {
     renderPanelJugadores(container);
   });
   container.querySelectorAll('[data-jug-edit]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
+      await cargarEvaluacionesSilencioso();
       jugadorFormId = btn.dataset.jugEdit;
       renderPanelJugadores(container);
     });
@@ -1549,7 +1583,39 @@ function renderPanelJugadores(container) {
       }
     });
   });
+  // Datos condicionales por evaluación: borrador en memoria hasta pulsar Guardar.
+  const condSel = container.querySelector('#jug-cond-eval');
+  const condInputs = [...container.querySelectorAll('[data-jug-cond]')];
+  const condDraft = JSON.parse(JSON.stringify((jugadorFormId !== 'new' && editingPlayer?.condicionalPorEval) || {}));
+  let condEvalActual = condSel?.value || null;
+  const condVolcar = () => { // inputs → borrador de la evaluación actual
+    if (!condEvalActual) return;
+    condDraft[condEvalActual] = condDraft[condEvalActual] || {};
+    condInputs.forEach(inp => {
+      const raw = inp.value.trim();
+      if (raw === '') delete condDraft[condEvalActual][inp.dataset.jugCond];
+      else condDraft[condEvalActual][inp.dataset.jugCond] = raw; // se valida al guardar
+    });
+  };
+  const condCargar = () => { // borrador → inputs
+    condInputs.forEach(inp => { inp.value = condDraft[condEvalActual]?.[inp.dataset.jugCond] ?? ''; });
+  };
+  if (condSel) condCargar();
+  condSel?.addEventListener('change', () => { condVolcar(); condEvalActual = condSel.value; condCargar(); });
+
   container.querySelector('#jug-save')?.addEventListener('click', async () => {
+    let condicionalPorEval = null;
+    if (condSel) {
+      condVolcar();
+      condicionalPorEval = {};
+      for (const [evId, valores] of Object.entries(condDraft)) {
+        for (const [slug, raw] of Object.entries(valores)) {
+          const n = typeof raw === 'number' ? raw : parseEsNumber(raw);
+          if (n == null) { showError('Algún dato condicional no es un número.'); return; }
+          (condicionalPorEval[evId] = condicionalPorEval[evId] || {})[slug] = n;
+        }
+      }
+    }
     const baseData = {
       nombre: container.querySelector('#jug-nombre').value.trim(),
       apellidos: container.querySelector('#jug-apellidos').value.trim(),
@@ -1564,6 +1630,7 @@ function renderPanelJugadores(container) {
       height: container.querySelector('#jug-height').value === '' ? null : parseFloat(container.querySelector('#jug-height').value),
       complexion: container.querySelector('#jug-complexion').value.trim() || null,
     };
+    if (condicionalPorEval) baseData.condicionalPorEval = condicionalPorEval;
     const fotoFile = container.querySelector('#jug-foto').files[0] || null;
     if (!baseData.nombre) { showError('El nombre es obligatorio.'); return; }
 
@@ -2006,6 +2073,16 @@ function renderPanelConfig(container) {
     </div>
     `}
 
+    ${configSubTab !== 'fichas-espejo' ? '' : `
+    <div class="card mb-16">
+      <div class="card-title">Fichas Espejo — origen y cálculo de cada número</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">Cada ítem de la Ficha 1 y 2 tiene un número. Pulsa Configurar para definir de dónde sale su dato y qué operación se hace. Aún NO está conectado a las fichas reales.</p>
+        <div id="fichas-espejo-wrap"></div>
+      </div>
+    </div>
+    `}
+
     ${configSubTab !== 'fichas-campograma' ? '' : `
     <div class="card mb-16">
       <div class="card-title">Fichas tipo — Campograma</div>
@@ -2099,6 +2176,9 @@ function renderPanelConfig(container) {
 
   const fichasTipoWrap = container.querySelector('#fichas-tipo-wrap');
   if (fichasTipoWrap) renderPanelFichas(fichasTipoWrap, fichaTipoPosition);
+
+  const fichasEspejoWrap = container.querySelector('#fichas-espejo-wrap');
+  if (fichasEspejoWrap) renderFichasEspejo(fichasEspejoWrap);
 
   container.querySelectorAll('[data-crit-copy-btn]').forEach(copyBtn => {
     copyBtn.addEventListener('click', () => {
