@@ -1608,14 +1608,14 @@ function renderFichaJugador(container, p) {
 
   // ── Pestañas Ficha 1 / Ficha 2 (evaluación elegida; por defecto la final)
   const fichaTabHTML = !regs ? '<p class="text-xs text-muted">Cargando…</p>'
-    : !evSel ? '<p class="text-xs text-muted">Este jugador no tiene evaluaciones importadas todavía.</p>'
+    : (!evSel && !p.positionKey) ? '<p class="text-xs text-muted">Este jugador no tiene posición asignada: edítalo para elegir una.</p>'
     : `
-      <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
+      ${evSel ? `<div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
         <label class="text-xs text-muted" for="jug-ficha-eval">Evaluación</label>
         <select class="select" id="jug-ficha-eval" style="max-width:360px;">
           ${filasEval.map((f, i) => `<option value="${f.eid}" ${f.eid === evSel.eid ? 'selected' : ''}>${safeText(evLabel(f.eid))}${i === 0 ? ' — final' : ''}</option>`).join('')}
         </select>
-      </div>
+      </div>` : '<p class="text-xs text-muted mb-16">Sin evaluaciones importadas: ficha tipo de la posición, sin notas.</p>'}
       <div id="jug-ficha-wrap" class="ficha-wrap"></div>`;
 
   container.innerHTML = `
@@ -1641,13 +1641,14 @@ function renderFichaJugador(container, p) {
     ${jugFichaTab === 'datos' ? datosHTML : fichaTabHTML}
   `;
 
-  if (jugFichaTab !== 'datos' && evSel) {
+  if (jugFichaTab !== 'datos' && regs && (evSel || p.positionKey)) {
     const wrap = container.querySelector('#jug-ficha-wrap');
+    const fPos = evSel?.posKey || p.positionKey, fMedia = evSel?.media || null;
     if (jugFichaTab === 'ficha1') {
-      renderFichaPagina1(wrap, buildFicha1RealData(evSel.posKey, evSel.media, p), LOGO_PATH, state.fichaColors);
+      renderFichaPagina1(wrap, buildFicha1RealData(fPos, fMedia, p), LOGO_PATH, state.fichaColors);
     } else {
       setGpsTolerance(state.condicionalTolerance);
-      renderFichaDetalle(wrap, buildFichaRealData(evSel.posKey, evSel.media, p), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
+      renderFichaDetalle(wrap, buildFichaRealData(fPos, fMedia, p), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
     }
   }
 
@@ -1833,7 +1834,9 @@ function renderPanelJugadores(container) {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = OUT;
     const scale = crop.min * crop.zoom;
-    canvas.getContext('2d').drawImage(crop.img, -crop.x / scale, -crop.y / scale, CROP_V / scale, CROP_V / scale, 0, 0, OUT, OUT);
+    const cx = canvas.getContext('2d');
+    cx.fillStyle = '#fff'; cx.fillRect(0, 0, OUT, OUT); // PNG transparente → fondo blanco
+    cx.drawImage(crop.img, -crop.x / scale, -crop.y / scale, CROP_V / scale, CROP_V / scale, 0, 0, OUT, OUT);
     canvas.toBlob(b => resolve(b ? new File([b], 'foto.jpg', { type: 'image/jpeg' }) : null), 'image/jpeg', 0.9);
   });
 
