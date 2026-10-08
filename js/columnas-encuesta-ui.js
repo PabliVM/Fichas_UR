@@ -25,23 +25,25 @@ export function renderColumnasEncuesta(container) {
   const cols = columnasEfectivas(state, cePos);
   const aspecto = buildAspectoPorCompetencia(state, cePos);
   const competencias = Object.keys(aspecto).filter(c => aspecto[c] !== 'condicional');
+  const perfiles = (state.criteriaSchemas[cePos]?.perfiles || []).filter(Boolean);
+  const ESPECIALES = { '@fecha': 'Fecha y hora', '@evaluador': 'Evaluador', '@jugador': 'Jugador', 'equipo': 'Equipo (opcional)' };
   const usos = {};
   cols.forEach(c => { if (c.destino) usos[c.destino] = (usos[c.destino] || 0) + 1; });
   const hayCambios = Object.keys(state.columnasEncuesta?.[cePos] || {}).length > 0;
+  const opt = (v, l, sel) => `<option value="${safeText(v)}" ${v === sel ? 'selected' : ''}>${safeText(l)}</option>`;
 
   const filas = cols.map(c => {
-    const editable = !c.fija;
     const dup = c.destino && usos[c.destino] > 1;
-    const selDestino = editable ? `
-      <select class="select" data-ce-destino="${c.num}">
-        <option value="">— No se importa —</option>
-        ${competencias.map(k => `<option value="${safeText(k)}" ${k === c.destino ? 'selected' : ''}>${safeText(k)} (${safeText(aspecto[k])})</option>`).join('')}
-      </select>` : `<span class="text-muted">${c.num <= 6 ? 'Fijo' : 'Texto — no se importa'}</span>`;
     return `<tr>
       <td style="font-weight:700;">${c.num}</td>
       <td class="text-muted">${safeText(c.tipo)}</td>
-      <td>${editable ? `<input class="input" type="text" style="min-width:260px;" data-ce-nombre="${c.num}" value="${safeText(c.nombre)}" />` : safeText(c.nombre)}</td>
-      <td>${selDestino}${dup ? ' <span title="Dos columnas van a la misma competencia: la última pisa a la primera" style="color:#ef4444;">⚠ repetida</span>' : ''}</td>
+      <td><input class="input" type="text" style="min-width:260px;" data-ce-nombre="${c.num}" value="${safeText(c.nombre)}" /></td>
+      <td><select class="select" data-ce-destino="${c.num}">
+        <option value="">— No se importa —</option>
+        ${Object.entries(ESPECIALES).map(([k, l]) => opt(k, l, c.destino)).join('')}
+        ${perfiles.map(p => opt(p, `Perfil: ${p}`, c.destino)).join('')}
+        ${competencias.map(k => opt(k, `${k} (${aspecto[k]})`, c.destino)).join('')}
+      </select>${dup ? ' <span title="Dos columnas van al mismo destino: la última pisa a la primera" style="color:#ef4444;">⚠ repetida</span>' : ''}</td>
     </tr>`;
   }).join('');
 
@@ -52,7 +54,7 @@ export function renderColumnasEncuesta(container) {
       <button class="btn btn-sm" id="ce-reset" ${hayCambios ? '' : 'disabled'}>Restaurar plantilla de esta posición</button>
     </div>
     <div style="overflow-x:auto;"><table class="table table-compact">
-      <thead><tr><th>Nº</th><th>Qué es</th><th>Nombre en la BBDD</th><th>Va a (competencia)</th></tr></thead>
+      <thead><tr><th>Nº</th><th>Plantilla</th><th>Nombre en la BBDD</th><th>Va a (competencia)</th></tr></thead>
       <tbody>${filas}</tbody>
     </table></div>`;
 
@@ -65,7 +67,7 @@ export function renderColumnasEncuesta(container) {
   container.querySelectorAll('[data-ce-destino]').forEach(sel => sel.addEventListener('change', () => {
     const n = Number(sel.dataset.ceDestino);
     const patch = { destino: sel.value };
-    if (sel.value && !(state.columnasEncuesta?.[cePos]?.[n]?.nombre)) patch.nombre = sel.value; // el nombre sigue a la competencia si no lo has cambiado
+    if (sel.value && !(state.columnasEncuesta?.[cePos]?.[n]?.nombre)) patch.nombre = ESPECIALES[sel.value] || sel.value; // el nombre sigue al destino si no lo has cambiado
     guardar(cePos, n, patch);
     rerender();
   }));
