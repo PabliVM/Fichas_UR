@@ -835,19 +835,19 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
   return `
     <style>
       .bt-wrap { overflow-x:auto; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
-      .bt { border-collapse:collapse; width:max-content; min-width:100%; background:#fff; color:#0f1117; font-size:12px; }
-      .bt th { background:var(--header-bg, #1d4ed8); color:#fff; font-size:11px; font-weight:700; line-height:1.25; text-transform:uppercase; letter-spacing:.2px;
-               text-align:center; vertical-align:middle; padding:8px 6px; width:96px; min-width:96px; max-width:96px; border-left:1px solid rgba(255,255,255,.35); overflow-wrap:anywhere; hyphens:auto; }
+      .bt { border-collapse:collapse; width:max-content; min-width:100%; background:#fff; color:#0f1117; font-size:11px; }
+      .bt th { background:var(--header-bg, #1d4ed8); color:#fff; font-size:9.5px; font-weight:700; line-height:1.2; text-transform:uppercase; letter-spacing:.1px;
+               text-align:center; vertical-align:middle; padding:6px 4px; width:88px; min-width:88px; max-width:88px; border-left:1px solid rgba(255,255,255,.35); overflow-wrap:anywhere; hyphens:auto; }
       .bt th:first-child { border-left:none; }
-      .bt th .bt-n { display:block; font-size:10px; font-weight:600; opacity:.75; margin-bottom:3px; }
+      .bt th .bt-n { display:block; font-size:9px; font-weight:600; opacity:.75; margin-bottom:3px; }
       .bt td { background:#fff; color:#0f1117; padding:5px 6px; border-left:1px solid #cbd5e1; border-top:1px solid #cbd5e1; text-align:center; vertical-align:middle; }
       .bt td:first-child { border-left:none; }
       .bt tbody tr:nth-child(even) td { background:#f8fafc; }
       .bt .bt-nowrap { white-space:nowrap; }
       .bt .bt-bold { font-weight:700; text-align:left; }
-      .bt .bt-texto { max-width:220px; font-size:11px; text-align:left; }
+      .bt .bt-texto { max-width:220px; font-size:10px; text-align:left; }
       .bt .bt-vacia { height:30px; }
-      .bt .bt-num input { width:56px; padding:3px 4px; text-align:center; background:#fff; color:#0f1117; border:1px solid #cbd5e1; border-radius:4px; }
+      .bt .bt-num input { width:50px; font-size:11px; padding:2px 3px; text-align:center; background:#fff; color:#0f1117; border:1px solid #cbd5e1; border-radius:4px; }
     </style>
     <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración → Columnas encuesta. Edita una nota y sal de la celda para guardar.</p>
     <div class="bt-wrap"><table class="bt">
