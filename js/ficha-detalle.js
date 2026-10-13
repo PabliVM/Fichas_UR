@@ -176,10 +176,11 @@ function centerFichaCircle(root) {
 
 // ── BLOQUE CON RADAR (mental / técnico / táctico) ──
 
-function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos }) {
+function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref }) {
   const avg = blockAvg({ rp, items });
   const avgColor = avg != null ? (scoreColor(avg, bands) || '#ffffff') : null;
   const avgHTML = avg != null ? ` <span class="ficha-q-media" style="color:${avgColor};margin-left:40px;font-weight:800;">${formatNum(avg)}</span>` : '';
+  const refHTML = (ref != null && !Number.isNaN(ref)) ? ` <span class="ficha-q-ref">/ ${formatNum(ref)}</span>` : '';
   // Con muchas items (ej. Táctico portero, 24) la lista lateral no cabe
   // en la altura fija de la ficha si mantiene el tamaño pensado para ~12.
   // A partir de 18 items se reduce letra/gap solo de esta lista, para no
@@ -207,7 +208,7 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos }) {
   return `
     <section class="ficha-quadrant q-${blockKey} pos-${pos} ${side === 'left' ? 'q-left' : 'q-right'}">
       <header class="ficha-q-header">
-        <span class="ficha-q-title">${safeText(title)}${avgHTML}</span>
+        <span class="ficha-q-title">${safeText(title)}${avgHTML}${refHTML}</span>
       </header>
       <div class="ficha-q-body">
         ${side === 'left' ? listBlock + radarBlock : radarBlock + listBlock}
@@ -308,11 +309,12 @@ function buildPlanAccion(plan) {
 
 // ── HEADER DE LA FICHA (azul corporativo, arriba del todo) ──
 
-export function buildFichaHeader(logoPath, pageLabel) {
+export function buildFichaHeader(logoPath, pageLabel, refLabel) {
   return `
     <header class="ficha-header">
       <img src="${logoPath}" alt="" class="ficha-header-crest" />
       <span class="ficha-header-title">INFORME INDIVIDUAL DEL JUGADOR</span>
+      ${refLabel ? `<span class="ficha-header-ref">${safeText(refLabel)}</span>` : ''}
       ${pageLabel ? `<span class="ficha-header-page">${safeText(pageLabel)}</span>` : ''}
     </header>
   `;
@@ -472,13 +474,13 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
     if (key === 'condicional') {
       return buildCondicionalBlock({ title: BLOCK_TITLES.condicional, rp: blocks.condicional.rp, items: blocks.condicional.items, pos });
     }
-    return buildRatedBlock({ title: BLOCK_TITLES[key], rp: blocks[key].rp, items: blocks[key].items, side: sideForPos(pos), bands, blockKey: key, pos });
+    return buildRatedBlock({ title: BLOCK_TITLES[key], rp: blocks[key].rp, items: blocks[key].items, side: sideForPos(pos), bands, blockKey: key, pos, ref: data.ref?.[key] });
   };
 
   container.innerHTML = `
     <div class="ficha-a4-frame">
       <div class="ficha-detalle"${colorStyle}>
-        ${buildFichaHeader(logoPath, pageLabel)}
+        ${buildFichaHeader(logoPath, pageLabel, data.ref?.label)}
         <div class="ficha-grid">
           ${buildBlockAt('tl')}
           ${buildBlockAt('tr')}
