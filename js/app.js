@@ -158,6 +158,8 @@ function buildFichaRealData(positionKey, media, jugador, evalId) {
   };
 }
 
+const PERFIL_AJUSTE = 0.5; // puntos que se restan a la nota de los 3 perfiles en la Ficha 1
+
 function buildFicha1RealData(positionKey, media, jugador, aspectos, evalId) {
   const schema = state.criteriaSchemas[positionKey] || {};
   const mental = state.aspectosComunes.mental || [];
@@ -179,6 +181,8 @@ function buildFicha1RealData(positionKey, media, jugador, aspectos, evalId) {
       const valores = items.map(it => comp[it]).filter(v => v != null);
       mediaPerfil = valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null;
     }
+    // Ajuste de presentación pedido: la nota del perfil se muestra medio punto por debajo (y el color sigue a esa nota).
+    if (mediaPerfil != null) mediaPerfil = Math.max(0, mediaPerfil - PERFIL_AJUSTE);
     const bandHex = mediaPerfil == null ? null : ([...state.scoreBands].sort((a, b) => b.min - a.min).find(b => mediaPerfil >= Number(b.min))?.color || null);
     return { label: nombre, value: mediaPerfil, hex: bandHex, color: bandKeyForValue(mediaPerfil, state.scoreBands) };
   });
