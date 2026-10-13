@@ -3298,7 +3298,7 @@ async function ensurePlantillas() {
 // Equipos del jugador en una temporada. Si esa temporada aún no tiene plantillas
 // creadas, se usa el equipo actual del jugador (compatibilidad con lo anterior).
 function equiposDeJugador(jugador, temporada) {
-  const docs = (plantillasCache || []).filter(d => d.temporada === temporada);
+  const docs = (plantillasCache || []).filter(d => d.temporada === temporada && d.teamKey !== '_portada');
   if (!docs.length) return jugador?.teamKey ? [jugador.teamKey] : [];
   return docs.filter(d => (d.jugadorIds || []).includes(jugador.id)).map(d => d.teamKey);
 }
@@ -3541,16 +3541,23 @@ function prepararFichaJugador(p, regs, temporada) {
 }
 
 // Portadas y separadores (diapositivas 1920×1080 que se escalan a pantalla y se capturan a tamaño natural para el PDF).
+// Diapositivas 1920×1337 (misma proporción que la Ficha 2: 7200×5014) que se escalan a pantalla y se
+// capturan a tamaño natural para el PDF. Estilo único: títulos en negrita mayúsculas, subtítulos en peso medio.
+const PL_W = 1920, PL_H = 1337;
 function injectPlantillaStyles() {
   if (document.getElementById('pl-styles')) return;
   const st = document.createElement('style');
   st.id = 'pl-styles';
   st.textContent = `
-    .pl-frame{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;margin-bottom:16px;border-radius:6px;}
-    .pl-slide{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:top left;overflow:hidden;font-family:'Segoe UI Black','Arial Black',system-ui,sans-serif;color:#fff;}
+    .pl-frame{position:relative;width:100%;aspect-ratio:${PL_W}/${PL_H};overflow:hidden;margin-bottom:16px;border-radius:6px;}
+    .pl-slide{position:absolute;left:0;top:0;width:${PL_W}px;height:${PL_H}px;transform-origin:top left;overflow:hidden;font-family:'Segoe UI Black','Arial Black',system-ui,sans-serif;color:#fff;}
     .pl-slide .pl-crest{position:absolute;width:150px;height:150px;object-fit:contain;border-radius:28px;}
-    .pl-slide h1{position:absolute;margin:0;font-style:italic;font-weight:900;text-transform:uppercase;line-height:1.02;letter-spacing:0.01em;}
-    .pl-pendiente-txt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;}
+    .pl-t{font-weight:900;text-transform:uppercase;letter-spacing:0.02em;line-height:1.05;margin:0;}
+    .pl-t-xl{font-size:200px;font-style:italic;}
+    .pl-t-l{font-size:130px;}
+    .pl-t-m{font-size:84px;}
+    .pl-sub{font-family:system-ui,'Segoe UI',sans-serif;font-weight:600;font-size:48px;opacity:0.8;}
+    .pl-nombre{font-weight:800;text-transform:uppercase;text-align:center;line-height:1.1;}
   `;
   document.head.appendChild(st);
 }
@@ -3575,42 +3582,72 @@ function plOro(style, w, h) {
   const id = `plg${++plUid}`;
   return `<svg style="position:absolute;${style}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f5a623"/><stop offset="1" stop-color="#f5a623" stop-opacity="0"/></linearGradient></defs><polygon points="${w * 0.4},0 ${w},0 ${w * 0.6},${h} 0,${h}" fill="url(#${id})"/></svg>`;
 }
+const PL_ORO_SOLIDO = '#ffab40';
+const plCrest = style => `<img class="pl-crest" src="${LOGO_PATH}" style="${style}" alt="" />`;
+
 function plPortadaGeneral(c, foto) {
   return plSlide(`
-    <img class="pl-crest" src="${LOGO_PATH}" style="left:40px;top:40px;" alt="" />
-    <h1 style="left:80px;top:150px;font-size:195px;width:1150px;">Evolución<br>de los<br>jugadores</h1>
-    ${plFotoPoligono('right:60px;top:200px;', 1000, 760, [[12, 0], [100, 0], [88, 100], [0, 100]], foto, 'Foto de portada')}
-    ${plOro('right:60px;bottom:90px;', 230, 300)}
-    ${plPoligono('left:0;bottom:0;', 860, 230, [[0, 0], [100, 0], [94, 100], [0, 100]], c.wine)}
-    <div style="position:absolute;left:60px;bottom:0;height:230px;display:flex;align-items:center;color:#111;font-style:italic;font-weight:900;font-size:88px;line-height:1;text-transform:uppercase;">Informes<br>individuales</div>`, c.slate);
+    ${plCrest('left:40px;top:40px;')}
+    <h1 class="pl-t pl-t-xl" style="position:absolute;left:80px;top:230px;width:1100px;">Evolución<br>de los<br>jugadores</h1>
+    ${plFotoPoligono('right:60px;top:230px;', 1000, 800, [[12, 0], [100, 0], [88, 100], [0, 100]], foto, 'Foto de portada')}
+    ${plOro('right:60px;bottom:150px;', 230, 300)}
+    ${plPoligono('left:0;bottom:0;', 900, 260, [[0, 0], [100, 0], [94, 100], [0, 100]], c.wine)}
+    <div class="pl-t pl-t-m" style="position:absolute;left:60px;bottom:0;height:260px;display:flex;align-items:center;color:#111;font-style:italic;">Informes<br>individuales</div>`, c.slate);
 }
 function plPortadaEquipo(c, foto, equipo, temporada) {
   return plSlide(`
-    ${plFotoPoligono('left:60px;top:60px;', 1050, 960, [[0, 0], [100, 0], [92, 100], [0, 100]], foto, 'Foto del equipo')}
-    <img class="pl-crest" src="${LOGO_PATH}" style="right:60px;top:50px;" alt="" />
+    ${plFotoPoligono('left:60px;top:60px;', 1050, 1217, [[0, 0], [100, 0], [92, 100], [0, 100]], foto, 'Foto del equipo')}
+    ${plCrest('right:60px;top:50px;')}
     ${plOro('right:60px;bottom:60px;', 230, 340)}
     <div style="position:absolute;left:1120px;right:60px;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center;">
-      <div style="font-size:78px;font-weight:900;text-transform:uppercase;white-space:nowrap;">${safeText(equipo)}</div>
-      <div style="font-size:48px;font-weight:600;opacity:0.8;font-family:system-ui,sans-serif;">${safeText(temporada)}</div>
+      <div class="pl-t pl-t-m" style="white-space:nowrap;">${safeText(equipo)}</div>
+      <div class="pl-sub">${safeText(temporada)}</div>
     </div>`, c.slate);
 }
-function plSeparadorPosicion(c, titulo, n) {
+function plPlural(label) {
+  const t = String(label || '').trim();
+  if (!t || /s$/i.test(t)) return t;
+  return /[aeiouáéíóú]$/i.test(t) ? `${t}s` : `${t}es`;
+}
+function plSeparadorPosicion(c, titulo, jugadores) {
+  const n = jugadores.length;
+  const filas = n > 6 ? 2 : 1;
+  const porFila = Math.ceil(n / filas);
+  const slot = Math.min(300, Math.floor(1700 / porFila));
+  const fotoH = Math.round(slot * (filas === 2 ? 1.0 : 1.15));
+  const bloqueH = (fotoH + 130) * filas;
+  const top0 = 330 + Math.max(0, (820 - bloqueH) / 2);
+  const partes = j => [String(j.nombre || '').trim(), String(j.apellidos || '').trim()].filter(Boolean);
+  const celdas = jugadores.map((j, i) => {
+    const fila = Math.floor(i / porFila), col = i % porFila;
+    const enFila = fila === filas - 1 ? n - porFila * (filas - 1) : porFila;
+    const x0 = (PL_W - enFila * slot) / 2 + col * slot;
+    const y0 = top0 + fila * (fotoH + 130);
+    const img = j.fotoUrl
+      ? `<img src="${j.fotoUrl}" alt="" style="position:absolute;left:${slot * 0.08}px;top:0;width:${slot * 0.84}px;height:${fotoH}px;object-fit:contain;object-position:center bottom;" />`
+      : `<svg style="position:absolute;left:${slot * 0.08}px;top:0;" width="${slot * 0.84}" height="${fotoH}" viewBox="0 0 100 100" preserveAspectRatio="xMidYMax meet"><circle cx="50" cy="38" r="22" fill="rgba(255,255,255,0.15)"/><rect x="18" y="64" width="64" height="40" rx="20" fill="rgba(255,255,255,0.15)"/></svg>`;
+    return `<div style="position:absolute;left:${x0}px;top:${y0}px;width:${slot}px;">
+      <div style="position:relative;width:${slot}px;height:${fotoH}px;">${img}</div>
+      <div class="pl-nombre" style="margin-top:14px;font-size:${filas === 2 ? 34 : 40}px;">${partes(j).map(safeText).join('<br>')}</div></div>`;
+  }).join('');
   return plSlide(`
-    <img class="pl-crest" src="${LOGO_PATH}" style="left:40px;top:40px;" alt="" />
-    <div style="position:absolute;left:0;right:0;top:380px;height:320px;background:${c.wine};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
-      <div style="font-style:italic;font-weight:900;font-size:150px;text-transform:uppercase;line-height:1;">${safeText(titulo)}</div>
-      <div style="font-size:44px;font-weight:600;opacity:0.85;font-family:system-ui,sans-serif;">${n} jugador${n === 1 ? '' : 'es'}</div>
-    </div>`, c.slate);
+    ${plCrest('left:40px;top:40px;')}
+    ${plOro('right:140px;top:60px;', 200, 330)}${plOro('right:60px;top:100px;', 200, 330)}
+    <div class="pl-t pl-t-l" style="position:absolute;left:0;right:0;top:200px;text-align:center;">${safeText(plPlural(titulo))}</div>
+    ${celdas}
+    ${plPoligono('left:0;bottom:0;', 520, 150, [[0, 0], [94, 0], [100, 100], [0, 100]], PL_ORO_SOLIDO)}
+    ${plPoligono('right:0;bottom:0;', 640, 150, [[6, 0], [100, 0], [100, 100], [0, 100]], PL_ORO_SOLIDO)}`, c.slate);
 }
 function plPendiente(c, titulo) {
   return plSlide(`
-    <img class="pl-crest" src="${LOGO_PATH}" style="left:40px;top:40px;" alt="" />
-    <div class="pl-pendiente-txt"><div style="font-style:italic;font-weight:900;font-size:110px;text-transform:uppercase;">${safeText(titulo)}</div><div style="font-size:48px;font-weight:600;opacity:0.5;font-family:system-ui,sans-serif;">Por definir</div></div>`, c.slate, 'pl-pendiente');
+    ${plCrest('left:40px;top:40px;')}
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;text-align:center;">
+      <div class="pl-t pl-t-l">${safeText(titulo)}</div><div class="pl-sub" style="opacity:0.5;">Por definir</div></div>`, c.slate, 'pl-pendiente');
 }
 function ajustarSlides(root) {
   root.querySelectorAll('.pl-frame').forEach(fr => {
     const sl = fr.querySelector('.pl-slide');
-    if (sl) sl.style.transform = `scale(${fr.clientWidth / 1920})`;
+    if (sl) sl.style.transform = `scale(${fr.clientWidth / PL_W})`;
   });
 }
 // Reduce la foto elegida a ≤1400 px y JPEG 0.8 (~150 KB) para guardarla en el doc de la plantilla.
@@ -3648,7 +3685,7 @@ async function renderPlantillaPresentacion(container) {
     <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
       <button class="btn btn-ghost" id="pl-volver">← Plantillas</button>
       <b>${safeText(t?.label || '')} · ${safeText(temporada)} · ${jugs.length} jugadores</b>
-      <label class="btn btn-sm" style="cursor:pointer;">Foto portada<input type="file" accept="image/*" id="pl-foto-portada" hidden /></label>
+      <label class="btn btn-sm" style="cursor:pointer;">Foto portada (temporada)<input type="file" accept="image/*" id="pl-foto-portada" hidden /></label>
       <label class="btn btn-sm" style="cursor:pointer;">Foto equipo<input type="file" accept="image/*" id="pl-foto-equipo" hidden /></label>
       <label class="text-xs"><input type="checkbox" id="pl-inc-pend" /> Incluir páginas "por definir" en el PDF</label>
       <button class="btn btn-primary btn-print-ficha" id="pl-pres-pdf" disabled>⬇ PDF del equipo</button>
@@ -3664,7 +3701,7 @@ async function renderPlantillaPresentacion(container) {
   const dibujarPortadas = () => {
     lista.querySelectorAll('[data-pl-fijo]').forEach(el => el.remove());
     const tmp = document.createElement('div');
-    tmp.innerHTML = plPortadaGeneral(c, docP().fotoPortada) + plPortadaEquipo(c, docP().fotoEquipo, t?.label || '', temporada) + plPendiente(c, 'Campograma · resumen de jugadores') + plPendiente(c, 'Mapa de nivel');
+    tmp.innerHTML = plPortadaGeneral(c, (plantillasCache.find(d => d.id === plantillaDocId(temporada, '_portada'))?.fotoPortada)) + plPortadaEquipo(c, docP().fotoEquipo, t?.label || '', temporada) + plPendiente(c, 'Campograma · resumen de jugadores') + plPendiente(c, 'Mapa de nivel');
     [...tmp.children].reverse().forEach(el => { el.dataset.plFijo = '1'; lista.prepend(el); });
     ajustarSlides(lista);
   };
@@ -3674,7 +3711,11 @@ async function renderPlantillaPresentacion(container) {
     try { await guardarPlantilla(temporada, plVista.teamKey, { [campo]: await fotoADataUrl(f) }); dibujarPortadas(); showSuccess('Foto guardada.'); }
     catch (err) { console.error(err); showError('No se pudo guardar la foto (¿demasiado grande?).'); }
   });
-  subirFoto('#pl-foto-portada', 'fotoPortada');
+  container.querySelector('#pl-foto-portada').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try { await guardarPlantilla(temporada, '_portada', { fotoPortada: await fotoADataUrl(f) }); dibujarPortadas(); showSuccess('Foto de portada de la temporada guardada.'); }
+    catch (err) { console.error(err); showError('No se pudo guardar la foto (¿demasiado grande?).'); }
+  });
   subirFoto('#pl-foto-equipo', 'fotoEquipo');
   window.addEventListener('resize', () => { if (container.isConnected) ajustarSlides(lista); });
 
@@ -3691,7 +3732,7 @@ async function renderPlantillaPresentacion(container) {
 
   let hechas = 0;
   for (const g of grupos.filter(g => g.items.length)) {
-    addHTML(plSeparadorPosicion(c, g.titulo, g.items.length));
+    addHTML(plSeparadorPosicion(c, g.titulo, g.items.map(x => x.j)));
     ajustarSlides(lista);
     for (const { j, prep } of g.items) {
       const sec = document.createElement('div');
