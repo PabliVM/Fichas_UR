@@ -25,8 +25,28 @@ function scoreColor(value, bands) {
 import { buildRadarSVG } from './radar-chart.js';
 
 /** Color del cuarto del círculo para un bloque: el de su banda, o blanco si no hay dato. */
+/**
+ * Nota del bloque CONDICIONAL a partir de los ✔ / – / ✘ de la columna 2 (valor máximo vs referencia 3, misma
+ * regla y tolerancia que los iconos): ✔ = 1, – = 0,5, ✘ = 0 → proporción × 5, para usar las mismas bandas de color.
+ * Sin ningún icono → null (sin color).
+ */
+export function condicionalScore(items, tolerance) {
+  const tol = Number.isFinite(Number(tolerance)) && Number(tolerance) >= 0 ? Number(tolerance) : _gpsTolerance;
+  let ok = 0, dash = 0, fail = 0;
+  (items || []).forEach(it => {
+    const v = it.valueB == null || it.valueB === '' ? null : Number(String(it.valueB).replace(',', '.'));
+    const r = it.refA == null || it.refA === '' ? null : Number(String(it.refA).replace(',', '.'));
+    if (v == null || r == null || Number.isNaN(v) || Number.isNaN(r)) return;
+    const diff = Math.round((v - r) * 100) / 100;
+    if (diff > tol) ok++; else if (diff < -tol) fail++; else dash++;
+  });
+  const n = ok + dash + fail;
+  return n ? (5 * (ok + 0.5 * dash)) / n : null;
+}
+
 function blockAvg(block) {
   if (block?.rp && block.rp[0] != null) return block.rp[0];
+  if ((block?.items || []).some(i => 'refA' in i)) return condicionalScore(block.items);
   const vals = (block?.items || []).map(i => i.value).filter(v => typeof v === 'number' && !Number.isNaN(v));
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 }
