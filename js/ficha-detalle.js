@@ -27,7 +27,7 @@ import { buildRadarSVG } from './radar-chart.js';
 /** Color del cuarto del círculo para un bloque: el de su banda, o blanco si no hay dato. */
 /**
  * Nota del bloque CONDICIONAL a partir de los ✔ / – / ✘ de la columna 2 (valor máximo vs referencia 3, misma
- * regla y tolerancia que los iconos): ✔ = 1, – = 0,5, ✘ = 0 → proporción × 5, para usar las mismas bandas de color.
+ * regla y tolerancia que los iconos): ✔ = 1, – = 0,5, ✘ = 0 → proporción convertida a nota 0-5 (≥70% verde, 40-69% amarillo, <40% rojo) para usar las mismas bandas.
  * Sin ningún icono → null (sin color).
  */
 export function condicionalScore(items, tolerance) {
@@ -41,7 +41,10 @@ export function condicionalScore(items, tolerance) {
     if (diff > tol) ok++; else if (diff < -tol) fail++; else dash++;
   });
   const n = ok + dash + fail;
-  return n ? (5 * (ok + 0.5 * dash)) / n : null;
+  if (!n) return null;
+  // Proporción de puntos → nota 0-5 con tramos: ≥70% = 4+ (verde), 40-69% = 3-3,99 (amarillo), <40% = <3 (rojo).
+  const r = (ok + 0.5 * dash) / n;
+  return r >= 0.7 ? 4 + (r - 0.7) / 0.3 : r >= 0.4 ? 3 + (r - 0.4) / 0.3 : (3 * r) / 0.4;
 }
 
 function blockAvg(block) {
