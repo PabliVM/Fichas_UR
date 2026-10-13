@@ -101,34 +101,42 @@ function flattenTextPaths(fichaEl) {
   };
 }
 
-/**
- * Exporta el elemento .ficha-detalle a un PDF de una sola página,
- * A4 apaisado (297×210mm), con el mismo aspecto que se ve en pantalla.
- * @param {HTMLElement} fichaEl — el propio nodo .ficha-detalle
- * @param {string} filename
- */
-export async function exportFichaAsPDF(fichaEl, filename = 'ficha-jugador.pdf') {
-  await ensurePdfLibs();
-
+/** Captura una ficha a tamaño natural (con inputs y textos curvos ya preparados) y la deja como estaba. */
+async function capturarFicha(fichaEl) {
   const prevTransform = fichaEl.style.transform;
   fichaEl.style.transform = 'none'; // capturar a tamaño natural, máxima calidad
   const restoreInputs = swapInputsForStaticText(fichaEl);
   const restoreTextPaths = flattenTextPaths(fichaEl);
-
   try {
-    const canvas = await window.html2canvas(fichaEl, {
+    return await window.html2canvas(fichaEl, {
       backgroundColor: '#24313d',
       scale: 1,
       useCORS: true,
     });
+  } finally {
+    fichaEl.style.transform = prevTransform;
+    restoreInputs();
+    restoreTextPaths();
+  }
+}
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+/**
+ * Exporta una o varias fichas a UN solo PDF, A4 apaisado (297×210mm),
+ * una ficha por página, con el mismo aspecto que se ve en pantalla.
+ * @param {HTMLElement[]} fichaEls — nodos .ficha-detalle, en el orden de las páginas
+ * @param {string} filename
+ */
+export async function exportFichasAsPDF(fichaEls, filename = 'fichas-jugador.pdf') {
+  await ensurePdfLibs();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
-    const marginMm = 2;
-    const pageW = 297 - marginMm * 2;
-    const pageH = 210 - marginMm * 2;
+  const marginMm = 2;
+  const pageW = 297 - marginMm * 2;
+  const pageH = 210 - marginMm * 2;
 
+  for (let i = 0; i < fichaEls.length; i++) {
+    const canvas = await capturarFicha(fichaEls[i]);
     const imgRatio = canvas.width / canvas.height;
     let w = pageW;
     let h = w / imgRatio;
@@ -138,17 +146,19 @@ export async function exportFichaAsPDF(fichaEl, filename = 'ficha-jugador.pdf') 
     }
     const x = (297 - w) / 2;
     const y = (210 - h) / 2;
-
-    // JPEG, no PNG: jsPDF incrusta la imagen sin re-comprimirla, y con
-    // PNG a este tamaño (7200×5014px) el PDF salía de ~144MB — un archivo
-    // así de pesado es lo que hacía que "se cortara" al abrirlo (muchos
-    // visores no aguantan una imagen de ese peso). JPEG calidad 0.92 se ve
-    // igual y pesa un par de MB.
+    if (i > 0) doc.addPage('a4', 'landscape');
+    // JPEG, no PNG: con PNG a este tamaño el PDF salía de ~144MB y muchos visores no lo aguantan.
+    // JPEG calidad 0.92 se ve igual y pesa un par de MB por página.
     doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', x, y, w, h);
-    doc.save(filename);
-  } finally {
-    fichaEl.style.transform = prevTransform;
-    restoreInputs();
-    restoreTextPaths();
   }
+  doc.save(filename);
+}
+
+/**
+ * Exporta el elemento .ficha-detalle a un PDF de una sola página.
+ * @param {HTMLElement} fichaEl — el propio nodo .ficha-detalle
+ * @param {string} filename
+ */
+export async function exportFichaAsPDF(fichaEl, filename = 'ficha-jugador.pdf') {
+  return exportFichasAsPDF([fichaEl], filename);
 }
