@@ -159,7 +159,10 @@ function buildRpBadges(player) {
 function buildStatusBars(bars) {
   return `
     <div class="p1-status-bars">
-      ${bars.map(b => `<div class="p1-status-bar" style="background:${barColorHex(b.color)}">${safeText(b.label)}</div>`).join('')}
+      ${bars.map(b => {
+        const nota = typeof b.value === 'number' ? ` - ${String(Math.round(b.value * 10) / 10).replace('.', ',')}` : '';
+        return `<div class="p1-status-bar" style="background:${b.hex || barColorHex(b.color)}">${safeText(b.label)}${nota}</div>`;
+      }).join('')}
     </div>
   `;
 }
