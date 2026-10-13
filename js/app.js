@@ -2205,13 +2205,19 @@ function renderPanelJugadores(container) {
     const scale = crop.min * crop.zoom;
     const cx = canvas.getContext('2d');
     cx.drawImage(crop.img, -crop.x / scale, -crop.y / scale, CROP_V / scale, CROP_V / scale, 0, 0, OUT, OUT);
-    // PNG: conserva la transparencia de los recortes. Si pesa demasiado para el documento, JPEG con fondo blanco.
-    canvas.toBlob(png => {
-      if (png && png.size <= 450000) { resolve(new File([png], 'foto.png', { type: 'image/png' })); return; }
+    // Conserva la transparencia: WebP con alfa (ligero, ~30-60 KB). Si el navegador no lo da, PNG; último recurso JPEG blanco.
+    const aJpeg = () => {
       const c2 = document.createElement('canvas'); c2.width = c2.height = OUT;
       const x2 = c2.getContext('2d'); x2.fillStyle = '#fff'; x2.fillRect(0, 0, OUT, OUT); x2.drawImage(canvas, 0, 0);
       c2.toBlob(b => resolve(b ? new File([b], 'foto.jpg', { type: 'image/jpeg' }) : null), 'image/jpeg', 0.9);
-    }, 'image/png');
+    };
+    canvas.toBlob(wp => {
+      if (wp && wp.type === 'image/webp' && wp.size <= 450000) { resolve(new File([wp], 'foto.webp', { type: 'image/webp' })); return; }
+      canvas.toBlob(png => {
+        if (png && png.size <= 450000) { resolve(new File([png], 'foto.png', { type: 'image/png' })); return; }
+        aJpeg();
+      }, 'image/png');
+    }, 'image/webp', 0.92);
   });
 
   container.querySelector('#jug-add')?.addEventListener('click', async () => {
