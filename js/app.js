@@ -2,7 +2,7 @@
 // APP.JS — Punto de entrada RM Perfiles
 // ================================================
 
-import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection } from './firebase-service.js';
+import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, readCollection, saveDocument } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { watchAuthState, login, resetPassword } from './auth-service.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
@@ -1175,13 +1175,14 @@ function renderComparativasSub(container) {
       if (compFiltros.temporada) filtrosQuery.temporada = compFiltros.temporada;
       if (compFiltros.posicionKey) filtrosQuery.posicionKey = compFiltros.posicionKey;
       const registros = await queryRegistros(filtrosQuery);
+      if (compFiltros.equipo) await ensurePlantillas();
       // Equipo/generación no viven en 'registros' — se acotan aquí, pero
       // SOLO sobre el subconjunto ya filtrado por Firestore, no la colección entera.
       const registrosFiltrados = registros.filter(r => {
         if (!r.jugadorId) return false;
         const jugador = state.players.find(p => p.id === r.jugadorId);
         if (!jugador) return false;
-        if (compFiltros.equipo && jugador.teamKey !== compFiltros.equipo) return false;
+        if (compFiltros.equipo && !equiposDeJugador(jugador, ev?.temporada || compFiltros.temporada).includes(compFiltros.equipo)) return false;
         if (compFiltros.generacion && String(calcAgeAndYear(jugador.birthDate).year) !== compFiltros.generacion) return false;
         return true;
       });
@@ -1750,12 +1751,15 @@ async function cargarReferencia(container, p, evSel) {
     } else {
       const filtros = when === 'eval' ? { evaluacionId: evSel.eid } : { posicionKey: evSel.posKey, ...(when.startsWith('temp:') ? { temporada: when.slice(5) } : {}) };
       const regsAll = await queryRegistros(filtros);
+    if (who === 'team') await ensurePlantillas();
+    const temporadaRef = evSel.ev?.temporada || '';
+    const misEquipos = who === 'team' ? equiposDeJugador(p, temporadaRef) : [];
       const year = calcAgeAndYear(p.birthDate).year;
       regsF = regsAll.filter(r => {
         if (!r.jugadorId) return false;
         const j = state.players.find(x => x.id === r.jugadorId);
         if (!j) return false;
-        if (who === 'team' && j.teamKey !== p.teamKey) return false;
+        if (who === 'team' && !equiposDeJugador(j, temporadaRef).some(t => misEquipos.includes(t))) return false;
         if (who === 'gen' && calcAgeAndYear(j.birthDate).year !== year) return false;
         return true;
       });
@@ -3263,11 +3267,102 @@ function renderPanelConfig(container) {
   });
 }
 
+// ── PLANTILLAS: equipos por temporada (colección 'plantillas') ─────────────
+// Un doc por temporada+equipo: { temporada, teamKey, jugadorIds: [] }.
+// Un jugador puede estar en varios equipos y cambia de equipo cada temporada.
+let plantillasCache = null;      // null = sin cargar; array de docs
+let plantillasLoading = null;
+let plantillaTemporada = '';
+
+const plantillaDocId = (temporada, teamKey) => `${String(temporada).replace(/\//g, '-')}__${teamKey}`;
+const TEAMS_ORDEN_PLANTILLA = [...TEAMS].reverse(); // de Alevín A a Real Madrid C
+
+async function ensurePlantillas() {
+  if (plantillasCache) return plantillasCache;
+  if (isFirebaseUnconfigured()) { plantillasCache = []; return plantillasCache; }
+  if (!plantillasLoading) {
+    plantillasLoading = readCollection('plantillas')
+      .then(r => { plantillasCache = r; })
+      .catch(err => { console.error('[Firestore] Plantillas:', err); showError('No se pudieron cargar las plantillas (revisa las reglas de Firestore para "plantillas").'); plantillasCache = []; })
+      .finally(() => { plantillasLoading = null; });
+  }
+  await plantillasLoading;
+  return plantillasCache;
+}
+
+// Equipos del jugador en una temporada. Si esa temporada aún no tiene plantillas
+// creadas, se usa el equipo actual del jugador (compatibilidad con lo anterior).
+function equiposDeJugador(jugador, temporada) {
+  const docs = (plantillasCache || []).filter(d => d.temporada === temporada);
+  if (!docs.length) return jugador?.teamKey ? [jugador.teamKey] : [];
+  return docs.filter(d => (d.jugadorIds || []).includes(jugador.id)).map(d => d.teamKey);
+}
+
+function renderPanelPlantillas(container) {
+  if (!plantillasCache) {
+    container.innerHTML = `${firebaseNotice()}<p class="text-xs text-muted">Cargando plantillas…</p>`;
+    ensurePlantillas().then(() => { if (container.isConnected) renderPanelPlantillas(container); });
+    return;
+  }
+  if (!plantillaTemporada || !state.seasons.includes(plantillaTemporada)) plantillaTemporada = state.season || state.seasons[0] || '';
+  const docDe = teamKey => plantillasCache.find(d => d.id === plantillaDocId(plantillaTemporada, teamKey));
+  const nombreDe = id => { const j = state.players.find(x => x.id === id); return j ? `${j.apellidos || ''}, ${j.nombre || ''}`.trim() : '(jugador eliminado)'; };
+  const todos = [...state.players].sort((a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es'));
+
+  container.innerHTML = `
+    ${firebaseNotice()}
+    <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
+      <label class="text-xs text-muted" for="pl-temporada">Temporada</label>
+      <select class="select" id="pl-temporada" style="max-width:200px;">${state.seasons.map(t => `<option value="${safeText(t)}" ${t === plantillaTemporada ? 'selected' : ''}>${safeText(t)}</option>`).join('')}</select>
+      <span class="text-xs text-muted">Un jugador puede estar en varios equipos. Las temporadas nuevas (Configuración) aparecen aquí y se guardan en la base de datos.</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
+      ${TEAMS_ORDEN_PLANTILLA.map(t => {
+        const ids = docDe(t.key)?.jugadorIds || [];
+        const libres = todos.filter(j => !ids.includes(j.id));
+        return `<div class="card"><div class="card-title">${safeText(t.label)} <span class="text-xs text-muted">(${ids.length})</span></div><div class="card-body">
+          <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">
+            ${ids.length ? ids.map(id => `<div class="flex" style="justify-content:space-between;align-items:center;gap:8px;"><span>${safeText(nombreDe(id))}</span><button class="btn btn-sm btn-ghost" data-pl-del="${t.key}|${id}" title="Quitar de la plantilla">✕</button></div>`).join('') : '<span class="text-xs text-muted">Sin jugadores.</span>'}
+          </div>
+          <div class="flex gap-8">
+            <select class="select" data-pl-sel="${t.key}" style="flex:1;min-width:0;"><option value="">Añadir jugador…</option>${libres.map(j => `<option value="${j.id}">${safeText(`${j.apellidos || ''}, ${j.nombre || ''}`)}</option>`).join('')}</select>
+            <button class="btn btn-sm btn-primary" data-pl-add="${t.key}">Añadir</button>
+          </div>
+        </div></div>`;
+      }).join('')}
+    </div>`;
+
+  const guardar = async (teamKey, jugadorIds) => {
+    const id = plantillaDocId(plantillaTemporada, teamKey);
+    try {
+      await saveDocument('plantillas', id, { temporada: plantillaTemporada, teamKey, jugadorIds });
+      const nuevo = { id, temporada: plantillaTemporada, teamKey, jugadorIds };
+      plantillasCache = [...plantillasCache.filter(d => d.id !== id), nuevo];
+      preservandoScroll(() => renderPanelPlantillas(container));
+    } catch (err) {
+      console.error('[Firestore] No se pudo guardar la plantilla:', err);
+      showError('No se pudo guardar la plantilla (revisa las reglas de Firestore para "plantillas").');
+    }
+  };
+  container.querySelector('#pl-temporada')?.addEventListener('change', e => { plantillaTemporada = e.target.value; renderPanelPlantillas(container); });
+  container.querySelectorAll('[data-pl-add]').forEach(btn => btn.addEventListener('click', () => {
+    const teamKey = btn.dataset.plAdd;
+    const sel = container.querySelector(`[data-pl-sel="${teamKey}"]`);
+    if (!sel?.value) return;
+    guardar(teamKey, [...(docDe(teamKey)?.jugadorIds || []), sel.value]);
+  }));
+  container.querySelectorAll('[data-pl-del]').forEach(btn => btn.addEventListener('click', () => {
+    const [teamKey, jid] = btn.dataset.plDel.split('|');
+    guardar(teamKey, (docDe(teamKey)?.jugadorIds || []).filter(x => x !== jid));
+  }));
+}
+
 const RENDERERS = {
   inicio:     renderPanelInicio,
   importar:   renderPanelImportar,
   registro:   renderPanelRegistro,
   jugadores:  renderPanelJugadores,
+  plantillas: renderPanelPlantillas,
   sucesion:   renderPanelSucesion,
   fichas:     renderPanelFichas,
   config:     renderPanelConfig,
