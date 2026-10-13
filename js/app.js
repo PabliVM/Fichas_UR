@@ -180,8 +180,24 @@ function buildFicha1RealData(positionKey, media, jugador, aspectos) {
     return { label: nombre, color: bandKeyForValue(mediaPerfil, state.scoreBands) };
   });
 
+  // Círculo central: igual que la Ficha 2 — color de cada cuarto = banda de la media de las notas del bloque.
+  const mediaBloque = labels => {
+    const v = (labels || []).map(l => comp[l]).filter(x => typeof x === 'number' && !Number.isNaN(x));
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  };
+  const bandasOrd = [...state.scoreBands].sort((a, b) => b.min - a.min);
+  const hexMedia = m => (m == null ? '#ffffff' : (bandasOrd.find(b => m >= Number(b.min))?.color || '#ffffff'));
+  const circleColors = {
+    mental: hexMedia(mediaBloque(state.aspectosComunes.mental)),
+    tecnico: hexMedia(mediaBloque(schema.tecnico ?? state.aspectosComunes.tecnico)),
+    tactico: hexMedia(mediaBloque(schema.tactico)),
+    condicional: '#ffffff',
+  };
+
   return {
     ...FICHA1_DEMO_DATA,
+    circleColors,
+    gridOrder: state.fichaGridOrder,
     player: {
       ...FICHA1_DEMO_DATA.player,
       name: jugador ? `${jugador.nombre} ${jugador.apellidos}`.trim() : 'Jugador',
