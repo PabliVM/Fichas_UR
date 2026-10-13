@@ -17,7 +17,7 @@ import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore, loadPla
 import { renderFichaDetalle, setGpsTolerance } from './ficha-detalle.js';
 import { renderFichaPagina1 } from './ficha-pagina1.js';
 import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
-import { exportFichaAsPDF } from './pdf-export.js';
+import { exportFichaAsPDF, exportFichasAsPDF } from './pdf-export.js';
 import { showError, showSuccess, safeText } from './utils.js';
 import { renderFichasEspejo } from './ficha-espejo-ui.js';
 import { buildCatalogo, slugify } from './ficha-espejo.js';
@@ -1812,7 +1812,8 @@ function renderFichaJugador(container, p) {
       </div>` : '<p class="text-xs text-muted mb-16">Sin evaluaciones importadas: ficha tipo de la posición, sin notas.</p>'}
       <div class="mb-8 flex gap-8 btn-print-ficha" style="flex-wrap:wrap;align-items:center;">
         <b>Ficha 1</b>
-        <button class="btn btn-primary btn-print-ficha" id="jug-ficha1-pdf">⬇ Descargar PDF</button>
+        <button class="btn btn-primary btn-print-ficha" id="jug-fichas-pdf">⬇ PDF Ficha 1 + 2</button>
+        <button class="btn btn-sm btn-print-ficha" id="jug-ficha1-pdf">⬇ Solo Ficha 1</button>
         <button class="btn btn-sm" id="jug-textos-guardar">Guardar textos</button>
         <button class="btn btn-sm" id="jug-textos-restaurar" ${p.fichaTextos?.[textosKey] ? '' : 'disabled'}>Restaurar desde la encuesta</button>
         <span class="text-xs text-muted">Ofensivos/defensivos a potenciar y mejorar: vienen de la encuesta, edítalos en la ficha y pulsa Guardar textos.${textosExtra ? ` Hay ${textosExtra} respuestas más de las que caben (5 filas).` : ''}</span>
@@ -1820,7 +1821,7 @@ function renderFichaJugador(container, p) {
       <div id="jug-ficha1-wrap" class="ficha-wrap mb-16"></div>
       <div class="mb-8 flex gap-8 btn-print-ficha" style="flex-wrap:wrap;align-items:center;">
         <b>Ficha 2</b>
-        <button class="btn btn-primary btn-print-ficha" id="jug-ficha2-pdf">⬇ Descargar PDF</button>
+        <button class="btn btn-sm btn-print-ficha" id="jug-ficha2-pdf">⬇ Solo Ficha 2</button>
       </div>
       <div id="jug-ficha2-wrap" class="ficha-wrap"></div>`;
 
@@ -1853,6 +1854,21 @@ function renderFichaJugador(container, p) {
     renderFichaDetalle(container.querySelector('#jug-ficha2-wrap'), buildFichaRealData(fPos, fMedia, p, evSel?.eid), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
   }
 
+  container.querySelector('#jug-fichas-pdf')?.addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    const f1 = container.querySelector('#jug-ficha1-wrap .p1-detalle');
+    const f2 = container.querySelector('#jug-ficha2-wrap .ficha-detalle');
+    if (!f1 || !f2) return;
+    btn.disabled = true; btn.textContent = 'Generando PDF…';
+    try {
+      const nombre = `${p.nombre || ''} ${p.apellidos || ''}`.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'jugador';
+      await exportFichasAsPDF([f1, f2], `${nombre}-fichas.pdf`);
+    } catch (err) {
+      showError('No se pudo generar el PDF: ' + err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = '⬇ PDF Ficha 1 + 2';
+    }
+  });
   [['1', '.p1-detalle'], ['2', '.ficha-detalle']].forEach(([n, sel]) => {
     container.querySelector(`#jug-ficha${n}-pdf`)?.addEventListener('click', async e => {
       const btn = e.currentTarget;
@@ -1865,7 +1881,7 @@ function renderFichaJugador(container, p) {
       } catch (err) {
         showError('No se pudo generar el PDF: ' + err.message);
       } finally {
-        btn.disabled = false; btn.textContent = '⬇ Descargar PDF';
+        btn.disabled = false; btn.textContent = n === '1' ? '⬇ Solo Ficha 1' : '⬇ Solo Ficha 2';
       }
     });
   });
