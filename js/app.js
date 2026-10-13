@@ -827,7 +827,7 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
   const celda = (r, c) => {
     const t = tipoCol(c);
     if (t === '@fecha') return `<td class="bt-nowrap">${safeText(fmtFecha(r.fechaRegistro))}</td>`;
-    if (t === '@evaluador') return `<td>${safeText(r.evaluador)}</td>`;
+    if (t === '@evaluador') return `<td class="bt-nowrap">${safeText(r.evaluador)}</td>`;
     if (t === '@jugador') return `<td class="bt-nowrap bt-bold">${safeText(jugadorLabel(r.jugadorId))}</td>`;
     if (!t || t === 'equipo') return `<td class="bt-vacia"></td>`;
     if (t.startsWith('@txt_')) return `<td class="bt-texto">${safeText(r.textos?.[t.slice(5)] ?? '')}</td>`;
@@ -839,24 +839,27 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
     : `<tr>${cols.map(() => '<td class="bt-vacia"></td>').join('')}</tr>`;
   return `
     <style>
-      .bt-wrap { overflow-x:auto; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
+      .bt-wrap { overflow:auto; max-height:75vh; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
       .bt { border-collapse:collapse; width:max-content; min-width:100%; background:#fff; color:#0f1117; font-size:11px; }
       .bt th { background:var(--header-bg, #1d4ed8); color:#fff; font-size:9.5px; font-weight:700; line-height:1.2; text-transform:uppercase; letter-spacing:.1px;
-               text-align:center; vertical-align:middle; padding:6px 4px; width:88px; min-width:88px; max-width:88px; border-left:1px solid rgba(255,255,255,.35); overflow-wrap:anywhere; hyphens:auto; }
+               text-align:center; vertical-align:middle; padding:5px 4px; width:72px; min-width:72px; max-width:72px; border-left:1px solid rgba(255,255,255,.35); overflow-wrap:anywhere; hyphens:auto; position:sticky; top:0; z-index:1; }
+      .bt th.bt-th-txt { width:380px; min-width:380px; max-width:380px; }
       .bt th:first-child { border-left:none; }
-      .bt th .bt-n { display:block; font-size:9px; font-weight:600; opacity:.75; margin-bottom:3px; }
-      .bt td { background:#fff; color:#0f1117; padding:5px 6px; border-left:1px solid #cbd5e1; border-top:1px solid #cbd5e1; text-align:center; vertical-align:middle; }
+      .bt th .bt-n { display:block; font-size:9px; font-weight:600; opacity:.75; margin-bottom:2px; }
+      .bt td { background:#fff; color:#0f1117; padding:1px 5px; border-left:1px solid #cbd5e1; border-top:1px solid #cbd5e1; text-align:center; vertical-align:middle; line-height:1.25; height:22px; }
       .bt td:first-child { border-left:none; }
       .bt tbody tr:nth-child(even) td { background:#f8fafc; }
       .bt .bt-nowrap { white-space:nowrap; }
       .bt .bt-bold { font-weight:700; text-align:left; }
-      .bt .bt-texto { max-width:220px; font-size:10px; text-align:left; }
-      .bt .bt-vacia { height:30px; }
-      .bt .bt-num input { width:50px; font-size:11px; padding:2px 3px; text-align:center; background:#fff; color:#0f1117; border:1px solid #cbd5e1; border-radius:4px; }
+      .bt .bt-texto { width:380px; min-width:380px; max-width:380px; font-size:10px; line-height:1.25; text-align:left; vertical-align:top; padding-top:3px; padding-bottom:3px; }
+      .bt .bt-vacia { height:22px; }
+      .bt .bt-num { padding:0; }
+      .bt .bt-num input { width:100%; box-sizing:border-box; height:22px; font-size:11px; padding:0 2px; text-align:center; background:transparent; color:#0f1117; border:none; border-radius:0; box-shadow:none; }
+      .bt .bt-num input:focus { outline:2px solid var(--blue-500, #3b82f6); outline-offset:-2px; background:#fff; }
     </style>
     <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración → Columnas encuesta. Edita una nota y sal de la celda para guardar.</p>
     <div class="bt-wrap"><table class="bt">
-      <thead><tr>${cols.map(c => `<th title="Columna ${c.num} de la encuesta"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}</tr></thead>
+      <thead><tr>${cols.map(c => `<th class="${String(tipoCol(c) || '').startsWith('@txt_') ? 'bt-th-txt' : ''}" title="Columna ${c.num} de la encuesta"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}</tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`;
 }
@@ -1698,7 +1701,7 @@ async function cargarDatosFicha(container, id) {
   if (jugFichaId === id && !jugadorFormId) renderPanelJugadores(container);
 }
 
-let jugFichaTab = 'datos';     // 'datos' | 'ficha1' | 'ficha2'
+let jugFichaTab = 'datos';     // 'datos' | 'fichas' (Ficha 1 y Ficha 2 una debajo de otra)
 let jugFichaEvalId = null;     // evaluación elegida para Ficha 1/2 (null = la última/final)
 
 function renderFichaJugador(container, p) {
@@ -1797,6 +1800,7 @@ function renderFichaJugador(container, p) {
     defensivos: { potenciar: cinco(origenTxt('def_pot')), mejorar: cinco(origenTxt('def_mej')) },
   };
 
+  if (jugFichaTab === 'ficha1' || jugFichaTab === 'ficha2') jugFichaTab = 'fichas';
   const fichaTabHTML = !regs ? '<p class="text-xs text-muted">Cargando…</p>'
     : (!evSel && !p.positionKey) ? '<p class="text-xs text-muted">Este jugador no tiene posición asignada: edítalo para elegir una.</p>'
     : `
@@ -1806,14 +1810,19 @@ function renderFichaJugador(container, p) {
           ${filasEval.map((f, i) => `<option value="${f.eid}" ${f.eid === evSel.eid ? 'selected' : ''}>${safeText(evLabel(f.eid))}${i === 0 ? ' — final' : ''}</option>`).join('')}
         </select>
       </div>` : '<p class="text-xs text-muted mb-16">Sin evaluaciones importadas: ficha tipo de la posición, sin notas.</p>'}
-      <div class="mb-16 flex gap-8 btn-print-ficha" style="flex-wrap:wrap;align-items:center;">
-        <button class="btn btn-primary btn-print-ficha" id="jug-ficha-pdf">⬇ Descargar PDF</button>
-        ${jugFichaTab === 'ficha1' ? `
+      <div class="mb-8 flex gap-8 btn-print-ficha" style="flex-wrap:wrap;align-items:center;">
+        <b>Ficha 1</b>
+        <button class="btn btn-primary btn-print-ficha" id="jug-ficha1-pdf">⬇ Descargar PDF</button>
         <button class="btn btn-sm" id="jug-textos-guardar">Guardar textos</button>
         <button class="btn btn-sm" id="jug-textos-restaurar" ${p.fichaTextos?.[textosKey] ? '' : 'disabled'}>Restaurar desde la encuesta</button>
-        <span class="text-xs text-muted">Ofensivos/defensivos a potenciar y mejorar: vienen de la encuesta, edítalos en la ficha y pulsa Guardar textos.${textosExtra ? ` Hay ${textosExtra} respuestas más de las que caben (5 filas).` : ''}</span>` : ''}
+        <span class="text-xs text-muted">Ofensivos/defensivos a potenciar y mejorar: vienen de la encuesta, edítalos en la ficha y pulsa Guardar textos.${textosExtra ? ` Hay ${textosExtra} respuestas más de las que caben (5 filas).` : ''}</span>
       </div>
-      <div id="jug-ficha-wrap" class="ficha-wrap"></div>`;
+      <div id="jug-ficha1-wrap" class="ficha-wrap mb-16"></div>
+      <div class="mb-8 flex gap-8 btn-print-ficha" style="flex-wrap:wrap;align-items:center;">
+        <b>Ficha 2</b>
+        <button class="btn btn-primary btn-print-ficha" id="jug-ficha2-pdf">⬇ Descargar PDF</button>
+      </div>
+      <div id="jug-ficha2-wrap" class="ficha-wrap"></div>`;
 
   container.innerHTML = `
     ${firebaseNotice()}
@@ -1832,40 +1841,37 @@ function renderFichaJugador(container, p) {
     </div></div>
     <div class="flex gap-8 mb-16">
       <button class="btn ${jugFichaTab === 'datos' ? 'btn-primary' : 'btn-sm'}" data-jug-tab="datos">Datos personales</button>
-      <button class="btn ${jugFichaTab === 'ficha1' ? 'btn-primary' : 'btn-sm'}" data-jug-tab="ficha1">Ficha 1</button>
-      <button class="btn ${jugFichaTab === 'ficha2' ? 'btn-primary' : 'btn-sm'}" data-jug-tab="ficha2">Ficha 2</button>
+      <button class="btn ${jugFichaTab === 'fichas' ? 'btn-primary' : 'btn-sm'}" data-jug-tab="fichas">Ficha 1 y Ficha 2</button>
     </div>
     ${jugFichaTab === 'datos' ? datosHTML : fichaTabHTML}
   `;
 
   if (jugFichaTab !== 'datos' && regs && (evSel || p.positionKey)) {
-    const wrap = container.querySelector('#jug-ficha-wrap');
     const fPos = evSel?.posKey || p.positionKey, fMedia = evSel?.media || null;
-    if (jugFichaTab === 'ficha1') {
-      renderFichaPagina1(wrap, buildFicha1RealData(fPos, fMedia, p, aspectosTxt), LOGO_PATH, state.fichaColors);
-    } else {
-      setGpsTolerance(state.condicionalTolerance);
-      renderFichaDetalle(wrap, buildFichaRealData(fPos, fMedia, p, evSel?.eid), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
-    }
+    renderFichaPagina1(container.querySelector('#jug-ficha1-wrap'), buildFicha1RealData(fPos, fMedia, p, aspectosTxt), LOGO_PATH, state.fichaColors);
+    setGpsTolerance(state.condicionalTolerance);
+    renderFichaDetalle(container.querySelector('#jug-ficha2-wrap'), buildFichaRealData(fPos, fMedia, p, evSel?.eid), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
   }
 
-  container.querySelector('#jug-ficha-pdf')?.addEventListener('click', async e => {
-    const btn = e.currentTarget;
-    const fichaEl = container.querySelector('#jug-ficha-wrap .ficha-detalle');
-    if (!fichaEl) return;
-    btn.disabled = true; btn.textContent = 'Generando PDF…';
-    try {
-      const nombre = `${p.nombre || ''} ${p.apellidos || ''}`.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'jugador';
-      await exportFichaAsPDF(fichaEl, `${nombre}-${jugFichaTab}.pdf`);
-    } catch (err) {
-      showError('No se pudo generar el PDF: ' + err.message);
-    } finally {
-      btn.disabled = false; btn.textContent = '⬇ Descargar PDF';
-    }
+  [['1', '.p1-detalle'], ['2', '.ficha-detalle']].forEach(([n, sel]) => {
+    container.querySelector(`#jug-ficha${n}-pdf`)?.addEventListener('click', async e => {
+      const btn = e.currentTarget;
+      const fichaEl = container.querySelector(`#jug-ficha${n}-wrap ${sel}`);
+      if (!fichaEl) return;
+      btn.disabled = true; btn.textContent = 'Generando PDF…';
+      try {
+        const nombre = `${p.nombre || ''} ${p.apellidos || ''}`.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'jugador';
+        await exportFichaAsPDF(fichaEl, `${nombre}-ficha${n}.pdf`);
+      } catch (err) {
+        showError('No se pudo generar el PDF: ' + err.message);
+      } finally {
+        btn.disabled = false; btn.textContent = '⬇ Descargar PDF';
+      }
+    });
   });
   container.querySelector('#jug-textos-guardar')?.addEventListener('click', async e => {
     const btn = e.currentTarget;
-    const wrap = container.querySelector('#jug-ficha-wrap');
+    const wrap = container.querySelector('#jug-ficha1-wrap');
     const grids = [...wrap.querySelectorAll('.p1-aspectos-grid')];
     const leer = (g, i) => [...(g?.querySelectorAll('.p1-aspectos-col')[i]?.querySelectorAll('li') || [])].map(li => li.innerText.trim());
     const nuevo = { of_pot: leer(grids[0], 0), of_mej: leer(grids[0], 1), def_pot: leer(grids[1], 0), def_mej: leer(grids[1], 1) };
