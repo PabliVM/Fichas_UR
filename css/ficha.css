@@ -152,29 +152,29 @@
    dejaba las cajas vacías. Cambiado a flexbox anidado (misma anchura
    fija por celda, mismo gap) — se ve igual y sí funciona en el PDF. */
 .gps-grid {
-  padding: 60px 10px;
+  padding: 60px 10px 60px 90px;
   display: flex;
   flex-direction: column;
   row-gap: 4px;
-  align-items: center; /* centra cada fila en el ancho del cuadrante */
+  align-items: flex-start; /* filas pegadas a la izquierda: el círculo central tapa la derecha */
   font-size: 55px;
   font-weight: 400;
 }
 .gps-row {
   display: flex;
   align-items: center;
-  column-gap: 180px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
+  column-gap: 140px; /* mismo espacio grande entre las 5 partes: cajita · cajita · letras · cajita · cajita */
 }
 
 .ficha-condicional-body {
   flex: 1;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
 }
 .gps-val-cell, .gps-ref-cell {
-  flex: 0 0 230px;
-  width: 230px;
+  flex: 0 0 330px;
+  width: 330px;
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -184,7 +184,7 @@
 }
 .gps-label { flex: 0 0 auto; }
 .gps-input, .gps-input-static {
-  width: 200px;
+  width: 300px;
   box-sizing: border-box;
   text-align: center;
   background: rgba(255,255,255,0.06);
@@ -208,7 +208,7 @@
   position: absolute;
   left: 100%;
   top: 50%;
-  transform: translate(calc(90px - 50%), -50%);
+  transform: translate(calc(70px - 50%), -50%);
   text-align: center;
   font-weight: 800;
   font-size: 70px;
@@ -225,7 +225,7 @@
    .gps-input pero de solo lectura. */
 .gps-ref-value {
   display: inline-block;
-  width: 200px;
+  width: 300px;
   box-sizing: border-box;
   text-align: center;
   background: rgba(255,255,255,0.03);
@@ -251,8 +251,8 @@
      .gps-ref-cell) dejando 30px libres a la derecha para el icono ✔/✘.
      Antes se centraba en los 230px enteros y el número quedaba
      desplazado a la derecha respecto a la caja de abajo. */
-  flex: 0 0 200px;
-  width: 200px;
+  flex: 0 0 300px;
+  width: 300px;
   margin-right: 30px;
   justify-content: center;
 }
@@ -392,3 +392,8 @@
   .ficha-central { display: block !important; }
   .ficha-plan-grid { grid-template-columns: 110px repeat(4, minmax(0, 1fr)) !important; }
 }
+
+
+/* Nota media de comparación junto a la del jugador (cabecera de bloque) */
+.ficha-q-ref { margin-left: 24px; font-weight: 600; font-size: 0.8em; color: rgba(255,255,255,0.85); }
+.ficha-header-ref { color: var(--text-header, #ffffff); font-size: 52px; font-weight: 500; opacity: 0.9; white-space: nowrap; }
