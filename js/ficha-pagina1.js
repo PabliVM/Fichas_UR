@@ -71,7 +71,9 @@ const P1_DEFAULT_ORDER = { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: '
 
 // Mismo círculo que la Ficha 2: colocación de bloques según la matriz (Configuración → Matriz)
 // y color de cada cuarto = banda de la media de ese bloque (circleColors, hex), blanco sin dato.
+let _miniUid = 0;
 function buildMiniCircle(photoUrl, blockRp, circleColors, order) {
+  const _u = ++_miniUid; // ids únicos por ficha (varias fichas en la misma página)
   const size = 880;
   const cx = size / 2;
   const cy = size / 2;
@@ -102,8 +104,8 @@ function buildMiniCircle(photoUrl, blockRp, circleColors, order) {
     return `<text font-size="43" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
   };
   const photo = photoUrl
-    ? `<clipPath id="p1-photo-clip"><circle cx="${cx}" cy="${cy}" r="${rInner - 4}" /></clipPath>
-       <image href="${photoUrl}" x="${cx - rInner}" y="${cy - rInner}" width="${rInner * 2}" height="${rInner * 2}" clip-path="url(#p1-photo-clip)" preserveAspectRatio="xMidYMid slice" />`
+    ? `<clipPath id="p1-photo-clip${_u}"><circle cx="${cx}" cy="${cy}" r="${rInner - 4}" /></clipPath>
+       <image href="${photoUrl}" x="${cx - rInner}" y="${cy - rInner}" width="${rInner * 2}" height="${rInner * 2}" clip-path="url(#p1-photo-clip${_u})" preserveAspectRatio="xMidYMid slice" />`
     : `<text x="${cx}" y="${cy}" font-size="46" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
 
   const POSITIONS = ['tl', 'tr', 'br', 'bl'];
@@ -111,10 +113,10 @@ function buildMiniCircle(photoUrl, blockRp, circleColors, order) {
     const [a, b] = P1_POS_ANGLES[pos];
     // mitad inferior (br/bl): arco al revés para que el texto no salga boca abajo
     const [aa, bb] = (pos === 'br' || pos === 'bl') ? [b, a] : [a, b];
-    return arcPath(`p1-arc-${pos}`, aa, bb);
+    return arcPath(`p1-arc${_u}-${pos}`, aa, bb);
   }).join('');
   const segs = POSITIONS.map(pos => seg(...P1_POS_ANGLES[pos], colorFor(ord[pos]))).join('');
-  const labels = POSITIONS.map(pos => label(`p1-arc-${pos}`, P1_BLOCK_TITLES[ord[pos]], colorFor(ord[pos]))).join('');
+  const labels = POSITIONS.map(pos => label(`p1-arc${_u}-${pos}`, P1_BLOCK_TITLES[ord[pos]], colorFor(ord[pos]))).join('');
 
   return `
     <svg viewBox="0 0 ${size} ${size}" class="p1-central-svg" xmlns="http://www.w3.org/2000/svg">
