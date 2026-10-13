@@ -3714,7 +3714,7 @@ function plCardJugador(j, f1, x, y) {
   const circ = (n, left) => `<div style="position:absolute;left:${left}px;top:-${R + 17}px;width:58px;height:58px;border-radius:50%;background:${n.bg};color:${n.fg};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:${n.t.length > 2 ? 24 : 30}px;font-family:system-ui,sans-serif;">${safeText(n.t)}</div>`;
   const barras = (f1.statusBars || []).slice(0, 3).map(b => {
     const bg = b.hex || '#ffffff';
-    return `<div style="width:240px;height:30px;box-sizing:border-box;margin-bottom:4px;background:${bg};color:${textoSobre(bg)};border:3px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;font-weight:800;font-size:16px;text-transform:uppercase;white-space:nowrap;overflow:hidden;">${safeText(b.label)}</div>`;
+    return `<div style="width:240px;height:30px;box-sizing:border-box;margin-bottom:4px;background:${bg};color:#000;border:3px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;font-weight:400;font-size:18px;text-transform:uppercase;white-space:nowrap;overflow:hidden;">${safeText(b.label)}</div>`;
   }).join('');
   const apellido = String(j.apellidos || j.nombre || '').trim().toUpperCase();
   return `<div class="pl-card" data-jid="${j.id}" style="position:absolute;left:${x / 100 * PL_W}px;top:${y / 100 * PL_H}px;width:0;height:0;cursor:grab;touch-action:none;" title="Arrastra para mover · doble clic para quitar">
@@ -3742,7 +3742,7 @@ function plLeyendaCirculo(order) {
     textos.push(`<text font-size="15" font-weight="800" fill="#111" font-family="system-ui,sans-serif"><textPath href="#plleg${u}${pos}" startOffset="50%" text-anchor="middle">${nombres[order[pos]] || ''}</textPath></text>`);
     return `<path d="M${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2} L${x3},${y3} A${r},${r} 0 0 0 ${x4},${y4} Z" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>`;
   }).join('');
-  return `<svg style="position:absolute;right:110px;bottom:70px;" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}"><defs>${defs.join('')}</defs>${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${textos.join('')}</svg>`;
+  return `<svg style="position:absolute;right:110px;bottom:70px;" width="${R}" height="${R}" viewBox="0 0 ${R * 2} ${R * 2}"><defs>${defs.join('')}</defs>${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${textos.join('')}</svg>`;
 }
 
 // Estructura del PDF de equipo: portada · portada del equipo · campograma (pendiente) · mapa de nivel (pendiente)
