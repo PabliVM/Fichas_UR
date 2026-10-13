@@ -70,7 +70,9 @@ function polar(cx, cy, r, deg) {
 const POS_ANGLES = { tl: [270, 360], tr: [0, 90], br: [90, 180], bl: [180, 270] };
 const BLOCK_TITLES = { mental: 'MENTAL', tecnico: 'TÉCNICO', tactico: 'TÁCTICO', condicional: 'CONDICIONAL' };
 
+let _circleUid = 0;
 function buildCentralCircle(photoUrl, blockColors, rpTexts, order) {
+  const _u = ++_circleUid; // ids únicos por ficha (varias fichas en la misma página)
   const size = 1420;
   const cx = size / 2;
   const cy = size / 2;
@@ -110,8 +112,8 @@ function buildCentralCircle(photoUrl, blockColors, rpTexts, order) {
     : '';
 
   const photo = photoUrl
-    ? `<clipPath id="ficha-photo-clip"><circle cx="${cx}" cy="${cy}" r="${rInner - 4}" /></clipPath>
-       <image href="${photoUrl}" x="${cx - rInner}" y="${cy - rInner}" width="${rInner * 2}" height="${rInner * 2}" clip-path="url(#ficha-photo-clip)" preserveAspectRatio="xMidYMid slice" />`
+    ? `<clipPath id="ficha-photo-clip${_u}"><circle cx="${cx}" cy="${cy}" r="${rInner - 4}" /></clipPath>
+       <image href="${photoUrl}" x="${cx - rInner}" y="${cy - rInner}" width="${rInner * 2}" height="${rInner * 2}" clip-path="url(#ficha-photo-clip${_u})" preserveAspectRatio="xMidYMid slice" />`
     : `<text x="${cx}" y="${cy}" font-size="78" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">SIN FOTO</text>`;
 
   // Cada posición (tl/tr/br/bl) toma el color/nombre/R-P del bloque que
@@ -127,13 +129,13 @@ function buildCentralCircle(photoUrl, blockColors, rpTexts, order) {
     const [a, b] = POS_ANGLES[pos];
     // mitad inferior (br/bl): arco al revés para que el texto no salga boca abajo.
     const [aa, bb] = (pos === 'br' || pos === 'bl') ? [b, a] : [a, b];
-    return arcPath(`arc-${pos}`, aa, bb, midR) + arcPath(`rp-${pos}`, aa, bb, rpR);
+    return arcPath(`arc${_u}-${pos}`, aa, bb, midR) + arcPath(`rp${_u}-${pos}`, aa, bb, rpR);
   }).join('');
   const labels = POSITIONS.map(pos => {
     const key = order[pos];
-    return curvedLabel(`arc-${pos}`, BLOCK_TITLES[key], blockColors[key]);
+    return curvedLabel(`arc${_u}-${pos}`, BLOCK_TITLES[key], blockColors[key]);
   }).join('');
-  const rpLabels = POSITIONS.map(pos => rpLabel(`rp-${pos}`, rpTexts?.[order[pos]])).join('');
+  const rpLabels = POSITIONS.map(pos => rpLabel(`rp${_u}-${pos}`, rpTexts?.[order[pos]])).join('');
 
   return `
     <svg viewBox="0 0 ${size} ${size}" class="ficha-central-svg" xmlns="http://www.w3.org/2000/svg">
