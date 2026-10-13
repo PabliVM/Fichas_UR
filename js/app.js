@@ -10,7 +10,7 @@ import { matchJugador } from './import-matching.js';
 import { calcularMediasPorJugador, calcularMediaGrupo, buildAspectoPorCompetencia } from './medias.js';
 import { parseCSV, parseXLSXBuffer, parseEsNumber, buildRowKey, clasificarFilas } from './importar-csv.js';
 import { renderHeader }  from './render-header.js';
-import { renderTabs } from './render-tabs.js';
+import { renderTabs, switchTab } from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
 import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS, PROFILES } from './constants.js';
 import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore, loadPlayersFromFirestore } from './state.js';
@@ -2358,6 +2358,11 @@ function renderPanelJugadores(container) {
         setState({ players: state.players.map(p => p.id === id ? { ...p, ...data } : p) });
       }
 
+      if (historicoData.teamKey && (isNew || historicoData.teamKey !== (prev.teamKey ?? null))) {
+        try { await añadirAPlantilla(id, historicoData.teamKey, state.season); }
+        catch (err) { console.error('[Firestore] No se pudo añadir a la plantilla:', err); showError('Jugador guardado, pero no se pudo añadir a la plantilla.'); }
+      }
+
       if (changedHistorico && !isFirebaseUnconfigured()) {
         await addSubDocument('jugadores', id, 'historico', historicoData);
         delete jugadorHistoricoCache[id]; // se recarga la próxima vez que se abra
@@ -3298,6 +3303,66 @@ function equiposDeJugador(jugador, temporada) {
   return docs.filter(d => (d.jugadorIds || []).includes(jugador.id)).map(d => d.teamKey);
 }
 
+let plVista = { modo: 'grid', teamKey: null };  // 'grid' | 'datos' | 'pres'
+
+const nombreCompleto = j => `${j.apellidos || ''}, ${j.nombre || ''}`.replace(/^, |, $/g, '').trim();
+const ordenJugadores = (a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es');
+
+// Añade un jugador a la plantilla (temporada+equipo). No quita de otras: puede estar en varias.
+async function añadirAPlantilla(jugadorId, teamKey, temporada) {
+  if (!jugadorId || !teamKey || !temporada || isFirebaseUnconfigured()) return;
+  await ensurePlantillas();
+  const id = plantillaDocId(temporada, teamKey);
+  const ids = plantillasCache.find(d => d.id === id)?.jugadorIds || [];
+  if (ids.includes(jugadorId)) return;
+  const jugadorIds = [...ids, jugadorId];
+  await saveDocument('plantillas', id, { temporada, teamKey, jugadorIds });
+  plantillasCache = [...plantillasCache.filter(d => d.id !== id), { id, temporada, teamKey, jugadorIds }];
+}
+
+// Guarda un campo de la ficha de datos desde la plantilla (misma fuente que el formulario de Jugadores).
+async function guardarCampoJugador(id, campo, valor) {
+  const p = state.players.find(x => x.id === id);
+  if (!p) return;
+  const patch = { [campo]: valor };
+  await updateDocument('jugadores', id, patch);
+  const nuevo = { ...p, ...patch };
+  setState({ players: state.players.map(x => x.id === id ? nuevo : x) });
+  if (HISTORICO_FIELDS.includes(campo)) {
+    const h = {}; HISTORICO_FIELDS.forEach(f => { h[f] = nuevo[f] ?? null; });
+    await addSubDocument('jugadores', id, 'historico', h);
+    delete jugadorHistoricoCache[id];
+  }
+}
+
+// "Apellidos, Nombre" (con coma) o "Nombre Apellidos" (1ª palabra = nombre, resto = apellidos).
+function parsearLineaJugador(linea) {
+  const t = linea.replace(/\s+/g, ' ').trim();
+  if (!t) return null;
+  if (t.includes(',')) { const [ap, ...no] = t.split(','); return { apellidos: ap.trim(), nombre: no.join(' ').trim() }; }
+  const w = t.split(' ');
+  return { nombre: w[0], apellidos: w.slice(1).join(' ') };
+}
+
+async function crearPlantillaDesdeLista(texto, teamKey, temporada) {
+  await ensurePlantillas();
+  const res = { creados: [], existentes: [], dudosos: [] };
+  for (const linea of texto.split(/\r?\n/)) {
+    const pj = parsearLineaJugador(linea);
+    if (!pj || !pj.nombre) continue;
+    const m = matchJugador(`${pj.nombre} ${pj.apellidos}`, state.players, { teamKey });
+    if (m.status === 'auto') { await añadirAPlantilla(m.playerId, teamKey, temporada); res.existentes.push(linea.trim()); continue; }
+    if (m.status === 'dudoso') { res.dudosos.push(`${linea.trim()} ≈ ${m.candidates.map(nombreCompleto).join(' / ')}`); continue; }
+    const data = { nombre: pj.nombre, apellidos: pj.apellidos, birthDate: null, foot: '', maturationalAge: '', teamKey, positionKey: null, weight: null, height: null, complexion: null };
+    const id = await addDocument('jugadores', data);
+    setState({ players: [...state.players, { id, ...data }] });
+    await addSubDocument('jugadores', id, 'historico', { teamKey, positionKey: null, weight: null, height: null, complexion: null });
+    await añadirAPlantilla(id, teamKey, temporada);
+    res.creados.push(linea.trim());
+  }
+  return res;
+}
+
 function renderPanelPlantillas(container) {
   if (!plantillasCache) {
     container.innerHTML = `${firebaseNotice()}<p class="text-xs text-muted">Cargando plantillas…</p>`;
@@ -3305,27 +3370,38 @@ function renderPanelPlantillas(container) {
     return;
   }
   if (!plantillaTemporada || !state.seasons.includes(plantillaTemporada)) plantillaTemporada = state.season || state.seasons[0] || '';
+  if (plVista.modo === 'datos') return renderPlantillaDatos(container);
+  if (plVista.modo === 'pres') return renderPlantillaPresentacion(container);
   const docDe = teamKey => plantillasCache.find(d => d.id === plantillaDocId(plantillaTemporada, teamKey));
-  const nombreDe = id => { const j = state.players.find(x => x.id === id); return j ? `${j.apellidos || ''}, ${j.nombre || ''}`.trim() : '(jugador eliminado)'; };
-  const todos = [...state.players].sort((a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es'));
+  const nombreDe = id => { const j = state.players.find(x => x.id === id); return j ? nombreCompleto(j) : '(jugador eliminado)'; };
+  const todos = [...state.players].sort(ordenJugadores);
 
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
       <label class="text-xs text-muted" for="pl-temporada">Temporada</label>
       <select class="select" id="pl-temporada" style="max-width:200px;">${state.seasons.map(t => `<option value="${safeText(t)}" ${t === plantillaTemporada ? 'selected' : ''}>${safeText(t)}</option>`).join('')}</select>
-      <span class="text-xs text-muted">Un jugador puede estar en varios equipos. Las temporadas nuevas (Configuración) aparecen aquí y se guardan en la base de datos.</span>
+      <span class="text-xs text-muted">Un jugador puede estar en varios equipos. Los jugadores nuevos con equipo se añaden aquí solos (temporada activa).</span>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;">
       ${TEAMS_ORDEN_PLANTILLA.map(t => {
         const ids = docDe(t.key)?.jugadorIds || [];
         const libres = todos.filter(j => !ids.includes(j.id));
         return `<div class="card"><div class="card-title">${safeText(t.label)} <span class="text-xs text-muted">(${ids.length})</span></div><div class="card-body">
+          <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">
+            <button class="btn btn-sm" data-pl-datos="${t.key}" ${ids.length ? '' : 'disabled'}>Datos</button>
+            <button class="btn btn-sm btn-primary" data-pl-pres="${t.key}" ${ids.length ? '' : 'disabled'}>Presentación de fichas</button>
+            <button class="btn btn-sm" data-pl-lista-btn="${t.key}">+ Lista</button>
+          </div>
+          <div data-pl-lista-box="${t.key}" style="display:none;margin-bottom:12px;">
+            <textarea class="input" data-pl-lista="${t.key}" rows="6" style="width:100%;" placeholder="Un jugador por línea:&#10;Apellidos, Nombre&#10;o: Nombre Apellidos"></textarea>
+            <button class="btn btn-sm btn-primary mt-8" data-pl-lista-ok="${t.key}">Crear plantilla</button>
+          </div>
           <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">
             ${ids.length ? ids.map(id => `<div class="flex" style="justify-content:space-between;align-items:center;gap:8px;"><span>${safeText(nombreDe(id))}</span><button class="btn btn-sm btn-ghost" data-pl-del="${t.key}|${id}" title="Quitar de la plantilla">✕</button></div>`).join('') : '<span class="text-xs text-muted">Sin jugadores.</span>'}
           </div>
           <div class="flex gap-8">
-            <select class="select" data-pl-sel="${t.key}" style="flex:1;min-width:0;"><option value="">Añadir jugador…</option>${libres.map(j => `<option value="${j.id}">${safeText(`${j.apellidos || ''}, ${j.nombre || ''}`)}</option>`).join('')}</select>
+            <select class="select" data-pl-sel="${t.key}" style="flex:1;min-width:0;"><option value="">Añadir jugador…</option>${libres.map(j => `<option value="${j.id}">${safeText(nombreCompleto(j))}</option>`).join('')}</select>
             <button class="btn btn-sm btn-primary" data-pl-add="${t.key}">Añadir</button>
           </div>
         </div></div>`;
@@ -3336,8 +3412,7 @@ function renderPanelPlantillas(container) {
     const id = plantillaDocId(plantillaTemporada, teamKey);
     try {
       await saveDocument('plantillas', id, { temporada: plantillaTemporada, teamKey, jugadorIds });
-      const nuevo = { id, temporada: plantillaTemporada, teamKey, jugadorIds };
-      plantillasCache = [...plantillasCache.filter(d => d.id !== id), nuevo];
+      plantillasCache = [...plantillasCache.filter(d => d.id !== id), { id, temporada: plantillaTemporada, teamKey, jugadorIds }];
       preservandoScroll(() => renderPanelPlantillas(container));
     } catch (err) {
       console.error('[Firestore] No se pudo guardar la plantilla:', err);
@@ -3355,6 +3430,181 @@ function renderPanelPlantillas(container) {
     const [teamKey, jid] = btn.dataset.plDel.split('|');
     guardar(teamKey, (docDe(teamKey)?.jugadorIds || []).filter(x => x !== jid));
   }));
+  container.querySelectorAll('[data-pl-datos]').forEach(btn => btn.addEventListener('click', () => { plVista = { modo: 'datos', teamKey: btn.dataset.plDatos }; renderPanelPlantillas(container); }));
+  container.querySelectorAll('[data-pl-pres]').forEach(btn => btn.addEventListener('click', () => { plVista = { modo: 'pres', teamKey: btn.dataset.plPres }; renderPanelPlantillas(container); }));
+  container.querySelectorAll('[data-pl-lista-btn]').forEach(btn => btn.addEventListener('click', () => {
+    const box = container.querySelector(`[data-pl-lista-box="${btn.dataset.plListaBtn}"]`);
+    box.style.display = box.style.display === 'none' ? '' : 'none';
+  }));
+  container.querySelectorAll('[data-pl-lista-ok]').forEach(btn => btn.addEventListener('click', async () => {
+    const teamKey = btn.dataset.plListaOk;
+    const texto = container.querySelector(`[data-pl-lista="${teamKey}"]`).value;
+    if (!texto.trim()) return;
+    if (isFirebaseUnconfigured()) { showError('Configura Firebase para crear plantillas.'); return; }
+    btn.disabled = true; btn.textContent = 'Creando…';
+    try {
+      const r = await crearPlantillaDesdeLista(texto, teamKey, plantillaTemporada);
+      showSuccess(`Creados ${r.creados.length} · ya existían ${r.existentes.length}${r.dudosos.length ? ` · ${r.dudosos.length} dudosos sin crear` : ''}.`);
+      if (r.dudosos.length) showError(`Dudosos (no creados, añádelos a mano si son ellos): ${r.dudosos.join(' | ')}`, 15000);
+    } catch (err) {
+      console.error('[Firestore] Crear plantilla:', err);
+      showError('No se pudo crear la plantilla completa (revisa reglas de Firestore).');
+    }
+    renderPanelPlantillas(container);
+  }));
+}
+
+// ── Plantilla · Datos: tabla editable de las fichas de datos (misma fuente que Jugadores) ──
+function renderPlantillaDatos(container) {
+  const t = TEAMS.find(x => x.key === plVista.teamKey);
+  const ids = plantillasCache.find(d => d.id === plantillaDocId(plantillaTemporada, plVista.teamKey))?.jugadorIds || [];
+  const jugs = ids.map(id => state.players.find(x => x.id === id)).filter(Boolean).sort(ordenJugadores);
+  const inp = (j, campo, tipo = 'text', extra = '') => `<input class="input" type="${tipo}" ${extra} data-pl-campo="${campo}" data-pl-id="${j.id}" value="${safeText(j[campo] ?? '')}" style="min-width:${tipo === 'date' ? 130 : 80}px;" />`;
+  container.innerHTML = `
+    ${firebaseNotice()}
+    <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
+      <button class="btn btn-ghost" id="pl-volver">← Plantillas</button>
+      <b>${safeText(t?.label || '')} · ${safeText(plantillaTemporada)}</b>
+      <span class="text-xs text-muted">Los cambios se guardan al salir de la casilla y son los mismos de la ficha del jugador.</span>
+    </div>
+    <div style="overflow-x:auto;"><table class="table table-compact">
+      <thead><tr><th>Apellidos</th><th>Nombre</th><th>F. nacimiento</th><th>Lateralidad</th><th>Posición</th><th>Altura (m)</th><th>Peso (kg)</th><th>Complexión</th><th>Ed. madurativa</th><th></th></tr></thead>
+      <tbody>${jugs.map(j => `<tr>
+        <td>${inp(j, 'apellidos')}</td><td>${inp(j, 'nombre')}</td><td>${inp(j, 'birthDate', 'date')}</td>
+        <td><select class="select" data-pl-campo="foot" data-pl-id="${j.id}">${['', 'Diestro', 'Zurdo', 'Ambidiestro'].map(v => `<option value="${v}" ${(j.foot || '') === v ? 'selected' : ''}>${v || '—'}</option>`).join('')}</select></td>
+        <td><select class="select" data-pl-campo="positionKey" data-pl-id="${j.id}"><option value="">—</option>${state.positions.map(p => `<option value="${p.key}" ${j.positionKey === p.key ? 'selected' : ''}>${safeText(p.label)}</option>`).join('')}</select></td>
+        <td>${inp(j, 'height', 'number', 'step="0.01" min="0"')}</td><td>${inp(j, 'weight', 'number', 'step="0.1" min="0"')}</td>
+        <td>${inp(j, 'complexion')}</td><td>${inp(j, 'maturationalAge')}</td>
+        <td><button class="btn btn-sm" data-pl-ficha="${j.id}">Ficha</button></td></tr>`).join('')}</tbody>
+    </table></div>`;
+  container.querySelector('#pl-volver').addEventListener('click', () => { plVista = { modo: 'grid', teamKey: null }; renderPanelPlantillas(container); });
+  container.querySelectorAll('[data-pl-campo]').forEach(el => el.addEventListener('change', async () => {
+    const campo = el.dataset.plCampo;
+    let v = el.value;
+    if (campo === 'height' || campo === 'weight') v = v === '' ? null : parseFloat(v);
+    else if (campo === 'birthDate') v = v || null;
+    else if (campo === 'complexion') v = v.trim() || null;
+    else if (typeof v === 'string' && campo !== 'foot' && campo !== 'positionKey') v = v.trim();
+    if (campo === 'positionKey') v = v || null;
+    if (campo === 'nombre' && !v) { showError('El nombre es obligatorio.'); renderPlantillaDatos(container); return; }
+    try { await guardarCampoJugador(el.dataset.plId, campo, v); }
+    catch (err) { console.error('[Firestore] Campo jugador:', err); showError('No se pudo guardar el cambio.'); }
+  }));
+  container.querySelectorAll('[data-pl-ficha]').forEach(btn => btn.addEventListener('click', () => {
+    jugFichaId = btn.dataset.plFicha; jugadorFormId = null; jugFichaTab = 'fichas'; jugFichaEvalId = null;
+    switchTab('jugadores');
+  }));
+}
+
+// ── Plantilla · Presentación: Ficha 1 y 2 de todos los jugadores, seguidas ──
+// Evaluación mostrada por jugador: la más reciente de la temporada de la plantilla (si no hay, la más reciente).
+function prepararFichaJugador(p, regs, temporada) {
+  const evInfo = eid => (regEvaluaciones || []).find(e => e.id === eid);
+  const grupos = {};
+  (regs || []).forEach(r => { const k = r.evaluacionId || 'sin-evaluacion'; (grupos[k] = grupos[k] || []).push(r); });
+  let filasEval = Object.entries(grupos).map(([eid, rs]) => {
+    const ev = evInfo(eid);
+    const posKey = ev?.posicionKey || rs[0]?.posicionKey;
+    const media = calcularMediasPorJugador(rs.map(r => ({ ...r, jugadorId: p.id })), buildAspectoPorCompetencia(state, posKey))[p.id];
+    const idx = (regEvaluaciones || []).findIndex(e => e.id === eid);
+    return { eid, ev, posKey, media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
+  }).filter(f => f.eid !== 'sin-evaluacion' && f.ev);
+  new Set([...Object.keys(p.condicionalPorEval || {}), ...Object.keys(p.condicionalMaxPorEval || {})]).forEach(eid => {
+    const ev = evInfo(eid);
+    if (!ev || filasEval.some(f => f.eid === eid)) return;
+    const idx = (regEvaluaciones || []).findIndex(e => e.id === eid);
+    filasEval.push({ eid, ev, posKey: ev.posicionKey || p.positionKey, media: null, orden: `${ev.fechaFin || ev.fechaInicio || ''}|${String(idx).padStart(5, '0')}` });
+  });
+  filasEval.sort((x, y) => String(y.orden).localeCompare(String(x.orden)));
+  const evSel = filasEval.find(f => f.ev?.temporada === temporada) || filasEval[0] || null;
+  const textosKey = evSel?.eid || 'sin-evaluacion';
+  const regsEval = evSel ? (regs || []).filter(r => (r.evaluacionId || 'sin-evaluacion') === evSel.eid) : [];
+  const filasTexto = k => regsEval.map(r => String(r.textos?.[k] || '').replace(/\s*\n+\s*/g, ' · ').trim()).filter(Boolean);
+  const origenTxt = k => p.fichaTextos?.[textosKey]?.[k] ?? filasTexto(k);
+  const cinco = arr => Array.from({ length: 5 }, (_, i) => arr[i] || '');
+  const mediaRP = k => { const v = regsEval.map(r => r.rp?.[k]).filter(x => typeof x === 'number'); if (!v.length) return null; const m = v.reduce((x, y) => x + y, 0) / v.length; return String(Math.round(m * 10) / 10).replace('.', ','); };
+  return {
+    evSel, textosKey,
+    fPos: evSel?.posKey || p.positionKey, fMedia: evSel?.media || null,
+    aspectosTxt: {
+      rp: { r: mediaRP('r'), p: mediaRP('p') },
+      ofensivos: { potenciar: cinco(origenTxt('of_pot')), mejorar: cinco(origenTxt('of_mej')) },
+      defensivos: { potenciar: cinco(origenTxt('def_pot')), mejorar: cinco(origenTxt('def_mej')) },
+    },
+  };
+}
+
+async function renderPlantillaPresentacion(container) {
+  const t = TEAMS.find(x => x.key === plVista.teamKey);
+  const temporada = plantillaTemporada;
+  const ids = plantillasCache.find(d => d.id === plantillaDocId(temporada, plVista.teamKey))?.jugadorIds || [];
+  const jugs = ids.map(id => state.players.find(x => x.id === id)).filter(Boolean).sort(ordenJugadores);
+  container.innerHTML = `
+    ${firebaseNotice()}
+    <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
+      <button class="btn btn-ghost" id="pl-volver">← Plantillas</button>
+      <b>${safeText(t?.label || '')} · ${safeText(temporada)} · ${jugs.length} jugadores</b>
+      <button class="btn btn-primary btn-print-ficha" id="pl-pres-pdf">⬇ PDF de toda la plantilla</button>
+      <span class="text-xs text-muted" id="pl-pres-estado">Cargando fichas…</span>
+    </div>
+    <div id="pl-pres-lista"></div>`;
+  container.querySelector('#pl-volver').addEventListener('click', () => { plVista = { modo: 'grid', teamKey: null }; renderPanelPlantillas(container); });
+  const lista = container.querySelector('#pl-pres-lista');
+  const estado = container.querySelector('#pl-pres-estado');
+
+  if (!isFirebaseUnconfigured()) {
+    await Promise.all(jugs.map(j => jugFichaRegs[j.id] ? null : queryRegistros({ jugadorId: j.id }).then(r => { jugFichaRegs[j.id] = r; }).catch(err => { console.error('[Firestore] Registros:', err); jugFichaRegs[j.id] = []; })));
+  }
+  if (!container.isConnected || plVista.modo !== 'pres') return;
+  setGpsTolerance(state.condicionalTolerance);
+  for (const j of jugs) {
+    const prep = prepararFichaJugador(j, jugFichaRegs[j.id] || [], temporada);
+    const sec = document.createElement('div');
+    sec.className = 'mb-16';
+    sec.innerHTML = `
+      <div class="flex gap-8 mb-8 btn-print-ficha" style="align-items:center;flex-wrap:wrap;">
+        <b style="font-size:18px;">${safeText(nombreCompleto(j))}</b>
+        <span class="text-xs text-muted">${safeText(prep.evSel ? `${prep.evSel.ev.temporada} · ${prep.evSel.ev.nombre}` : 'Sin evaluaciones')}</span>
+        <button class="btn btn-sm" data-pr-textos="${j.id}">Guardar textos</button>
+        <button class="btn btn-sm" data-pr-editar="${j.id}">Editar datos</button>
+      </div>
+      ${(prep.fPos) ? '<div class="ficha-wrap mb-16" data-pr-f1></div><div class="ficha-wrap" data-pr-f2></div>' : '<p class="text-xs text-muted">Sin posición ni evaluación: asigna una posición en Datos.</p>'}`;
+    lista.appendChild(sec);
+    if (!prep.fPos) continue;
+    renderFichaPagina1(sec.querySelector('[data-pr-f1]'), buildFicha1RealData(prep.fPos, prep.fMedia, j, prep.aspectosTxt, prep.evSel?.eid), LOGO_PATH, state.fichaColors);
+    renderFichaDetalle(sec.querySelector('[data-pr-f2]'), buildFichaRealData(prep.fPos, prep.fMedia, j, prep.evSel?.eid, null), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
+    sec.querySelector('[data-pr-textos]').addEventListener('click', async e => {
+      const btn = e.currentTarget;
+      const grids = [...sec.querySelectorAll('.p1-aspectos-grid')];
+      const leer = (g, i) => [...(g?.querySelectorAll('.p1-aspectos-col')[i]?.querySelectorAll('li') || [])].map(li => li.innerText.trim());
+      const nuevo = { of_pot: leer(grids[0], 0), of_mej: leer(grids[0], 1), def_pot: leer(grids[1], 0), def_mej: leer(grids[1], 1) };
+      const fichaTextos = { ...(j.fichaTextos || {}), [prep.textosKey]: nuevo };
+      btn.disabled = true; btn.textContent = 'Guardando…';
+      try {
+        await updateDocument('jugadores', j.id, { fichaTextos });
+        j.fichaTextos = fichaTextos;
+        setState({ players: state.players.map(x => x.id === j.id ? { ...x, fichaTextos } : x) });
+        showSuccess('Textos guardados.');
+      } catch (err) { console.error(err); showError('No se pudieron guardar los textos.'); }
+      finally { btn.disabled = false; btn.textContent = 'Guardar textos'; }
+    });
+    sec.querySelector('[data-pr-editar]').addEventListener('click', () => {
+      jugFichaId = null; jugadorFormId = j.id;
+      switchTab('jugadores');
+    });
+    estado.textContent = `Fichas ${lista.children.length}/${jugs.length}…`;
+    await new Promise(r => setTimeout(r, 0)); // deja respirar al navegador entre fichas
+  }
+  estado.textContent = '';
+  container.querySelector('#pl-pres-pdf')?.addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    const els = [...lista.querySelectorAll('.p1-detalle, .ficha-detalle')];
+    if (!els.length) return;
+    btn.disabled = true; btn.textContent = 'Generando PDF…';
+    try { await exportFichasAsPDF(els, `plantilla-${plVista.teamKey}-${String(temporada).replace(/\//g, '-')}.pdf`); }
+    catch (err) { showError('No se pudo generar el PDF: ' + err.message); }
+    finally { btn.disabled = false; btn.textContent = '⬇ PDF de toda la plantilla'; }
+  });
 }
 
 const RENDERERS = {
