@@ -3308,7 +3308,8 @@ function equiposDeJugador(jugador, temporada) {
   return docs.filter(d => (d.jugadorIds || []).includes(jugador.id)).map(d => d.teamKey);
 }
 
-let plVista = { modo: 'grid', teamKey: null };  // 'grid' | 'datos' | 'pres'
+let plVista = { modo: 'grid', teamKey: null };
+let plRefModo = 'team';   // comparación de las medias en la Presentación: 'team' (precargado) | 'teampos' | 'none'  // 'grid' | 'datos' | 'pres'
 
 const nombreCompleto = j => `${j.apellidos || ''}, ${j.nombre || ''}`.replace(/^, |, $/g, '').trim();
 const ordenJugadores = (a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es');
@@ -3696,12 +3697,19 @@ async function renderPlantillaPresentacion(container) {
       <b>${safeText(t?.label || '')} · ${safeText(temporada)} · ${jugs.length} jugadores</b>
       <label class="btn btn-sm" style="cursor:pointer;">Foto portada (temporada)<input type="file" accept="image/*" id="pl-foto-portada" hidden /></label>
       <label class="btn btn-sm" style="cursor:pointer;">Foto equipo<input type="file" accept="image/*" id="pl-foto-equipo" hidden /></label>
+      <label class="text-xs text-muted" for="pl-ref">Comparar medias con</label>
+      <select class="select" id="pl-ref" style="max-width:260px;">
+        <option value="team" ${plRefModo === 'team' ? 'selected' : ''}>Equipo (toda la plantilla)</option>
+        <option value="teampos" ${plRefModo === 'teampos' ? 'selected' : ''}>Equipo · misma posición</option>
+        <option value="none" ${plRefModo === 'none' ? 'selected' : ''}>Sin comparar</option>
+      </select>
       <label class="text-xs"><input type="checkbox" id="pl-inc-pend" /> Incluir páginas "por definir" en el PDF</label>
       <button class="btn btn-primary btn-print-ficha" id="pl-pres-pdf" disabled>⬇ PDF del equipo</button>
       <span class="text-xs text-muted" id="pl-pres-estado">Cargando fichas…</span>
     </div>
     <div id="pl-pres-lista"></div>`;
   container.querySelector('#pl-volver').addEventListener('click', () => { plVista = { modo: 'grid', teamKey: null }; renderPanelPlantillas(container); });
+  container.querySelector('#pl-ref').addEventListener('change', e => { plRefModo = e.target.value; renderPlantillaPresentacion(container); });
   const lista = container.querySelector('#pl-pres-lista');
   const estado = container.querySelector('#pl-pres-estado');
   const pdfBtn = container.querySelector('#pl-pres-pdf');
@@ -3748,6 +3756,17 @@ async function renderPlantillaPresentacion(container) {
 
   // Agrupa por posición (en el orden de Configuración); sin posición al final.
   const preps = jugs.map(j => ({ j, prep: prepararFichaJugador(j, jugFichaRegs[j.id] || [], temporada) }));
+  // Media de comparación = media de las medias de cada jugador de la plantilla (cada uno pesa 1; sin consultas extra).
+  const refDe = (j, prep) => {
+    if (plRefModo === 'none') return null;
+    const pool = preps.filter(x => x.prep.fMedia && (plRefModo === 'team' || x.prep.fPos === prep.fPos));
+    if (!pool.length) return { label: 'Comparación: sin datos' };
+    const medias = Object.fromEntries(pool.map(x => [x.j.id, x.prep.fMedia]));
+    return {
+      mental: calcularMediaGrupo(medias, 'mental'), tecnico: calcularMediaGrupo(medias, 'tecnico'), tactico: calcularMediaGrupo(medias, 'tactico'),
+      label: `Comparado con: ${plRefModo === 'team' ? 'Equipo' : 'Equipo · misma posición'} ${t?.label || ''} (${pool.length} jug.)`,
+    };
+  };
   const grupos = state.positions.map(pos => ({ titulo: pos.label, items: preps.filter(x => x.prep.fPos === pos.key) }));
   grupos.push({ titulo: 'Sin posición', items: preps.filter(x => !x.prep.fPos || !state.positions.some(pos => pos.key === x.prep.fPos)) });
 
@@ -3769,7 +3788,7 @@ async function renderPlantillaPresentacion(container) {
       lista.appendChild(sec);
       if (!prep.fPos) continue;
       renderFichaPagina1(sec.querySelector('[data-pr-f1]'), buildFicha1RealData(prep.fPos, prep.fMedia, j, prep.aspectosTxt, prep.evSel?.eid), LOGO_PATH, state.fichaColors);
-      renderFichaDetalle(sec.querySelector('[data-pr-f2]'), buildFichaRealData(prep.fPos, prep.fMedia, j, prep.evSel?.eid, null), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
+      renderFichaDetalle(sec.querySelector('[data-pr-f2]'), buildFichaRealData(prep.fPos, prep.fMedia, j, prep.evSel?.eid, refDe(j, prep)), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
       sec.querySelector('[data-pr-textos]').addEventListener('click', async e => {
         const btn = e.currentTarget;
         const grids = [...sec.querySelectorAll('.p1-aspectos-grid')];
