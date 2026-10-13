@@ -1726,38 +1726,48 @@ async function cargarDatosFicha(container, id) {
 }
 
 let jugFichaTab = 'datos';     // 'datos' | 'fichas' (Ficha 1 y Ficha 2 una debajo de otra)
-const JUG_REF_MODOS = [
-  ['', 'Sin comparar'],
-  ['eval', 'Misma evaluación (todos los jugadores)'],
-  ['eval-team', 'Misma evaluación · mismo equipo'],
-  ['eval-gen', 'Misma evaluación · misma generación'],
-  ['pos', 'Misma posición · toda la temporada'],
-];
-let jugRefModo = '';           // modo de comparación elegido para las medias de la Ficha 2
-const jugRefCache = {};        // { 'evalId|modo|jugadorId': {mental,tecnico,tactico,label} }
+const JUG_REF_QUIEN = [['', 'Sin comparar'], ['team', 'Mismo equipo'], ['gen', 'Misma generación'], ['pos', 'Misma posición'], ['jug', 'Un jugador concreto…']];
+let jugRef = { who: '', when: 'eval', jugId: '', evalId: '' };   // comparación elegida para las medias de la Ficha 2
+const jugRefCache = {};        // { clave: {mental,tecnico,tactico,label} }
 const jugRefLoading = new Set();
 
-async function cargarReferencia(container, p, evSel, modo) {
-  const key = `${evSel.eid}|${modo}|${p.id}`;
+function jugRefKey(evSel, pid) { return evSel ? [evSel.eid, jugRef.who, jugRef.when, jugRef.jugId, jugRef.evalId, pid].join('|') : null; }
+
+async function cargarReferencia(container, p, evSel) {
+  const key = jugRefKey(evSel, p.id);
   if (jugRefLoading.has(key)) return;
   jugRefLoading.add(key);
+  const { who, when, jugId, evalId } = jugRef;
   try {
-    const filtros = modo === 'pos' ? { posicionKey: evSel.posKey, ...(evSel.ev?.temporada ? { temporada: evSel.ev.temporada } : {}) } : { evaluacionId: evSel.eid };
-    const regsAll = await queryRegistros(filtros);
-    const year = calcAgeAndYear(p.birthDate).year;
-    const regsF = regsAll.filter(r => {
-      if (!r.jugadorId) return false;
-      const j = state.players.find(x => x.id === r.jugadorId);
-      if (!j) return false;
-      if (modo === 'eval-team' && j.teamKey !== p.teamKey) return false;
-      if (modo === 'eval-gen' && calcAgeAndYear(j.birthDate).year !== year) return false;
-      return true;
-    });
-    const medias = calcularMediasPorJugador(regsF, buildAspectoPorCompetencia(state, evSel.posKey));
+    const mapa = buildAspectoPorCompetencia(state, evSel.posKey);
+    let regsF, label;
+    if (who === 'jug') {
+      const j = state.players.find(x => x.id === jugId);
+      if (!j || !evalId) { jugRefCache[key] = { label: 'Comparación: elige jugador y evaluación' }; return; }
+      regsF = await queryRegistros({ jugadorId: jugId, evaluacionId: evalId });
+      const ev = (regEvaluaciones || []).find(e => e.id === evalId);
+      label = `Comparado con: ${`${j.nombre || ''} ${j.apellidos || ''}`.trim()} · ${ev ? `${ev.temporada} ${ev.nombre}` : ''}`;
+    } else {
+      const filtros = when === 'eval' ? { evaluacionId: evSel.eid } : { posicionKey: evSel.posKey, ...(when.startsWith('temp:') ? { temporada: when.slice(5) } : {}) };
+      const regsAll = await queryRegistros(filtros);
+      const year = calcAgeAndYear(p.birthDate).year;
+      regsF = regsAll.filter(r => {
+        if (!r.jugadorId) return false;
+        const j = state.players.find(x => x.id === r.jugadorId);
+        if (!j) return false;
+        if (who === 'team' && j.teamKey !== p.teamKey) return false;
+        if (who === 'gen' && calcAgeAndYear(j.birthDate).year !== year) return false;
+        return true;
+      });
+      const quien = JUG_REF_QUIEN.find(m => m[0] === who)?.[1] || '';
+      const cuando = when === 'eval' ? 'esta evaluación' : when === 'todo' ? 'todo el histórico' : `temporada ${when.slice(5)}`;
+      label = `Comparado con: ${quien} · ${cuando}`;
+    }
+    const medias = calcularMediasPorJugador(regsF.filter(r => r.jugadorId), mapa);
     const n = Object.keys(medias).length;
     jugRefCache[key] = n ? {
       mental: calcularMediaGrupo(medias, 'mental'), tecnico: calcularMediaGrupo(medias, 'tecnico'), tactico: calcularMediaGrupo(medias, 'tactico'),
-      label: `Comparado con: ${JUG_REF_MODOS.find(m => m[0] === modo)?.[1] || ''} (${n} jug.)`,
+      label: `${label}${who === 'jug' ? '' : ` (${n} jug.)`}`,
     } : { label: 'Comparación: sin datos' };
   } catch (err) {
     console.error('[Firestore] No se pudo calcular la referencia:', err);
@@ -1868,9 +1878,10 @@ function renderFichaJugador(container, p) {
   };
 
   if (jugFichaTab === 'ficha1' || jugFichaTab === 'ficha2') jugFichaTab = 'fichas';
-  const refKey = evSel ? `${evSel.eid}|${jugRefModo}|${id}` : null;
-  const refData = (jugRefModo && refKey) ? (jugRefCache[refKey] || null) : null;
-  if (jugRefModo && refKey && !refData && regs && !isFirebaseUnconfigured()) cargarReferencia(container, p, evSel, jugRefModo);
+  const refKey = jugRefKey(evSel, id);
+  const refLista = jugRef.who && (jugRef.who !== 'jug' || (jugRef.jugId && jugRef.evalId));
+  const refData = (refLista && refKey) ? (jugRefCache[refKey] || null) : null;
+  if (refLista && refKey && !refData && regs && !isFirebaseUnconfigured()) cargarReferencia(container, p, evSel);
   const fichaTabHTML = !regs ? '<p class="text-xs text-muted">Cargando…</p>'
     : (!evSel && !p.positionKey) ? '<p class="text-xs text-muted">Este jugador no tiene posición asignada: edítalo para elegir una.</p>'
     : `
@@ -1881,11 +1892,22 @@ function renderFichaJugador(container, p) {
         </select>
       </div>` : '<p class="text-xs text-muted mb-16">Sin evaluaciones importadas: ficha tipo de la posición, sin notas.</p>'}
       ${evSel ? `<div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
-        <label class="text-xs text-muted" for="jug-ficha-ref">Comparar medias con</label>
-        <select class="select" id="jug-ficha-ref" style="max-width:360px;">
-          ${JUG_REF_MODOS.map(([v, l]) => `<option value="${v}" ${v === jugRefModo ? 'selected' : ''}>${l}</option>`).join('')}
+        <label class="text-xs text-muted" for="jug-ref-who">Comparar medias con</label>
+        <select class="select" id="jug-ref-who" style="max-width:220px;">${JUG_REF_QUIEN.map(([v, l]) => `<option value="${v}" ${v === jugRef.who ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        ${jugRef.who && jugRef.who !== 'jug' ? `<select class="select" id="jug-ref-when" style="max-width:220px;">
+          <option value="eval" ${jugRef.when === 'eval' ? 'selected' : ''}>Esta evaluación</option>
+          ${[...new Set((regEvaluaciones || []).map(e => e.temporada).filter(Boolean))].sort().reverse().map(t => `<option value="temp:${safeText(t)}" ${jugRef.when === 'temp:' + t ? 'selected' : ''}>Temporada ${safeText(t)}</option>`).join('')}
+          <option value="todo" ${jugRef.when === 'todo' ? 'selected' : ''}>Todo el histórico</option>
+        </select>` : ''}
+        ${jugRef.who === 'jug' ? `<select class="select" id="jug-ref-jug" style="max-width:260px;">
+          <option value="">Jugador…</option>
+          ${[...state.players].sort((a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`)).map(x => `<option value="${x.id}" ${x.id === jugRef.jugId ? 'selected' : ''}>${safeText(`${x.apellidos || ''}, ${x.nombre || ''}`)}</option>`).join('')}
         </select>
-        ${jugRefModo && !refData ? '<span class="text-xs text-muted">Calculando…</span>' : ''}
+        <select class="select" id="jug-ref-eval" style="max-width:260px;">
+          <option value="">Evaluación…</option>
+          ${(regEvaluaciones || []).map(e => `<option value="${e.id}" ${e.id === jugRef.evalId ? 'selected' : ''}>${safeText(`${e.temporada} · ${e.nombre}`)}</option>`).join('')}
+        </select>` : ''}
+        ${refLista && !refData ? '<span class="text-xs text-muted">Calculando…</span>' : ''}
       </div>` : ''}
       <div class="mb-8 flex gap-8 btn-print-ficha" style="flex-wrap:wrap;align-items:center;">
         <b>Ficha 1</b>
@@ -1992,9 +2014,11 @@ function renderFichaJugador(container, p) {
     jugFichaTab = btn.dataset.jugTab;
     preservandoScroll(() => renderPanelJugadores(container));
   }));
-  container.querySelector('#jug-ficha-ref')?.addEventListener('change', e => {
-    jugRefModo = e.target.value;
-    preservandoScroll(() => renderPanelJugadores(container));
+  [['who', '#jug-ref-who'], ['when', '#jug-ref-when'], ['jugId', '#jug-ref-jug'], ['evalId', '#jug-ref-eval']].forEach(([campo, sel]) => {
+    container.querySelector(sel)?.addEventListener('change', e => {
+      jugRef = { ...jugRef, [campo]: e.target.value };
+      preservandoScroll(() => renderPanelJugadores(container));
+    });
   });
   container.querySelector('#jug-ficha-eval')?.addEventListener('change', e => {
     jugFichaEvalId = e.target.value;
