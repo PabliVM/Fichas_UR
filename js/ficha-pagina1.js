@@ -333,7 +333,6 @@ function renderMarkers(pitchEl, markers, onRemove) {
     if (!wrap) {
       wrap = document.createElement('div');
       wrap.className = 'p1-jersey-marker';
-      wrap.draggable = true;
       wrap.dataset.markerId = String(m.id);
       wrap.innerHTML = `
         <img class="p1-jersey-img" alt="Posición del jugador" />
@@ -394,30 +393,39 @@ function initPitchDragDrop(container, data, positionKey) {
     });
   }
 
-  // Arrastrar una camiseta ya puesta para reposicionarla.
-  pitchEl.addEventListener('dragstart', e => {
-    const id = e.target?.closest?.('.p1-jersey-marker')?.dataset?.markerId;
-    if (!id) return;
-    e.dataTransfer.setData('text/plain', id);
-    e.dataTransfer.effectAllowed = 'move';
-  });
-
-  pitchEl.addEventListener('dragover', e => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  });
-
-  pitchEl.addEventListener('drop', e => {
-    e.preventDefault();
-    const id = e.dataTransfer.getData('text/plain');
-    const m = markers.find(mk => String(mk.id) === id);
+  // Arrastrar una camiseta ya puesta para reposicionarla (eventos de puntero:
+  // la camiseta sigue al cursor a su tamaño real, sin la "imagen fantasma" grande
+  // del drag nativo; funciona también con el dedo).
+  let drag = null;
+  pitchEl.addEventListener('pointerdown', e => {
+    const wrap = e.target?.closest?.('.p1-jersey-marker');
+    if (!wrap || e.button > 0) return;
+    const m = markers.find(mk => String(mk.id) === wrap.dataset.markerId);
     if (!m) return;
-    const rect = pitchEl.getBoundingClientRect();
-    m.xPct = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
-    m.yPct = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
-    renderMarkers(pitchEl, markers, removeMarker);
-    emitChange();
+    const r = wrap.getBoundingClientRect();
+    drag = { m, wrap, dx: e.clientX - (r.left + r.width / 2), dy: e.clientY - (r.top + r.height / 2), moved: false };
+    wrap.setPointerCapture?.(e.pointerId);
+    wrap.classList.add('p1-dragging');
+    e.preventDefault();
   });
+  pitchEl.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const rect = pitchEl.getBoundingClientRect();
+    drag.m.xPct = Math.min(100, Math.max(0, ((e.clientX - drag.dx - rect.left) / rect.width) * 100));
+    drag.m.yPct = Math.min(100, Math.max(0, ((e.clientY - drag.dy - rect.top) / rect.height) * 100));
+    drag.moved = true;
+    drag.wrap.style.left = `${drag.m.xPct}%`;
+    drag.wrap.style.top = `${drag.m.yPct}%`;
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    drag.wrap.classList.remove('p1-dragging');
+    const huboMovimiento = drag.moved;
+    drag = null;
+    if (huboMovimiento) emitChange();
+  };
+  pitchEl.addEventListener('pointerup', endDrag);
+  pitchEl.addEventListener('pointercancel', endDrag);
 }
 
 // ── RENDER PRINCIPAL ──────────────────────────────
