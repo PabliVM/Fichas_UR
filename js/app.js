@@ -3615,6 +3615,47 @@ function plPlural(label) {
   if (!t || /s$/i.test(t)) return t;
   return /[aeiouáéíóú]$/i.test(t) ? `${t}s` : `${t}es`;
 }
+// Quita el fondo blanco (conectado a los bordes) de una foto y devuelve PNG transparente. Cache por dataURL.
+const _sinFondoCache = new Map();
+function quitarFondoBlanco(src) {
+  if (_sinFondoCache.has(src)) return _sinFondoCache.get(src);
+  const pr = new Promise(resolve => {
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const w = im.naturalWidth, h = im.naturalHeight;
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        const cx = cv.getContext('2d'); cx.drawImage(im, 0, 0);
+        const d = cx.getImageData(0, 0, w, h), p = d.data;
+        // Si la foto ya trae transparencia (PNG sin fondo) no se toca: así nunca se come lo blanco de la camiseta.
+        for (let i = 3; i < p.length; i += 4) if (p[i] < 250) { resolve(src); return; }
+        const esB = i => p[i] >= 252 && p[i + 1] >= 252 && p[i + 2] >= 252 || p[i + 3] === 0;
+        const vis = new Uint8Array(w * h), pila = [];
+        const push = (x, y) => { const k = y * w + x; if (!vis[k] && esB(k * 4)) { vis[k] = 1; pila.push(k); } };
+        for (let x = 0; x < w; x++) { push(x, 0); push(x, h - 1); }
+        for (let y = 0; y < h; y++) { push(0, y); push(w - 1, y); }
+        while (pila.length) {
+          const k = pila.pop(), x = k % w, y = (k - x) / w;
+          if (x > 0) push(x - 1, y); if (x < w - 1) push(x + 1, y); if (y > 0) push(x, y - 1); if (y < h - 1) push(x, y + 1);
+        }
+        for (let k = 0; k < w * h; k++) if (vis[k]) p[k * 4 + 3] = 0;
+        cx.putImageData(d, 0, 0);
+        resolve(cv.toDataURL('image/png'));
+      } catch (e) { resolve(src); }
+    };
+    im.onerror = () => resolve(src);
+    im.src = src;
+  });
+  _sinFondoCache.set(src, pr);
+  return pr;
+}
+async function aplicarSinFondo(root) {
+  await Promise.all([...root.querySelectorAll('img[data-sin-fondo]')].map(async el => {
+    el.src = await quitarFondoBlanco(el.getAttribute('src'));
+    el.removeAttribute('data-sin-fondo');
+  }));
+}
+
 function plSeparadorPosicion(c, titulo, jugadores) {
   const n = jugadores.length;
   const filas = n > 6 ? 2 : 1;
@@ -3630,7 +3671,7 @@ function plSeparadorPosicion(c, titulo, jugadores) {
     const x0 = (PL_W - enFila * slot) / 2 + col * slot;
     const y0 = top0 + fila * (fotoH + 130);
     const img = j.fotoUrl
-      ? `<img src="${j.fotoUrl}" alt="" style="position:absolute;left:${slot * 0.08}px;top:0;width:${slot * 0.84}px;height:${fotoH}px;object-fit:contain;object-position:center bottom;" />`
+      ? `<img data-sin-fondo="1" src="${j.fotoUrl}" alt="" style="position:absolute;left:${slot * 0.08}px;top:0;width:${slot * 0.84}px;height:${fotoH}px;object-fit:contain;object-position:center bottom;" />`
       : `<svg style="position:absolute;left:${slot * 0.08}px;top:0;" width="${slot * 0.84}" height="${fotoH}" viewBox="0 0 100 100" preserveAspectRatio="xMidYMax meet"><circle cx="50" cy="38" r="22" fill="rgba(255,255,255,0.15)"/><rect x="18" y="64" width="64" height="40" rx="20" fill="rgba(255,255,255,0.15)"/></svg>`;
     return `<div style="position:absolute;left:${x0}px;top:${y0}px;width:${slot}px;">
       <div style="position:relative;width:${slot}px;height:${fotoH}px;">${img}</div>
@@ -3905,6 +3946,7 @@ async function renderPlantillaPresentacion(container) {
   let hechas = 0;
   for (const g of grupos.filter(g => g.items.length)) {
     addHTML(plSeparadorPosicion(c, g.titulo, g.items.map(x => x.j)));
+    await aplicarSinFondo(lista);
     ajustarSlides(lista);
     for (const { j, prep } of g.items) {
       const sec = document.createElement('div');
