@@ -3695,6 +3695,7 @@ const hexDeNota = v => {
 };
 const notaNum = t => { if (t == null || t === '') return null; const v = parseFloat(String(t).replace(',', '.')); return Number.isNaN(v) ? null : v; };
 
+const PL_CARD_ESCALA = 0.65;   // tamaño de cada jugador en el campograma (24 jugadores caben); ajustable
 function plCardJugador(j, f1, x, y) {
   const R = 75, r = 46, cx = R, cy = R;
   const pol = (rad, deg) => { const a = (deg - 90) * Math.PI / 180; return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)]; };
@@ -3717,11 +3718,29 @@ function plCardJugador(j, f1, x, y) {
   }).join('');
   const apellido = String(j.apellidos || j.nombre || '').trim().toUpperCase();
   return `<div class="pl-card" data-jid="${j.id}" style="position:absolute;left:${x / 100 * PL_W}px;top:${y / 100 * PL_H}px;width:0;height:0;cursor:grab;touch-action:none;" title="Arrastra para mover · doble clic para quitar">
+   <div style="position:absolute;left:0;top:0;transform:scale(${PL_CARD_ESCALA});transform-origin:0 0;">
     <svg class="pl-donut" style="position:absolute;left:-${R}px;top:-${R}px;" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}">${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${foto}</svg>
     ${circ(nota(f1.player?.rValue), -92)}${circ(nota(f1.player?.pValue), 34)}
     <div style="position:absolute;left:-90px;width:180px;top:${R + 6}px;text-align:center;"><span style="display:inline-block;background:#d4a63a;color:#111;font-family:system-ui,sans-serif;font-weight:800;font-size:20px;padding:3px 16px;border-radius:20px;white-space:nowrap;">${safeText(apellido)}</span></div>
     <div style="position:absolute;left:${R + 28}px;top:-52px;">${barras}</div>
+   </div>
   </div>`;
+}
+
+function plLeyendaCirculo(order) {
+  const R = 140, cx = R, cy = R;
+  const nombres = { mental: 'MENTAL', tecnico: 'TÉCNICO', tactico: 'TÁCTICO', condicional: 'CONDICIONAL' };
+  const pol = (rad, deg) => { const a = (deg - 90) * Math.PI / 180; return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)]; };
+  const quarters = Object.entries(CAMPO_POS).map(([pos, [a, b]]) => {
+    const [x1, y1] = pol(R, a), [x2, y2] = pol(R, b);
+    const [lx, ly] = pol(R * 0.66, (a + b) / 2);
+    const t = nombres[order[pos]] || '';
+    const w = t.length * 9 + 12;
+    return `<path d="M${cx},${cy} L${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2} Z" fill="#8b5cf6" stroke="#ffffff" stroke-width="2"/>
+      <rect x="${lx - w / 2}" y="${ly - 12}" width="${w}" height="24" rx="4" fill="#ffffff"/>
+      <text x="${lx}" y="${ly + 5}" text-anchor="middle" font-size="13" font-weight="800" fill="#111" font-family="system-ui,sans-serif">${t}</text>`;
+  }).join('');
+  return `<svg style="position:absolute;right:70px;bottom:60px;" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}">${quarters}</svg>`;
 }
 
 // Estructura del PDF de equipo: portada · portada del equipo · campograma (pendiente) · mapa de nivel (pendiente)
@@ -3817,6 +3836,9 @@ async function renderPlantillaPresentacion(container) {
       </div>
       ${plSlide(`<img src="./campo1.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;" />
         ${plCrest('right:30px;top:24px;width:110px;height:110px;')}
+        <div style="position:absolute;left:80px;top:34px;background:rgba(15,23,32,0.78);border-radius:14px;padding:10px 30px;display:flex;align-items:baseline;gap:20px;">
+          <span class="pl-t pl-t-m" style="font-size:58px;">${safeText(t?.label || '')}</span><span class="pl-sub" style="font-size:34px;">${safeText(temporada)}</span></div>
+        ${plLeyendaCirculo(state.fichaGridOrder || { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: 'tactico' })}
         ${colocados.map(j => plCardJugador(j, f1Map[j.id], pos[j.id].x, pos[j.id].y)).join('')}`, '#1f6b2a')}`;
     ajustarSlides(lista);
     const sl = campoHost.querySelector('.pl-slide');
@@ -3827,7 +3849,7 @@ async function renderPlantillaPresentacion(container) {
     campoHost.querySelector('#pl-campo-add').addEventListener('click', async () => {
       const id = campoHost.querySelector('#pl-campo-sel').value; if (!id) return;
       const n = Object.keys(pos).length;
-      await guardarCampo({ ...pos, [id]: { x: 25 + (n % 5) * 12, y: 20 + Math.floor(n / 5) * 22 } });
+      await guardarCampo({ ...pos, [id]: { x: 10 + (n % 5) * 17, y: 14 + Math.floor(n / 5) * 16 } });
       dibujarCampo();
     });
     let drag = null;
