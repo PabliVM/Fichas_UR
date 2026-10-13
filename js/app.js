@@ -3308,16 +3308,24 @@ let plVista = { modo: 'grid', teamKey: null };  // 'grid' | 'datos' | 'pres'
 const nombreCompleto = j => `${j.apellidos || ''}, ${j.nombre || ''}`.replace(/^, |, $/g, '').trim();
 const ordenJugadores = (a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es');
 
+// Guarda (fusiona) campos en el doc de la plantilla temporada+equipo sin perder los demás (jugadorIds, fotos…).
+async function guardarPlantilla(temporada, teamKey, patch) {
+  await ensurePlantillas();
+  const id = plantillaDocId(temporada, teamKey);
+  const prev = plantillasCache.find(d => d.id === id) || {};
+  const { id: _id, updatedAt: _u, ...rest } = prev;
+  const data = { jugadorIds: [], ...rest, ...patch, temporada, teamKey };
+  await saveDocument('plantillas', id, data);
+  plantillasCache = [...plantillasCache.filter(d => d.id !== id), { id, ...data }];
+}
+
 // Añade un jugador a la plantilla (temporada+equipo). No quita de otras: puede estar en varias.
 async function añadirAPlantilla(jugadorId, teamKey, temporada) {
   if (!jugadorId || !teamKey || !temporada || isFirebaseUnconfigured()) return;
   await ensurePlantillas();
-  const id = plantillaDocId(temporada, teamKey);
-  const ids = plantillasCache.find(d => d.id === id)?.jugadorIds || [];
+  const ids = plantillasCache.find(d => d.id === plantillaDocId(temporada, teamKey))?.jugadorIds || [];
   if (ids.includes(jugadorId)) return;
-  const jugadorIds = [...ids, jugadorId];
-  await saveDocument('plantillas', id, { temporada, teamKey, jugadorIds });
-  plantillasCache = [...plantillasCache.filter(d => d.id !== id), { id, temporada, teamKey, jugadorIds }];
+  await guardarPlantilla(temporada, teamKey, { jugadorIds: [...ids, jugadorId] });
 }
 
 // Guarda un campo de la ficha de datos desde la plantilla (misma fuente que el formulario de Jugadores).
@@ -3409,10 +3417,8 @@ function renderPanelPlantillas(container) {
     </div>`;
 
   const guardar = async (teamKey, jugadorIds) => {
-    const id = plantillaDocId(plantillaTemporada, teamKey);
     try {
-      await saveDocument('plantillas', id, { temporada: plantillaTemporada, teamKey, jugadorIds });
-      plantillasCache = [...plantillasCache.filter(d => d.id !== id), { id, temporada: plantillaTemporada, teamKey, jugadorIds }];
+      await guardarPlantilla(plantillaTemporada, teamKey, { jugadorIds });
       preservandoScroll(() => renderPanelPlantillas(container));
     } catch (err) {
       console.error('[Firestore] No se pudo guardar la plantilla:', err);
@@ -3534,76 +3540,204 @@ function prepararFichaJugador(p, regs, temporada) {
   };
 }
 
+// Portadas y separadores (diapositivas 1920×1080 que se escalan a pantalla y se capturan a tamaño natural para el PDF).
+function injectPlantillaStyles() {
+  if (document.getElementById('pl-styles')) return;
+  const st = document.createElement('style');
+  st.id = 'pl-styles';
+  st.textContent = `
+    .pl-frame{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;margin-bottom:16px;border-radius:6px;}
+    .pl-slide{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:top left;overflow:hidden;font-family:'Segoe UI Black','Arial Black',system-ui,sans-serif;color:#fff;}
+    .pl-slide .pl-crest{position:absolute;width:150px;height:150px;object-fit:contain;border-radius:28px;}
+    .pl-slide h1{position:absolute;margin:0;font-style:italic;font-weight:900;text-transform:uppercase;line-height:1.02;letter-spacing:0.01em;}
+    .pl-pendiente-txt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;}
+  `;
+  document.head.appendChild(st);
+}
+let plUid = 0;
+// Formas en SVG en línea (html2canvas no soporta clip-path de CSS, pero sí SVG).
+function plPoligono(style, w, h, pts, fill) {
+  return `<svg style="position:absolute;${style}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polygon points="${pts.map(([x, y]) => `${x * w / 100},${y * h / 100}`).join(' ')}" fill="${fill}"/></svg>`;
+}
+function plFotoPoligono(style, w, h, pts, foto, textoVacio) {
+  const id = `plclip${++plUid}`;
+  const poly = pts.map(([x, y]) => `${x * w / 100},${y * h / 100}`).join(' ');
+  return `<svg style="position:absolute;${style}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <defs><clipPath id="${id}"><polygon points="${poly}"/></clipPath></defs>
+    ${foto ? `<image href="${foto}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>`
+           : `<polygon points="${poly}" fill="rgba(255,255,255,0.08)"/><text x="${w / 2}" y="${h / 2}" fill="rgba(255,255,255,0.45)" font-size="44" text-anchor="middle" font-family="system-ui,sans-serif">${textoVacio}</text>`}
+  </svg>`;
+}
+function plSlide(inner, bg, extraClass = '') {
+  return `<div class="pl-frame ${extraClass}"><div class="pl-slide" style="background:${bg}">${inner}</div></div>`;
+}
+function plOro(style, w, h) {
+  const id = `plg${++plUid}`;
+  return `<svg style="position:absolute;${style}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f5a623"/><stop offset="1" stop-color="#f5a623" stop-opacity="0"/></linearGradient></defs><polygon points="${w * 0.4},0 ${w},0 ${w * 0.6},${h} 0,${h}" fill="url(#${id})"/></svg>`;
+}
+function plPortadaGeneral(c, foto) {
+  return plSlide(`
+    <img class="pl-crest" src="${LOGO_PATH}" style="left:40px;top:40px;" alt="" />
+    <h1 style="left:80px;top:150px;font-size:195px;width:1150px;">Evolución<br>de los<br>jugadores</h1>
+    ${plFotoPoligono('right:60px;top:200px;', 1000, 760, [[12, 0], [100, 0], [88, 100], [0, 100]], foto, 'Foto de portada')}
+    ${plOro('right:60px;bottom:90px;', 230, 300)}
+    ${plPoligono('left:0;bottom:0;', 860, 230, [[0, 0], [100, 0], [94, 100], [0, 100]], c.wine)}
+    <div style="position:absolute;left:60px;bottom:0;height:230px;display:flex;align-items:center;color:#111;font-style:italic;font-weight:900;font-size:88px;line-height:1;text-transform:uppercase;">Informes<br>individuales</div>`, c.slate);
+}
+function plPortadaEquipo(c, foto, equipo, temporada) {
+  return plSlide(`
+    ${plFotoPoligono('left:60px;top:60px;', 1050, 960, [[0, 0], [100, 0], [92, 100], [0, 100]], foto, 'Foto del equipo')}
+    <img class="pl-crest" src="${LOGO_PATH}" style="right:60px;top:50px;" alt="" />
+    ${plOro('right:60px;bottom:60px;', 230, 340)}
+    <div style="position:absolute;left:1120px;right:60px;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center;">
+      <div style="font-size:78px;font-weight:900;text-transform:uppercase;white-space:nowrap;">${safeText(equipo)}</div>
+      <div style="font-size:48px;font-weight:600;opacity:0.8;font-family:system-ui,sans-serif;">${safeText(temporada)}</div>
+    </div>`, c.slate);
+}
+function plSeparadorPosicion(c, titulo, n) {
+  return plSlide(`
+    <img class="pl-crest" src="${LOGO_PATH}" style="left:40px;top:40px;" alt="" />
+    <div style="position:absolute;left:0;right:0;top:380px;height:320px;background:${c.wine};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
+      <div style="font-style:italic;font-weight:900;font-size:150px;text-transform:uppercase;line-height:1;">${safeText(titulo)}</div>
+      <div style="font-size:44px;font-weight:600;opacity:0.85;font-family:system-ui,sans-serif;">${n} jugador${n === 1 ? '' : 'es'}</div>
+    </div>`, c.slate);
+}
+function plPendiente(c, titulo) {
+  return plSlide(`
+    <img class="pl-crest" src="${LOGO_PATH}" style="left:40px;top:40px;" alt="" />
+    <div class="pl-pendiente-txt"><div style="font-style:italic;font-weight:900;font-size:110px;text-transform:uppercase;">${safeText(titulo)}</div><div style="font-size:48px;font-weight:600;opacity:0.5;font-family:system-ui,sans-serif;">Por definir</div></div>`, c.slate, 'pl-pendiente');
+}
+function ajustarSlides(root) {
+  root.querySelectorAll('.pl-frame').forEach(fr => {
+    const sl = fr.querySelector('.pl-slide');
+    if (sl) sl.style.transform = `scale(${fr.clientWidth / 1920})`;
+  });
+}
+// Reduce la foto elegida a ≤1400 px y JPEG 0.8 (~150 KB) para guardarla en el doc de la plantilla.
+function fotoADataUrl(file) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onerror = () => rej(fr.error);
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = () => rej(new Error('imagen no válida'));
+      img.onload = () => {
+        const k = Math.min(1, 1400 / Math.max(img.width, img.height));
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        res(cv.toDataURL('image/jpeg', 0.8));
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+// Estructura del PDF de equipo: portada · portada del equipo · campograma (pendiente) · mapa de nivel (pendiente)
+// · por cada posición: separador + Ficha 1 y 2 de cada jugador.
 async function renderPlantillaPresentacion(container) {
+  injectPlantillaStyles();
   const t = TEAMS.find(x => x.key === plVista.teamKey);
   const temporada = plantillaTemporada;
-  const ids = plantillasCache.find(d => d.id === plantillaDocId(temporada, plVista.teamKey))?.jugadorIds || [];
-  const jugs = ids.map(id => state.players.find(x => x.id === id)).filter(Boolean).sort(ordenJugadores);
+  const docP = () => plantillasCache.find(d => d.id === plantillaDocId(temporada, plVista.teamKey)) || {};
+  const jugs = (docP().jugadorIds || []).map(id => state.players.find(x => x.id === id)).filter(Boolean).sort(ordenJugadores);
+  const c = state.fichaColors || { slate: '#24313d', wine: '#7f3a52' };
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
       <button class="btn btn-ghost" id="pl-volver">← Plantillas</button>
       <b>${safeText(t?.label || '')} · ${safeText(temporada)} · ${jugs.length} jugadores</b>
-      <button class="btn btn-primary btn-print-ficha" id="pl-pres-pdf">⬇ PDF de toda la plantilla</button>
+      <label class="btn btn-sm" style="cursor:pointer;">Foto portada<input type="file" accept="image/*" id="pl-foto-portada" hidden /></label>
+      <label class="btn btn-sm" style="cursor:pointer;">Foto equipo<input type="file" accept="image/*" id="pl-foto-equipo" hidden /></label>
+      <label class="text-xs"><input type="checkbox" id="pl-inc-pend" /> Incluir páginas "por definir" en el PDF</label>
+      <button class="btn btn-primary btn-print-ficha" id="pl-pres-pdf" disabled>⬇ PDF del equipo</button>
       <span class="text-xs text-muted" id="pl-pres-estado">Cargando fichas…</span>
     </div>
     <div id="pl-pres-lista"></div>`;
   container.querySelector('#pl-volver').addEventListener('click', () => { plVista = { modo: 'grid', teamKey: null }; renderPanelPlantillas(container); });
   const lista = container.querySelector('#pl-pres-lista');
   const estado = container.querySelector('#pl-pres-estado');
+  const pdfBtn = container.querySelector('#pl-pres-pdf');
+  const addHTML = html => lista.insertAdjacentHTML('beforeend', html);
+
+  const dibujarPortadas = () => {
+    lista.querySelectorAll('[data-pl-fijo]').forEach(el => el.remove());
+    const tmp = document.createElement('div');
+    tmp.innerHTML = plPortadaGeneral(c, docP().fotoPortada) + plPortadaEquipo(c, docP().fotoEquipo, t?.label || '', temporada) + plPendiente(c, 'Campograma · resumen de jugadores') + plPendiente(c, 'Mapa de nivel');
+    [...tmp.children].reverse().forEach(el => { el.dataset.plFijo = '1'; lista.prepend(el); });
+    ajustarSlides(lista);
+  };
+  dibujarPortadas();
+  const subirFoto = (inputId, campo) => container.querySelector(inputId).addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try { await guardarPlantilla(temporada, plVista.teamKey, { [campo]: await fotoADataUrl(f) }); dibujarPortadas(); showSuccess('Foto guardada.'); }
+    catch (err) { console.error(err); showError('No se pudo guardar la foto (¿demasiado grande?).'); }
+  });
+  subirFoto('#pl-foto-portada', 'fotoPortada');
+  subirFoto('#pl-foto-equipo', 'fotoEquipo');
+  window.addEventListener('resize', () => { if (container.isConnected) ajustarSlides(lista); });
 
   if (!isFirebaseUnconfigured()) {
     await Promise.all(jugs.map(j => jugFichaRegs[j.id] ? null : queryRegistros({ jugadorId: j.id }).then(r => { jugFichaRegs[j.id] = r; }).catch(err => { console.error('[Firestore] Registros:', err); jugFichaRegs[j.id] = []; })));
   }
   if (!container.isConnected || plVista.modo !== 'pres') return;
   setGpsTolerance(state.condicionalTolerance);
-  for (const j of jugs) {
-    const prep = prepararFichaJugador(j, jugFichaRegs[j.id] || [], temporada);
-    const sec = document.createElement('div');
-    sec.className = 'mb-16';
-    sec.innerHTML = `
-      <div class="flex gap-8 mb-8 btn-print-ficha" style="align-items:center;flex-wrap:wrap;">
-        <b style="font-size:18px;">${safeText(nombreCompleto(j))}</b>
-        <span class="text-xs text-muted">${safeText(prep.evSel ? `${prep.evSel.ev.temporada} · ${prep.evSel.ev.nombre}` : 'Sin evaluaciones')}</span>
-        <button class="btn btn-sm" data-pr-textos="${j.id}">Guardar textos</button>
-        <button class="btn btn-sm" data-pr-editar="${j.id}">Editar datos</button>
-      </div>
-      ${(prep.fPos) ? '<div class="ficha-wrap mb-16" data-pr-f1></div><div class="ficha-wrap" data-pr-f2></div>' : '<p class="text-xs text-muted">Sin posición ni evaluación: asigna una posición en Datos.</p>'}`;
-    lista.appendChild(sec);
-    if (!prep.fPos) continue;
-    renderFichaPagina1(sec.querySelector('[data-pr-f1]'), buildFicha1RealData(prep.fPos, prep.fMedia, j, prep.aspectosTxt, prep.evSel?.eid), LOGO_PATH, state.fichaColors);
-    renderFichaDetalle(sec.querySelector('[data-pr-f2]'), buildFichaRealData(prep.fPos, prep.fMedia, j, prep.evSel?.eid, null), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
-    sec.querySelector('[data-pr-textos]').addEventListener('click', async e => {
-      const btn = e.currentTarget;
-      const grids = [...sec.querySelectorAll('.p1-aspectos-grid')];
-      const leer = (g, i) => [...(g?.querySelectorAll('.p1-aspectos-col')[i]?.querySelectorAll('li') || [])].map(li => li.innerText.trim());
-      const nuevo = { of_pot: leer(grids[0], 0), of_mej: leer(grids[0], 1), def_pot: leer(grids[1], 0), def_mej: leer(grids[1], 1) };
-      const fichaTextos = { ...(j.fichaTextos || {}), [prep.textosKey]: nuevo };
-      btn.disabled = true; btn.textContent = 'Guardando…';
-      try {
-        await updateDocument('jugadores', j.id, { fichaTextos });
-        j.fichaTextos = fichaTextos;
-        setState({ players: state.players.map(x => x.id === j.id ? { ...x, fichaTextos } : x) });
-        showSuccess('Textos guardados.');
-      } catch (err) { console.error(err); showError('No se pudieron guardar los textos.'); }
-      finally { btn.disabled = false; btn.textContent = 'Guardar textos'; }
-    });
-    sec.querySelector('[data-pr-editar]').addEventListener('click', () => {
-      jugFichaId = null; jugadorFormId = j.id;
-      switchTab('jugadores');
-    });
-    estado.textContent = `Fichas ${lista.children.length}/${jugs.length}…`;
-    await new Promise(r => setTimeout(r, 0)); // deja respirar al navegador entre fichas
+
+  // Agrupa por posición (en el orden de Configuración); sin posición al final.
+  const preps = jugs.map(j => ({ j, prep: prepararFichaJugador(j, jugFichaRegs[j.id] || [], temporada) }));
+  const grupos = state.positions.map(pos => ({ titulo: pos.label, items: preps.filter(x => x.prep.fPos === pos.key) }));
+  grupos.push({ titulo: 'Sin posición', items: preps.filter(x => !x.prep.fPos || !state.positions.some(pos => pos.key === x.prep.fPos)) });
+
+  let hechas = 0;
+  for (const g of grupos.filter(g => g.items.length)) {
+    addHTML(plSeparadorPosicion(c, g.titulo, g.items.length));
+    ajustarSlides(lista);
+    for (const { j, prep } of g.items) {
+      const sec = document.createElement('div');
+      sec.className = 'mb-16';
+      sec.innerHTML = `
+        <div class="flex gap-8 mb-8 btn-print-ficha" style="align-items:center;flex-wrap:wrap;">
+          <b style="font-size:18px;">${safeText(nombreCompleto(j))}</b>
+          <span class="text-xs text-muted">${safeText(prep.evSel ? `${prep.evSel.ev.temporada} · ${prep.evSel.ev.nombre}` : 'Sin evaluaciones')}</span>
+          <button class="btn btn-sm" data-pr-textos="${j.id}">Guardar textos</button>
+          <button class="btn btn-sm" data-pr-editar="${j.id}">Editar datos</button>
+        </div>
+        ${prep.fPos ? '<div class="ficha-wrap mb-16" data-pr-f1></div><div class="ficha-wrap" data-pr-f2></div>' : '<p class="text-xs text-muted">Sin posición ni evaluación: asigna una posición en Datos (no entra en el PDF).</p>'}`;
+      lista.appendChild(sec);
+      if (!prep.fPos) continue;
+      renderFichaPagina1(sec.querySelector('[data-pr-f1]'), buildFicha1RealData(prep.fPos, prep.fMedia, j, prep.aspectosTxt, prep.evSel?.eid), LOGO_PATH, state.fichaColors);
+      renderFichaDetalle(sec.querySelector('[data-pr-f2]'), buildFichaRealData(prep.fPos, prep.fMedia, j, prep.evSel?.eid, null), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
+      sec.querySelector('[data-pr-textos]').addEventListener('click', async e => {
+        const btn = e.currentTarget;
+        const grids = [...sec.querySelectorAll('.p1-aspectos-grid')];
+        const leer = (gr, i) => [...(gr?.querySelectorAll('.p1-aspectos-col')[i]?.querySelectorAll('li') || [])].map(li => li.innerText.trim());
+        const nuevo = { of_pot: leer(grids[0], 0), of_mej: leer(grids[0], 1), def_pot: leer(grids[1], 0), def_mej: leer(grids[1], 1) };
+        const fichaTextos = { ...(j.fichaTextos || {}), [prep.textosKey]: nuevo };
+        btn.disabled = true; btn.textContent = 'Guardando…';
+        try {
+          await updateDocument('jugadores', j.id, { fichaTextos });
+          j.fichaTextos = fichaTextos;
+          setState({ players: state.players.map(x => x.id === j.id ? { ...x, fichaTextos } : x) });
+          showSuccess('Textos guardados.');
+        } catch (err) { console.error(err); showError('No se pudieron guardar los textos.'); }
+        finally { btn.disabled = false; btn.textContent = 'Guardar textos'; }
+      });
+      sec.querySelector('[data-pr-editar]').addEventListener('click', () => { jugFichaId = null; jugadorFormId = j.id; switchTab('jugadores'); });
+      estado.textContent = `Fichas ${++hechas}/${preps.length}…`;
+      await new Promise(r => setTimeout(r, 0)); // deja respirar al navegador entre fichas
+    }
   }
   estado.textContent = '';
-  container.querySelector('#pl-pres-pdf')?.addEventListener('click', async e => {
-    const btn = e.currentTarget;
-    const els = [...lista.querySelectorAll('.p1-detalle, .ficha-detalle')];
+  pdfBtn.disabled = false;
+  pdfBtn.addEventListener('click', async () => {
+    const incluirPend = container.querySelector('#pl-inc-pend').checked;
+    const els = [...lista.querySelectorAll('.pl-slide, .p1-detalle, .ficha-detalle')].filter(el => incluirPend || !el.closest('.pl-pendiente'));
     if (!els.length) return;
-    btn.disabled = true; btn.textContent = 'Generando PDF…';
-    try { await exportFichasAsPDF(els, `plantilla-${plVista.teamKey}-${String(temporada).replace(/\//g, '-')}.pdf`); }
+    pdfBtn.disabled = true; pdfBtn.textContent = 'Generando PDF…';
+    try { await exportFichasAsPDF(els, `${plVista.teamKey}-${String(temporada).replace(/\//g, '-')}.pdf`); }
     catch (err) { showError('No se pudo generar el PDF: ' + err.message); }
-    finally { btn.disabled = false; btn.textContent = '⬇ PDF de toda la plantilla'; }
+    finally { pdfBtn.disabled = false; pdfBtn.textContent = '⬇ PDF del equipo'; }
   });
 }
 
