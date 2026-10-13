@@ -3815,7 +3815,7 @@ async function renderPlantillaPresentacion(container) {
         <button class="btn btn-sm btn-primary" id="pl-campo-add">Añadir</button>
         <span class="text-xs text-muted">Arrastra para mover · doble clic para quitar del campo.</span>
       </div>
-      ${plSlide(`<img src="./campo.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;" />
+      ${plSlide(`<img src="./campo1.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;" />
         ${plCrest('right:30px;top:24px;width:110px;height:110px;')}
         ${colocados.map(j => plCardJugador(j, f1Map[j.id], pos[j.id].x, pos[j.id].y)).join('')}`, '#1f6b2a')}`;
     ajustarSlides(lista);
