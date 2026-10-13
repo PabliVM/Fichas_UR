@@ -3695,41 +3695,46 @@ const hexDeNota = v => {
 };
 const notaNum = t => { if (t == null || t === '') return null; const v = parseFloat(String(t).replace(',', '.')); return Number.isNaN(v) ? null : v; };
 
+// SVG como <img> (data-URL): html2canvas solo dibuja el bitmap y no rompe arcos/clip/textPath al exportar el PDF.
+const svgComoImg = (svg, w, h, estilo) => `<img alt="" draggable="false" width="${w}" height="${h}" style="${estilo}" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}"/>`;
+
 const PL_CARD_ESCALA = 0.65;   // tamaño de cada jugador en el campograma (24 jugadores caben); ajustable
+// Todas las medidas ya van multiplicadas por la escala (sin transform CSS ni viewBox escalado):
+// html2canvas pintaba mal los SVG dentro de elementos con transform al exportar el PDF.
 function plCardJugador(j, f1, x, y) {
-  const R = 84, r = 52, cx = R, cy = R;
+  const K = PL_CARD_ESCALA, k = v => Math.round(v * K * 10) / 10;
+  const R = k(84), r = k(52), cx = R, cy = R;
   const pol = (rad, deg) => { const a = (deg - 90) * Math.PI / 180; return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)]; };
   const order = f1.gridOrder || { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: 'tactico' };
   const quarters = Object.entries(CAMPO_POS).map(([pos, [a, b]]) => {
     const [x1, y1] = pol(R, a), [x2, y2] = pol(R, b), [x3, y3] = pol(r, b), [x4, y4] = pol(r, a);
-    return `<path d="M${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2} L${x3},${y3} A${r},${r} 0 0 0 ${x4},${y4} Z" fill="${f1.circleColors?.[order[pos]] || '#ffffff'}" stroke="#94a3b8" stroke-width="1.5"/>`;
+    return `<path d="M${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2} L${x3},${y3} A${r},${r} 0 0 0 ${x4},${y4} Z" fill="${f1.circleColors?.[order[pos]] || '#ffffff'}" stroke="#94a3b8" stroke-width="1"/>`;
   }).join('');
   const id = `plc${++plUid}`;
   const foto = j.fotoUrl
-    ? `<clipPath id="${id}"><circle cx="${cx}" cy="${cy}" r="${r - 2}"/></clipPath><image href="${j.fotoUrl}" x="${cx - r}" y="${cy - r}" width="${r * 2}" height="${r * 2}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>` : '';
+    ? `<clipPath id="${id}"><circle cx="${cx}" cy="${cy}" r="${r - 1}"/></clipPath><image xlink:href="${j.fotoUrl}" href="${j.fotoUrl}" x="${cx - r}" y="${cy - r}" width="${r * 2}" height="${r * 2}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>` : '';
   const nota = (txt) => {
     const hex = hexDeNota(notaNum(txt));
     return hex ? { bg: hex, fg: textoSobre(hex), t: String(txt) } : { bg: '#ffffff', fg: '#111', t: 'X' };
   };
-  const circ = (n, left) => `<div style="position:absolute;left:${left}px;top:-${R + 17}px;width:58px;height:58px;border-radius:50%;background:${n.bg};color:${n.fg};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:${n.t.length > 2 ? 24 : 30}px;font-family:system-ui,sans-serif;">${safeText(n.t)}</div>`;
+  const D = k(58);
+  const circ = (n, left) => `<div style="position:absolute;left:${left}px;top:${-k(84 + 17)}px;width:${D}px;height:${D}px;border-radius:50%;background:${n.bg};color:${n.fg};border:${k(3)}px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:${k(n.t.length > 2 ? 24 : 30)}px;font-family:system-ui,sans-serif;">${safeText(n.t)}</div>`;
   const barras = (f1.statusBars || []).slice(0, 3).map(b => {
     const bg = b.hex || '#ffffff';
-    return `<div style="width:240px;height:30px;box-sizing:border-box;margin-bottom:4px;background:${bg};color:#000;border:3px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;font-weight:400;font-size:18px;text-transform:uppercase;white-space:nowrap;overflow:hidden;">${safeText(b.label)}</div>`;
+    return `<div style="width:${k(240)}px;height:${k(30)}px;box-sizing:border-box;margin-bottom:${k(4)}px;background:${bg};color:#000;border:${k(3)}px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;font-weight:400;font-size:${k(18)}px;text-transform:uppercase;white-space:nowrap;overflow:hidden;">${safeText(b.label)}</div>`;
   }).join('');
   const apellido = String(j.apellidos || j.nombre || '').trim().toUpperCase();
   return `<div class="pl-card" data-jid="${j.id}" style="position:absolute;left:${x / 100 * PL_W}px;top:${y / 100 * PL_H}px;width:0;height:0;cursor:grab;touch-action:none;" title="Arrastra para mover · doble clic para quitar">
-   <div style="position:absolute;left:0;top:0;transform:scale(${PL_CARD_ESCALA});transform-origin:0 0;">
-    <svg class="pl-donut" style="position:absolute;left:-${R}px;top:-${R}px;" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}">${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${foto}</svg>
-    ${circ(nota(f1.player?.rValue), -(R + 17))}${circ(nota(f1.player?.pValue), R - 41)}
-    <div style="position:absolute;left:-90px;width:180px;top:${R + 6}px;text-align:center;"><span style="display:inline-block;background:#d4a63a;color:#111;font-family:system-ui,sans-serif;font-weight:800;font-size:20px;padding:3px 16px;border-radius:20px;white-space:nowrap;">${safeText(apellido)}</span></div>
-    <div style="position:absolute;left:${R + 28}px;top:-46px;">${barras}</div>
-   </div>
+    ${svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}">${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${foto}</svg>`, R * 2, R * 2, `position:absolute;left:${-R}px;top:${-R}px;pointer-events:none;`).replace('<img ', '<img class="pl-donut" ')}
+    ${circ(nota(f1.player?.rValue), -k(84 + 17))}${circ(nota(f1.player?.pValue), k(84 - 41))}
+    <div style="position:absolute;left:${-k(90)}px;width:${k(180)}px;top:${R + k(6)}px;text-align:center;"><span style="display:inline-block;background:#d4a63a;color:#111;font-family:system-ui,sans-serif;font-weight:800;font-size:${k(20)}px;padding:${k(3)}px ${k(16)}px;border-radius:20px;white-space:nowrap;">${safeText(apellido)}</span></div>
+    <div style="position:absolute;left:${R + k(28)}px;top:${-k(46)}px;">${barras}</div>
   </div>`;
 }
 
 // Leyenda: mismo donut que el de cada jugador, sin foto y en blanco, con el nombre de cada bloque en su cuarto (texto curvo).
 function plLeyendaCirculo(order) {
-  const R = 118, r = 58, cx = R, cy = R, mid = (R + r) / 2;
+  const R = 88, r = 44, cx = R, cy = R, mid = (R + r) / 2;   // tamaño real: sin viewBox escalado (el PDF lo pinta bien)
   const nombres = { mental: 'MENTAL', tecnico: 'TÉCNICO', tactico: 'TÁCTICO', condicional: 'CONDICIONAL' };
   const pol = (rad, deg) => { const a = (deg - 90) * Math.PI / 180; return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)]; };
   const u = ++plUid;
@@ -3739,10 +3744,10 @@ function plLeyendaCirculo(order) {
     const abajo = pos === 'br' || pos === 'bl';
     const [px1, py1] = pol(mid, abajo ? b : a), [px2, py2] = pol(mid, abajo ? a : b);
     defs.push(`<path id="plleg${u}${pos}" d="M${px1},${py1} A${mid},${mid} 0 0 ${abajo ? 0 : 1} ${px2},${py2}" fill="none"/>`);
-    textos.push(`<text font-size="15" font-weight="800" fill="#111" font-family="system-ui,sans-serif"><textPath href="#plleg${u}${pos}" startOffset="50%" text-anchor="middle">${nombres[order[pos]] || ''}</textPath></text>`);
-    return `<path d="M${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2} L${x3},${y3} A${r},${r} 0 0 0 ${x4},${y4} Z" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>`;
+    textos.push(`<text font-size="12.5" font-weight="800" fill="#111" font-family="system-ui,sans-serif"><textPath xlink:href="#plleg${u}${pos}" href="#plleg${u}${pos}" startOffset="50%" text-anchor="middle">${nombres[order[pos]] || ''}</textPath></text>`);
+    return `<path d="M${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2} L${x3},${y3} A${r},${r} 0 0 0 ${x4},${y4} Z" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>`;
   }).join('');
-  return `<svg style="position:absolute;right:110px;bottom:70px;" width="${R}" height="${R}" viewBox="0 0 ${R * 2} ${R * 2}"><defs>${defs.join('')}</defs>${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${textos.join('')}</svg>`;
+  return svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}"><defs>${defs.join('')}</defs>${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${textos.join('')}</svg>`, R * 2, R * 2, 'position:absolute;right:60px;bottom:45px;');
 }
 
 // Estructura del PDF de equipo: portada · portada del equipo · campograma (pendiente) · mapa de nivel (pendiente)
