@@ -3557,12 +3557,12 @@ function injectPlantillaStyles() {
     .pl-frame{position:relative;width:100%;aspect-ratio:${PL_W}/${PL_H};overflow:hidden;margin-bottom:16px;border-radius:6px;}
     .pl-slide{position:absolute;left:0;top:0;width:${PL_W}px;height:${PL_H}px;transform-origin:top left;overflow:hidden;font-family:'Segoe UI Black','Arial Black',system-ui,sans-serif;color:#fff;}
     .pl-slide .pl-crest{position:absolute;width:150px;height:150px;object-fit:contain;border-radius:28px;}
-    .pl-t{font-weight:900;text-transform:uppercase;letter-spacing:0.02em;line-height:1.05;margin:0;}
-    .pl-t-xl{font-size:200px;font-style:italic;}
-    .pl-t-l{font-size:130px;}
-    .pl-t-m{font-size:84px;}
-    .pl-sub{font-family:system-ui,'Segoe UI',sans-serif;font-weight:600;font-size:48px;opacity:0.8;}
-    .pl-nombre{font-weight:800;text-transform:uppercase;text-align:center;line-height:1.1;}
+    .pl-t{font-weight:900;text-transform:uppercase;letter-spacing:-0.01em;line-height:1;margin:0;}
+    .pl-t-xl{font-size:165px;font-style:italic;}
+    .pl-t-l{font-size:96px;}
+    .pl-t-m{font-size:66px;}
+    .pl-sub{font-family:system-ui,'Segoe UI',sans-serif;font-weight:600;font-size:40px;opacity:0.8;}
+    .pl-nombre{font-weight:800;text-transform:uppercase;text-align:center;line-height:1.1;letter-spacing:-0.01em;}
   `;
   document.head.appendChild(st);
 }
@@ -3712,6 +3712,18 @@ async function renderPlantillaPresentacion(container) {
     const tmp = document.createElement('div');
     tmp.innerHTML = plPortadaGeneral(c, (plantillasCache.find(d => d.id === plantillaDocId(temporada, '_portada'))?.fotoPortada)) + plPortadaEquipo(c, docP().fotoEquipo, t?.label || '', temporada) + plPendiente(c, 'Campograma · resumen de jugadores') + plPendiente(c, 'Mapa de nivel');
     [...tmp.children].reverse().forEach(el => { el.dataset.plFijo = '1'; lista.prepend(el); });
+    // Botón "Subir foto" sobre las dos portadas (solo en pantalla: queda fuera de la diapositiva que se captura al PDF)
+    [['#pl-foto-portada', 0, 'portada de la temporada'], ['#pl-foto-equipo', 1, 'del equipo']].forEach(([inp, i, txt]) => {
+      const fr = lista.children[i];
+      if (!fr) return;
+      fr.style.position = 'relative';
+      const b = document.createElement('button');
+      b.className = 'btn btn-sm btn-primary';
+      b.textContent = `📷 Foto ${txt}`;
+      b.style.cssText = 'position:absolute;right:12px;bottom:12px;z-index:5;';
+      b.addEventListener('click', () => container.querySelector(inp).click());
+      fr.appendChild(b);
+    });
     ajustarSlides(lista);
   };
   dibujarPortadas();
