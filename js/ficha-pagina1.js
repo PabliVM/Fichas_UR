@@ -168,7 +168,8 @@ function buildStatusBars(bars) {
 }
 
 function buildPersonalidad(personalidad) {
-  const col = items => items.map(it =>
+  // Primera fila libre (el círculo central tapa el inicio de la 2ª columna): la lista empieza en la fila 2.
+  const col = items => '<li class="p1-spacer" aria-hidden="true">&nbsp;</li>' + items.map(it =>
     `<li><span class="p1-item-label">${safeText(it.label)}</span>${statusMarkup(it.status)}</li>`
   ).join('');
   return `
