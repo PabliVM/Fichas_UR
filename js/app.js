@@ -14,7 +14,7 @@ import { renderTabs, switchTab } from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
 import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS, PROFILES } from './constants.js';
 import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore, loadPlayersFromFirestore } from './state.js';
-import { renderFichaDetalle, setGpsTolerance, condicionalScore } from './ficha-detalle.js';
+import { renderFichaDetalle, setGpsTolerance, condicionalScore, fitFichaToFrame } from './ficha-detalle.js';
 import { renderFichaPagina1 } from './ficha-pagina1.js';
 import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
 import { exportFichaAsPDF, exportFichasAsPDF } from './pdf-export.js';
@@ -2204,9 +2204,14 @@ function renderPanelJugadores(container) {
     canvas.width = canvas.height = OUT;
     const scale = crop.min * crop.zoom;
     const cx = canvas.getContext('2d');
-    cx.fillStyle = '#fff'; cx.fillRect(0, 0, OUT, OUT); // PNG transparente → fondo blanco
     cx.drawImage(crop.img, -crop.x / scale, -crop.y / scale, CROP_V / scale, CROP_V / scale, 0, 0, OUT, OUT);
-    canvas.toBlob(b => resolve(b ? new File([b], 'foto.jpg', { type: 'image/jpeg' }) : null), 'image/jpeg', 0.9);
+    // PNG: conserva la transparencia de los recortes. Si pesa demasiado para el documento, JPEG con fondo blanco.
+    canvas.toBlob(png => {
+      if (png && png.size <= 450000) { resolve(new File([png], 'foto.png', { type: 'image/png' })); return; }
+      const c2 = document.createElement('canvas'); c2.width = c2.height = OUT;
+      const x2 = c2.getContext('2d'); x2.fillStyle = '#fff'; x2.fillRect(0, 0, OUT, OUT); x2.drawImage(canvas, 0, 0);
+      c2.toBlob(b => resolve(b ? new File([b], 'foto.jpg', { type: 'image/jpeg' }) : null), 'image/jpeg', 0.9);
+    }, 'image/png');
   });
 
   container.querySelector('#jug-add')?.addEventListener('click', async () => {
@@ -3647,7 +3652,11 @@ function plPendiente(c, titulo) {
 function ajustarSlides(root) {
   root.querySelectorAll('.pl-frame').forEach(fr => {
     const sl = fr.querySelector('.pl-slide');
-    if (sl) sl.style.transform = `scale(${fr.clientWidth / PL_W})`;
+    if (!sl) return;
+    const maxW = Math.min(root.clientWidth || 1700, 1700); // misma regla de ancho que las fichas (fitFichaToFrame)
+    fr.style.width = `${maxW}px`;
+    fr.style.margin = '0 auto 16px';
+    sl.style.transform = `scale(${maxW / PL_W})`;
   });
 }
 // Reduce la foto elegida a ≤1400 px y JPEG 0.8 (~150 KB) para guardarla en el doc de la plantilla.
@@ -3770,6 +3779,16 @@ async function renderPlantillaPresentacion(container) {
     }
   }
   estado.textContent = '';
+  const reajustar = () => { ajustarSlides(lista); lista.querySelectorAll('.ficha-wrap').forEach(w => fitFichaToFrame(w)); };
+  reajustar();
+  if (window.ResizeObserver) {
+    let ultimoAncho = lista.clientWidth;
+    new ResizeObserver(() => {
+      if (!container.isConnected || lista.clientWidth === ultimoAncho) return;
+      ultimoAncho = lista.clientWidth;
+      requestAnimationFrame(reajustar);
+    }).observe(lista);
+  }
   pdfBtn.disabled = false;
   pdfBtn.addEventListener('click', async () => {
     const incluirPend = container.querySelector('#pl-inc-pend').checked;
