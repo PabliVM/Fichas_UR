@@ -3697,7 +3697,7 @@ const notaNum = t => { if (t == null || t === '') return null; const v = parseFl
 
 const PL_CARD_ESCALA = 0.65;   // tamaño de cada jugador en el campograma (24 jugadores caben); ajustable
 function plCardJugador(j, f1, x, y) {
-  const R = 75, r = 46, cx = R, cy = R;
+  const R = 84, r = 52, cx = R, cy = R;
   const pol = (rad, deg) => { const a = (deg - 90) * Math.PI / 180; return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)]; };
   const order = f1.gridOrder || { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: 'tactico' };
   const quarters = Object.entries(CAMPO_POS).map(([pos, [a, b]]) => {
@@ -3711,36 +3711,38 @@ function plCardJugador(j, f1, x, y) {
     const hex = hexDeNota(notaNum(txt));
     return hex ? { bg: hex, fg: textoSobre(hex), t: String(txt) } : { bg: '#ffffff', fg: '#111', t: 'X' };
   };
-  const circ = (n, left) => `<div style="position:absolute;left:${left}px;top:-92px;width:58px;height:58px;border-radius:50%;background:${n.bg};color:${n.fg};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:${n.t.length > 2 ? 24 : 30}px;font-family:system-ui,sans-serif;">${safeText(n.t)}</div>`;
+  const circ = (n, left) => `<div style="position:absolute;left:${left}px;top:-${R + 17}px;width:58px;height:58px;border-radius:50%;background:${n.bg};color:${n.fg};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:${n.t.length > 2 ? 24 : 30}px;font-family:system-ui,sans-serif;">${safeText(n.t)}</div>`;
   const barras = (f1.statusBars || []).slice(0, 3).map(b => {
     const bg = b.hex || '#ffffff';
-    return `<div style="width:270px;height:34px;box-sizing:border-box;margin-bottom:5px;background:${bg};color:${textoSobre(bg)};border:3px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;font-weight:800;font-size:19px;text-transform:uppercase;white-space:nowrap;overflow:hidden;">${safeText(b.label)}</div>`;
+    return `<div style="width:240px;height:30px;box-sizing:border-box;margin-bottom:4px;background:${bg};color:${textoSobre(bg)};border:3px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;font-weight:800;font-size:16px;text-transform:uppercase;white-space:nowrap;overflow:hidden;">${safeText(b.label)}</div>`;
   }).join('');
   const apellido = String(j.apellidos || j.nombre || '').trim().toUpperCase();
   return `<div class="pl-card" data-jid="${j.id}" style="position:absolute;left:${x / 100 * PL_W}px;top:${y / 100 * PL_H}px;width:0;height:0;cursor:grab;touch-action:none;" title="Arrastra para mover · doble clic para quitar">
    <div style="position:absolute;left:0;top:0;transform:scale(${PL_CARD_ESCALA});transform-origin:0 0;">
     <svg class="pl-donut" style="position:absolute;left:-${R}px;top:-${R}px;" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}">${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${foto}</svg>
-    ${circ(nota(f1.player?.rValue), -92)}${circ(nota(f1.player?.pValue), 34)}
+    ${circ(nota(f1.player?.rValue), -(R + 17))}${circ(nota(f1.player?.pValue), R - 41)}
     <div style="position:absolute;left:-90px;width:180px;top:${R + 6}px;text-align:center;"><span style="display:inline-block;background:#d4a63a;color:#111;font-family:system-ui,sans-serif;font-weight:800;font-size:20px;padding:3px 16px;border-radius:20px;white-space:nowrap;">${safeText(apellido)}</span></div>
-    <div style="position:absolute;left:${R + 28}px;top:-52px;">${barras}</div>
+    <div style="position:absolute;left:${R + 28}px;top:-46px;">${barras}</div>
    </div>
   </div>`;
 }
 
+// Leyenda: mismo donut que el de cada jugador, sin foto y en blanco, con el nombre de cada bloque en su cuarto (texto curvo).
 function plLeyendaCirculo(order) {
-  const R = 140, cx = R, cy = R;
+  const R = 118, r = 58, cx = R, cy = R, mid = (R + r) / 2;
   const nombres = { mental: 'MENTAL', tecnico: 'TÉCNICO', tactico: 'TÁCTICO', condicional: 'CONDICIONAL' };
   const pol = (rad, deg) => { const a = (deg - 90) * Math.PI / 180; return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)]; };
+  const u = ++plUid;
+  const defs = [], textos = [];
   const quarters = Object.entries(CAMPO_POS).map(([pos, [a, b]]) => {
-    const [x1, y1] = pol(R, a), [x2, y2] = pol(R, b);
-    const [lx, ly] = pol(R * 0.66, (a + b) / 2);
-    const t = nombres[order[pos]] || '';
-    const w = t.length * 9 + 12;
-    return `<path d="M${cx},${cy} L${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2} Z" fill="#8b5cf6" stroke="#ffffff" stroke-width="2"/>
-      <rect x="${lx - w / 2}" y="${ly - 12}" width="${w}" height="24" rx="4" fill="#ffffff"/>
-      <text x="${lx}" y="${ly + 5}" text-anchor="middle" font-size="13" font-weight="800" fill="#111" font-family="system-ui,sans-serif">${t}</text>`;
+    const [x1, y1] = pol(R, a), [x2, y2] = pol(R, b), [x3, y3] = pol(r, b), [x4, y4] = pol(r, a);
+    const abajo = pos === 'br' || pos === 'bl';
+    const [px1, py1] = pol(mid, abajo ? b : a), [px2, py2] = pol(mid, abajo ? a : b);
+    defs.push(`<path id="plleg${u}${pos}" d="M${px1},${py1} A${mid},${mid} 0 0 ${abajo ? 0 : 1} ${px2},${py2}" fill="none"/>`);
+    textos.push(`<text font-size="15" font-weight="800" fill="#111" font-family="system-ui,sans-serif"><textPath href="#plleg${u}${pos}" startOffset="50%" text-anchor="middle">${nombres[order[pos]] || ''}</textPath></text>`);
+    return `<path d="M${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2} L${x3},${y3} A${r},${r} 0 0 0 ${x4},${y4} Z" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>`;
   }).join('');
-  return `<svg style="position:absolute;right:70px;bottom:60px;" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}">${quarters}</svg>`;
+  return `<svg style="position:absolute;right:110px;bottom:70px;" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}"><defs>${defs.join('')}</defs>${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${textos.join('')}</svg>`;
 }
 
 // Estructura del PDF de equipo: portada · portada del equipo · campograma (pendiente) · mapa de nivel (pendiente)
@@ -3836,8 +3838,8 @@ async function renderPlantillaPresentacion(container) {
       </div>
       ${plSlide(`<img src="./campo1.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;" />
         ${plCrest('right:30px;top:24px;width:110px;height:110px;')}
-        <div style="position:absolute;left:80px;top:34px;background:rgba(15,23,32,0.78);border-radius:14px;padding:10px 30px;display:flex;align-items:baseline;gap:20px;">
-          <span class="pl-t pl-t-m" style="font-size:58px;">${safeText(t?.label || '')}</span><span class="pl-sub" style="font-size:34px;">${safeText(temporada)}</span></div>
+        <div style="position:absolute;left:60px;top:10px;background:rgba(15,23,32,0.78);border-radius:10px;padding:4px 20px;display:flex;align-items:baseline;gap:14px;">
+          <span class="pl-t pl-t-m" style="font-size:34px;">${safeText(t?.label || '')}</span><span class="pl-sub" style="font-size:22px;">${safeText(temporada)}</span></div>
         ${plLeyendaCirculo(state.fichaGridOrder || { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: 'tactico' })}
         ${colocados.map(j => plCardJugador(j, f1Map[j.id], pos[j.id].x, pos[j.id].y)).join('')}`, '#1f6b2a')}`;
     ajustarSlides(lista);
