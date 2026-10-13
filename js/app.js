@@ -14,7 +14,7 @@ import { renderTabs } from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
 import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS, PROFILES } from './constants.js';
 import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore, loadPlayersFromFirestore } from './state.js';
-import { renderFichaDetalle, setGpsTolerance } from './ficha-detalle.js';
+import { renderFichaDetalle, setGpsTolerance, condicionalScore } from './ficha-detalle.js';
 import { renderFichaPagina1 } from './ficha-pagina1.js';
 import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
 import { exportFichaAsPDF, exportFichasAsPDF } from './pdf-export.js';
@@ -127,20 +127,22 @@ function simbolosFicha1() {
   return out;
 }
 
-function buildFichaRealData(positionKey, media, jugador, evalId) {
-  const schema = state.criteriaSchemas[positionKey] || {};
-  const comp = media?.porCompetencia || {};
-  const rated = list => (list || []).map(label => ({ label, value: comp[label] ?? null }));
-  // Condicional: el mapeo de import permite dos columnas por item (valor 1/2,
-  // ver importar-csv.js) — valueB llega como `${label}__B` si se mapeó.
-  const condicional = (state.aspectosComunes.condicional || []).map(label => {
+/** Items del bloque Condicional: media/máxima del jugador (ficha personal, por evaluación) o columnas del import; refs de Configuración. */
+function condicionalItems(positionKey, comp, jugador, evalId) {
+  return (state.aspectosComunes.condicional || []).map(label => {
     const ref = state.condicionalRefs?.[positionKey]?.[label] || {};
-    // Preferido: media/máxima del jugador (ficha personal, por evaluación). Fallback: columnas del import.
     const sl = slugify(label);
     const vA = evalId ? jugador?.condicionalPorEval?.[evalId]?.[sl] : null;
     const vB = evalId ? jugador?.condicionalMaxPorEval?.[evalId]?.[sl] : null;
     return { label, valueA: vA ?? comp[label] ?? null, valueB: vB ?? comp[`${label}__B`] ?? null, refA: ref.col3 ?? null, refB: ref.col4 ?? null };
   });
+}
+
+function buildFichaRealData(positionKey, media, jugador, evalId) {
+  const schema = state.criteriaSchemas[positionKey] || {};
+  const comp = media?.porCompetencia || {};
+  const rated = list => (list || []).map(label => ({ label, value: comp[label] ?? null }));
+  const condicional = condicionalItems(positionKey, comp, jugador, evalId);
   return {
     player: { name: jugador ? `${jugador.nombre} ${jugador.apellidos}`.trim() : 'Jugador', photoUrl: jugador?.fotoUrl || null },
     blocks: {
@@ -156,7 +158,7 @@ function buildFichaRealData(positionKey, media, jugador, evalId) {
   };
 }
 
-function buildFicha1RealData(positionKey, media, jugador, aspectos) {
+function buildFicha1RealData(positionKey, media, jugador, aspectos, evalId) {
   const schema = state.criteriaSchemas[positionKey] || {};
   const mental = state.aspectosComunes.mental || [];
   const mid = Math.ceil(mental.length / 2);
@@ -192,7 +194,7 @@ function buildFicha1RealData(positionKey, media, jugador, aspectos) {
     mental: hexMedia(mediaBloque(state.aspectosComunes.mental)),
     tecnico: hexMedia(mediaBloque(schema.tecnico ?? state.aspectosComunes.tecnico)),
     tactico: hexMedia(mediaBloque(schema.tactico)),
-    condicional: '#ffffff',
+    condicional: hexMedia(condicionalScore(condicionalItems(positionKey, comp, jugador, evalId), state.condicionalTolerance)),
   };
 
   return {
@@ -1866,7 +1868,7 @@ function renderFichaJugador(container, p) {
 
   if (jugFichaTab !== 'datos' && regs && (evSel || p.positionKey)) {
     const fPos = evSel?.posKey || p.positionKey, fMedia = evSel?.media || null;
-    renderFichaPagina1(container.querySelector('#jug-ficha1-wrap'), buildFicha1RealData(fPos, fMedia, p, aspectosTxt), LOGO_PATH, state.fichaColors);
+    renderFichaPagina1(container.querySelector('#jug-ficha1-wrap'), buildFicha1RealData(fPos, fMedia, p, aspectosTxt, evSel?.eid), LOGO_PATH, state.fichaColors);
     setGpsTolerance(state.condicionalTolerance);
     renderFichaDetalle(container.querySelector('#jug-ficha2-wrap'), buildFichaRealData(fPos, fMedia, p, evSel?.eid), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
   }
