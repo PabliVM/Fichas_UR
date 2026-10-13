@@ -177,7 +177,8 @@ function buildFicha1RealData(positionKey, media, jugador, aspectos) {
       const valores = items.map(it => comp[it]).filter(v => v != null);
       mediaPerfil = valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null;
     }
-    return { label: nombre, color: bandKeyForValue(mediaPerfil, state.scoreBands) };
+    const bandHex = mediaPerfil == null ? null : ([...state.scoreBands].sort((a, b) => b.min - a.min).find(b => mediaPerfil >= Number(b.min))?.color || null);
+    return { label: nombre, value: mediaPerfil, hex: bandHex, color: bandKeyForValue(mediaPerfil, state.scoreBands) };
   });
 
   // Círculo central: igual que la Ficha 2 — color de cada cuarto = banda de la media de las notas del bloque.
