@@ -58,46 +58,46 @@ function swapInputsForStaticText(fichaEl) {
 
 /**
  * html2canvas no soporta <textPath> (el texto curvo de MENTAL/TÉCNICO/
- * CONDICIONAL/TÁCTICO y R/P en el círculo central de la ficha 2): en el
- * PDF sale sin curvar y todo amontonado en el mismo punto. Se sustituye
- * cada <text><textPath> por un <text> plano posicionado y rotado en el
- * punto medio real del arco (calculado con getPointAtLength, que sí
- * conoce el DOM), y se restaura al terminar.
+ * CONDICIONAL/TÁCTICO y R/P en el círculo central): en el PDF sale sin
+ * curvar. Se sustituye cada <text><textPath> por una letra suelta por
+ * carácter, colocada y girada donde el navegador la pinta sobre el arco
+ * (getStartPositionOfChar / getRotationOfChar), y se restaura al terminar.
  * @param {HTMLElement} fichaEl
  * @returns {() => void} función para deshacer el cambio
  */
 function flattenTextPaths(fichaEl) {
   const restores = [];
+  const NS = 'http://www.w3.org/2000/svg';
   fichaEl.querySelectorAll('svg text > textPath').forEach(textPath => {
     const oldText = textPath.parentElement;
-    const href = (textPath.getAttribute('href') || textPath.getAttribute('xlink:href') || '').replace('#', '');
     const svg = oldText.closest('svg');
-    const pathEl = href ? svg.querySelector(`#${CSS.escape(href)}`) : null;
-    if (!pathEl || typeof pathEl.getTotalLength !== 'function') return;
+    const total = (typeof oldText.getNumberOfChars === 'function') ? oldText.getNumberOfChars() : 0;
+    if (!svg || !total) return;
 
-    const len = pathEl.getTotalLength();
-    const frac = parseFloat(textPath.getAttribute('startOffset') || '0') / 100;
-    const mid = len * frac;
-    const p0 = pathEl.getPointAtLength(Math.max(0, mid - 1));
-    const p1 = pathEl.getPointAtLength(Math.min(len, mid + 1));
-    const point = pathEl.getPointAtLength(mid);
-    let angle = Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180 / Math.PI;
-    if (angle > 90) angle -= 180;
-    if (angle < -90) angle += 180;
-
-    const newText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    Array.from(oldText.attributes).forEach(attr => newText.setAttribute(attr.name, attr.value));
-    newText.setAttribute('x', point.x);
-    newText.setAttribute('y', point.y);
-    newText.setAttribute('text-anchor', 'middle');
-    newText.setAttribute('dominant-baseline', 'middle');
-    newText.setAttribute('transform', `rotate(${angle} ${point.x} ${point.y})`);
-    newText.textContent = textPath.textContent;
-    oldText.replaceWith(newText);
-    restores.push({ newText, oldText });
+    // Cada letra se coloca donde el navegador la pinta sobre el arco (posición + giro reales),
+    // así el texto sigue la curvatura del círculo también en el PDF.
+    const g = document.createElementNS(NS, 'g');
+    const chars = Array.from(oldText.textContent || '');
+    for (let i = 0; i < total && i < chars.length; i++) {
+      if (chars[i].trim() === '') continue;
+      const pos = oldText.getStartPositionOfChar(i);
+      const rot = oldText.getRotationOfChar(i);
+      const t = document.createElementNS(NS, 'text');
+      Array.from(oldText.attributes).forEach(attr => {
+        if (!['x', 'y', 'dx', 'dy', 'text-anchor', 'transform', 'textLength'].includes(attr.name)) t.setAttribute(attr.name, attr.value);
+      });
+      t.setAttribute('x', pos.x);
+      t.setAttribute('y', pos.y);
+      t.setAttribute('text-anchor', 'start');
+      t.setAttribute('transform', `rotate(${rot} ${pos.x} ${pos.y})`);
+      t.textContent = chars[i];
+      g.appendChild(t);
+    }
+    oldText.replaceWith(g);
+    restores.push({ g, oldText });
   });
   return () => {
-    restores.forEach(({ newText, oldText }) => newText.replaceWith(oldText));
+    restores.forEach(({ g, oldText }) => g.replaceWith(oldText));
   };
 }
 
