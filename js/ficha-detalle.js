@@ -180,7 +180,7 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref }) 
   const avg = blockAvg({ rp, items });
   const avgColor = avg != null ? (scoreColor(avg, bands) || '#ffffff') : null;
   const avgHTML = avg != null ? ` <span class="ficha-q-media" style="color:${avgColor};margin-left:40px;font-weight:800;">${formatNum(avg)}</span>` : '';
-  const refHTML = (ref != null && !Number.isNaN(ref)) ? ` <span class="ficha-q-media ficha-q-ref" style="color:${scoreColor(ref, bands) || '#ffffff'};">${formatNum(ref)}*</span>` : '';
+  const refHTML = (ref != null && !Number.isNaN(ref)) ? ` <span class="ficha-q-sep">/</span><span class="ficha-q-media ficha-q-ref" style="color:${scoreColor(ref, bands) || '#ffffff'};">${formatNum(ref)}*</span>` : '';
   // Con muchas items (ej. Táctico portero, 24) la lista lateral no cabe
   // en la altura fija de la ficha si mantiene el tamaño pensado para ~12.
   // A partir de 18 items se reduce letra/gap solo de esta lista, para no
