@@ -395,6 +395,7 @@
 
 
 /* Nota media de comparación: mismo tamaño que la del jugador, marcada con * */
-.ficha-q-ref { margin-left: 40px; font-weight: 800; }
+.ficha-q-sep { margin-left: 28px; color: #ffffff; font-weight: 400; }
+.ficha-q-ref { margin-left: 28px; font-weight: 800; }
 .ficha-header { position: relative; }
 .ficha-header-ref { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; pointer-events: none; color: var(--text-header, #ffffff); font-size: 44px; font-weight: 400; opacity: 0.85; white-space: nowrap; }
