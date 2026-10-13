@@ -337,19 +337,21 @@ function renderMarkers(pitchEl, markers, onRemove) {
       wrap.dataset.markerId = String(m.id);
       wrap.innerHTML = `
         <img class="p1-jersey-img" alt="Posición del jugador" />
-        <button type="button" class="p1-jersey-remove" title="Quitar camiseta">×</button>
       `;
       pitchEl.appendChild(wrap);
-      wrap.querySelector('.p1-jersey-remove').addEventListener('click', e => {
+      // Doble clic sobre la camiseta extra la quita (ya no hay botón ×).
+      wrap.addEventListener('dblclick', e => {
         e.stopPropagation();
-        onRemove(m.id);
+        if (wrap.dataset.removable === '1') onRemove(m.id);
       });
     }
     wrap.querySelector('.p1-jersey-img').src = m.type === 'portero' ? '../camisetaportero.png' : '../camiseta.png';
     wrap.style.left = `${m.xPct}%`;
     wrap.style.top = `${m.yPct}%`;
     // Solo se puede quitar una camiseta de jugador cuando hay 2 puestas (la extra).
-    wrap.querySelector('.p1-jersey-remove').style.display = (m.type === 'jugador' && jugadorCount > 1) ? '' : 'none';
+    const quitable = m.type === 'jugador' && jugadorCount > 1;
+    wrap.dataset.removable = quitable ? '1' : '0';
+    wrap.title = quitable ? 'Doble clic para quitar la camiseta' : '';
   });
 }
 
