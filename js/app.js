@@ -3681,6 +3681,49 @@ function fotoADataUrl(file) {
   });
 }
 
+// ── Campograma: campo.jpg a diapositiva completa con los jugadores colocados a mano ──
+const CAMPO_POS = { tl: [270, 360], tr: [0, 90], br: [90, 180], bl: [180, 270] };
+const textoSobre = hex => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return '#111';
+  const n = parseInt(m[1], 16), l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255));
+  return l > 150 ? '#111' : '#fff';
+};
+const hexDeNota = v => {
+  if (v == null || Number.isNaN(v)) return null;
+  return [...state.scoreBands].sort((a, b) => b.min - a.min).find(b => v >= Number(b.min))?.color || null;
+};
+const notaNum = t => { if (t == null || t === '') return null; const v = parseFloat(String(t).replace(',', '.')); return Number.isNaN(v) ? null : v; };
+
+function plCardJugador(j, f1, x, y) {
+  const R = 75, r = 46, cx = R, cy = R;
+  const pol = (rad, deg) => { const a = (deg - 90) * Math.PI / 180; return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)]; };
+  const order = f1.gridOrder || { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: 'tactico' };
+  const quarters = Object.entries(CAMPO_POS).map(([pos, [a, b]]) => {
+    const [x1, y1] = pol(R, a), [x2, y2] = pol(R, b), [x3, y3] = pol(r, b), [x4, y4] = pol(r, a);
+    return `<path d="M${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2} L${x3},${y3} A${r},${r} 0 0 0 ${x4},${y4} Z" fill="${f1.circleColors?.[order[pos]] || '#ffffff'}" stroke="#94a3b8" stroke-width="1.5"/>`;
+  }).join('');
+  const id = `plc${++plUid}`;
+  const foto = j.fotoUrl
+    ? `<clipPath id="${id}"><circle cx="${cx}" cy="${cy}" r="${r - 2}"/></clipPath><image href="${j.fotoUrl}" x="${cx - r}" y="${cy - r}" width="${r * 2}" height="${r * 2}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>` : '';
+  const nota = (txt) => {
+    const hex = hexDeNota(notaNum(txt));
+    return hex ? { bg: hex, fg: textoSobre(hex), t: String(txt) } : { bg: '#ffffff', fg: '#111', t: 'X' };
+  };
+  const circ = (n, left) => `<div style="position:absolute;left:${left}px;top:-92px;width:58px;height:58px;border-radius:50%;background:${n.bg};color:${n.fg};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:${n.t.length > 2 ? 24 : 30}px;font-family:system-ui,sans-serif;">${safeText(n.t)}</div>`;
+  const barras = (f1.statusBars || []).slice(0, 3).map(b => {
+    const bg = b.hex || '#ffffff';
+    return `<div style="width:270px;height:34px;box-sizing:border-box;margin-bottom:5px;background:${bg};color:${textoSobre(bg)};border:3px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;font-weight:800;font-size:19px;text-transform:uppercase;white-space:nowrap;overflow:hidden;">${safeText(b.label)}</div>`;
+  }).join('');
+  const apellido = String(j.apellidos || j.nombre || '').trim().toUpperCase();
+  return `<div class="pl-card" data-jid="${j.id}" style="position:absolute;left:${x / 100 * PL_W}px;top:${y / 100 * PL_H}px;width:0;height:0;cursor:grab;touch-action:none;" title="Arrastra para mover · doble clic para quitar">
+    <svg class="pl-donut" style="position:absolute;left:-${R}px;top:-${R}px;" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}">${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${foto}</svg>
+    ${circ(nota(f1.player?.rValue), -92)}${circ(nota(f1.player?.pValue), 34)}
+    <div style="position:absolute;left:-90px;width:180px;top:${R + 6}px;text-align:center;"><span style="display:inline-block;background:#d4a63a;color:#111;font-family:system-ui,sans-serif;font-weight:800;font-size:20px;padding:3px 16px;border-radius:20px;white-space:nowrap;">${safeText(apellido)}</span></div>
+    <div style="position:absolute;left:${R + 28}px;top:-52px;">${barras}</div>
+  </div>`;
+}
+
 // Estructura del PDF de equipo: portada · portada del equipo · campograma (pendiente) · mapa de nivel (pendiente)
 // · por cada posición: separador + Ficha 1 y 2 de cada jugador.
 async function renderPlantillaPresentacion(container) {
@@ -3714,11 +3757,13 @@ async function renderPlantillaPresentacion(container) {
   const estado = container.querySelector('#pl-pres-estado');
   const pdfBtn = container.querySelector('#pl-pres-pdf');
   const addHTML = html => lista.insertAdjacentHTML('beforeend', html);
+  const campoHost = document.createElement('div');   // aquí va la diapositiva del campograma (tras "Mapa de nivel")
+  lista.appendChild(campoHost);
 
   const dibujarPortadas = () => {
     lista.querySelectorAll('[data-pl-fijo]').forEach(el => el.remove());
     const tmp = document.createElement('div');
-    tmp.innerHTML = plPortadaGeneral(c, (plantillasCache.find(d => d.id === plantillaDocId(temporada, '_portada'))?.fotoPortada)) + plPortadaEquipo(c, docP().fotoEquipo, t?.label || '', temporada) + plPendiente(c, 'Campograma · resumen de jugadores') + plPendiente(c, 'Mapa de nivel');
+    tmp.innerHTML = plPortadaGeneral(c, (plantillasCache.find(d => d.id === plantillaDocId(temporada, '_portada'))?.fotoPortada)) + plPortadaEquipo(c, docP().fotoEquipo, t?.label || '', temporada) + plPendiente(c, 'Mapa de nivel');
     [...tmp.children].reverse().forEach(el => { el.dataset.plFijo = '1'; lista.prepend(el); });
     // Botón "Subir foto" sobre las dos portadas (solo en pantalla: queda fuera de la diapositiva que se captura al PDF)
     [['#pl-foto-portada', 0, 'portada de la temporada'], ['#pl-foto-equipo', 1, 'del equipo']].forEach(([inp, i, txt]) => {
@@ -3756,6 +3801,64 @@ async function renderPlantillaPresentacion(container) {
 
   // Agrupa por posición (en el orden de Configuración); sin posición al final.
   const preps = jugs.map(j => ({ j, prep: prepararFichaJugador(j, jugFichaRegs[j.id] || [], temporada) }));
+  // Campograma: campo.jpg a diapositiva completa + jugadores arrastrables (posiciones guardadas en la plantilla).
+  const f1Map = {};
+  preps.forEach(({ j, prep }) => { if (prep.fPos) f1Map[j.id] = buildFicha1RealData(prep.fPos, prep.fMedia, j, prep.aspectosTxt, prep.evSel?.eid); });
+  const dibujarCampo = () => {
+    const pos = docP().campograma || {};
+    const colocados = jugs.filter(j => f1Map[j.id] && pos[j.id]);
+    const libres = jugs.filter(j => f1Map[j.id] && !pos[j.id]);
+    campoHost.innerHTML = `
+      <div class="flex gap-8 mb-8 btn-print-ficha" style="align-items:center;flex-wrap:wrap;">
+        <b>Campograma</b>
+        <select class="select" id="pl-campo-sel" style="max-width:260px;"><option value="">Añadir jugador al campo…</option>${libres.map(j => `<option value="${j.id}">${safeText(nombreCompleto(j))}</option>`).join('')}</select>
+        <button class="btn btn-sm btn-primary" id="pl-campo-add">Añadir</button>
+        <span class="text-xs text-muted">Arrastra para mover · doble clic para quitar del campo.</span>
+      </div>
+      ${plSlide(`<img src="./campo.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;" />
+        ${plCrest('right:30px;top:24px;width:110px;height:110px;')}
+        ${colocados.map(j => plCardJugador(j, f1Map[j.id], pos[j.id].x, pos[j.id].y)).join('')}`, '#1f6b2a')}`;
+    ajustarSlides(lista);
+    const sl = campoHost.querySelector('.pl-slide');
+    const guardarCampo = async nuevo => {
+      try { await guardarPlantilla(temporada, plVista.teamKey, { campograma: nuevo }); }
+      catch (err) { console.error(err); showError('No se pudo guardar el campograma.'); }
+    };
+    campoHost.querySelector('#pl-campo-add').addEventListener('click', async () => {
+      const id = campoHost.querySelector('#pl-campo-sel').value; if (!id) return;
+      const n = Object.keys(pos).length;
+      await guardarCampo({ ...pos, [id]: { x: 25 + (n % 5) * 12, y: 20 + Math.floor(n / 5) * 22 } });
+      dibujarCampo();
+    });
+    let drag = null;
+    sl.addEventListener('pointerdown', e => {
+      const card = e.target.closest?.('.pl-card'); if (!card) return;
+      const d = card.querySelector('.pl-donut').getBoundingClientRect();
+      drag = { card, dx: e.clientX - (d.left + d.width / 2), dy: e.clientY - (d.top + d.height / 2), moved: false, id: card.dataset.jid };
+      card.setPointerCapture?.(e.pointerId); card.style.cursor = 'grabbing'; e.preventDefault();
+    });
+    sl.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const rc = sl.getBoundingClientRect();
+      const x = Math.min(100, Math.max(0, ((e.clientX - drag.dx - rc.left) / rc.width) * 100));
+      const y = Math.min(100, Math.max(0, ((e.clientY - drag.dy - rc.top) / rc.height) * 100));
+      drag.x = x; drag.y = y; drag.moved = true;
+      drag.card.style.left = `${x / 100 * PL_W}px`; drag.card.style.top = `${y / 100 * PL_H}px`;
+    });
+    const fin = async () => {
+      if (!drag) return;
+      const d = drag; drag = null; d.card.style.cursor = 'grab';
+      if (d.moved) { pos[d.id] = { x: d.x, y: d.y }; await guardarCampo({ ...pos }); }
+    };
+    sl.addEventListener('pointerup', fin); sl.addEventListener('pointercancel', fin);
+    sl.addEventListener('dblclick', async e => {
+      const card = e.target.closest?.('.pl-card'); if (!card) return;
+      const nuevo = { ...pos }; delete nuevo[card.dataset.jid];
+      await guardarCampo(nuevo); dibujarCampo();
+    });
+  };
+  dibujarCampo();
+
   // Media de comparación = media de las medias de cada jugador de la plantilla (cada uno pesa 1; sin consultas extra).
   const refDe = (j, prep) => {
     if (plRefModo === 'none') return null;
