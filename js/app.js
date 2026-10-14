@@ -3819,6 +3819,68 @@ function plLeyendaCirculo(order) {
   return svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}"><defs>${defs.join('')}</defs>${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${textos.join('')}</svg>`, R * 2, R * 2, 'position:absolute;right:60px;bottom:45px;');
 }
 
+// Mapa de nivel: izquierda = residen en Madrid (Residente / Media pensión), derecha = En residencia.
+// Franjas por nota de rendimiento (R, o P si no hay R): ≥4 verde · 3–<4 amarillo · <3 rojo. Sin nota → franja 3-4 con "X".
+const PL_RESI = {
+  'Residente en Madrid': { lado: 'izq', bg: '#ffffff', fg: '#0b2a6b', txt: 'MADRID' },
+  'Media pensión':       { lado: 'izq', bg: '#0b2a6b', fg: '#ffffff', txt: 'MEDIA PENSIÓN' },
+  'En residencia':       { lado: 'der', bg: '#d4a63a', fg: '#111111', txt: 'RESIDENCIA' },
+};
+function plMapaNivel(tLabel, temporada, items) {
+  const conf = it => PL_RESI[it.j.residencia] || PL_RESI['Residente en Madrid'];
+  const notaDe = it => { const r = notaNum(it.f1?.player?.rValue); return r != null ? r : notaNum(it.f1?.player?.pValue); };
+  const bandas = [
+    { lab: '+4', bg: '#7bbf90', ok: v => v != null && v >= 4 },
+    { lab: '3-4', bg: '#f2e09c', ok: v => v == null || (v >= 3 && v < 4) },
+    { lab: '-3', bg: '#f0728f', ok: v => v != null && v < 3 },
+  ];
+  const POR_FILA = 6, ITEM_W = 150, TOP = 310, BOT = 1310, GAP = 16, MITAD = PL_W / 2;
+  const datos = bandas.map(b => {
+    const its = items.filter(it => b.ok(notaDe(it))).sort((a, c2) => (notaDe(c2) ?? -1) - (notaDe(a) ?? -1));
+    const izq = its.filter(it => conf(it).lado === 'izq'), der = its.filter(it => conf(it).lado === 'der');
+    return { b, izq, der, filas: Math.max(1, Math.ceil(izq.length / POR_FILA), Math.ceil(der.length / POR_FILA)) };
+  });
+  const totalFilas = datos.reduce((a, d) => a + d.filas, 0);
+  const libre = BOT - TOP - GAP * (datos.length - 1);
+  let y = TOP;
+  const partes = datos.map(d => {
+    const h = Math.round(libre * d.filas / totalFilas), y0 = y; y += h + GAP;
+    const rowH = Math.min(240, (h - 90) / d.filas), D = Math.round(Math.min(150, rowH * 0.6));
+    const lado = (arr, x0, x1) => arr.map((it, i) => {
+      const fila = Math.floor(i / POR_FILA), enFila = Math.min(POR_FILA, arr.length - fila * POR_FILA), col = i % POR_FILA;
+      const cx = (x0 + x1) / 2 - (enFila * ITEM_W) / 2 + col * ITEM_W + ITEM_W / 2;
+      const top = y0 + 84 + fila * rowH + Math.max(0, (rowH - D - 44) / 2);
+      const cf = conf(it), v = notaDe(it), hex = v != null ? hexDeNota(v) : null;
+      const pl = it.f1?.player || {};
+      const txtNota = hex ? String(notaNum(pl.rValue) != null ? pl.rValue : pl.pValue) : 'X';
+      const bgN = hex || '#ffffff', fgN = hex ? textoSobre(hex) : '#111';
+      const cid = `plmn${++plUid}`, R0 = D / 2, dN = Math.round(D * 0.44);
+      const foto = it.j.fotoUrl
+        ? svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${D}" height="${D}" viewBox="0 0 ${D} ${D}"><clipPath id="${cid}"><circle cx="${R0}" cy="${R0}" r="${R0}"/></clipPath><circle cx="${R0}" cy="${R0}" r="${R0}" fill="#ffffff"/><image xlink:href="${it.j.fotoUrl}" href="${it.j.fotoUrl}" x="0" y="0" width="${D}" height="${D}" preserveAspectRatio="xMidYMin slice" clip-path="url(#${cid})"/></svg>`, D, D, `position:absolute;left:${(ITEM_W - D) / 2}px;top:0;`)
+        : `<div style="position:absolute;left:${(ITEM_W - D) / 2}px;top:0;width:${D}px;height:${D}px;border-radius:50%;background:#fff;"></div>`;
+      const ap = String(it.j.apellidos || it.j.nombre || '').trim().toUpperCase();
+      return `<div style="position:absolute;left:${cx - ITEM_W / 2}px;top:${top}px;width:${ITEM_W}px;height:${D + 44}px;">
+        ${foto}
+        <div style="position:absolute;left:${(ITEM_W + D) / 2 - dN * 0.6}px;top:${-dN * 0.1}px;width:${dN}px;height:${dN}px;border-radius:50%;background:${bgN};color:${fgN};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${txtNota.length > 3 ? 15 : 20}px;font-family:system-ui,sans-serif;">${safeText(txtNota)}</div>
+        <div style="position:absolute;left:-10px;width:${ITEM_W + 20}px;top:${D + 8}px;text-align:center;"><span style="display:inline-block;background:${cf.bg};color:${cf.fg};font-family:system-ui,sans-serif;font-weight:800;font-size:17px;padding:3px 14px;border-radius:18px;white-space:nowrap;">${safeText(ap)}</span></div></div>`;
+    }).join('');
+    return `<div style="position:absolute;left:20px;top:${y0}px;width:${PL_W - 40}px;height:${h}px;background:${d.b.bg};border-radius:70px;"></div>
+      ${lado(d.izq, 40, MITAD - 10)}${lado(d.der, MITAD + 10, PL_W - 40)}
+      <div style="position:absolute;left:${MITAD - 70}px;top:${y0 + 14}px;width:140px;height:56px;border-radius:28px;background:#14306e;color:#fff;font-family:system-ui,sans-serif;font-weight:900;font-size:34px;display:flex;align-items:center;justify-content:center;">${d.b.lab}</div>`;
+  }).join('');
+  const cuenta = k => items.filter(it => conf(it).txt === k).length;
+  const chip = k => { const cf = Object.values(PL_RESI).find(x => x.txt === k); return `<div style="display:flex;align-items:center;gap:8px;"><span style="width:34px;height:34px;border-radius:50%;background:#fff;color:#111;border:2px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font:800 18px system-ui,sans-serif;">${cuenta(k)}</span><span style="background:${cf.bg};color:${cf.fg};font:800 15px system-ui,sans-serif;padding:3px 14px;border-radius:16px;min-width:130px;text-align:center;">${k}</span></div>`; };
+  return plSlide(`
+    ${plCrest('right:30px;top:24px;width:110px;height:110px;')}
+    <div style="position:absolute;left:60px;top:10px;background:rgba(15,23,32,0.78);border-radius:10px;padding:4px 20px;display:flex;align-items:baseline;gap:14px;">
+      <span class="pl-t pl-t-m" style="font-size:34px;">${safeText(tLabel)}</span><span class="pl-sub" style="font-size:22px;">${safeText(temporada)}</span></div>
+    <div style="position:absolute;right:170px;top:18px;display:flex;flex-direction:column;gap:6px;">${chip('RESIDENCIA')}${chip('MADRID')}${chip('MEDIA PENSIÓN')}</div>
+    <img src="./madrid.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:${MITAD / 2 - 110}px;top:150px;width:220px;height:140px;object-fit:cover;" />
+    <img src="./espa%C3%B1a.png" alt="" onerror="this.style.display='none'" style="position:absolute;left:${MITAD + MITAD / 2 - 110}px;top:150px;width:220px;height:140px;object-fit:cover;" />
+    ${partes}
+    <div style="position:absolute;left:${MITAD - 3}px;top:${TOP}px;width:6px;height:${BOT - TOP}px;background:rgba(0,0,0,0.4);"></div>`, '#e4e6e1');
+}
+
 // Foto de portada: la del equipo si tiene una propia; si no, la general de la temporada (para todos los equipos).
 const fotoPortadaDe = (temporada, teamKey) =>
   plantillasCache?.find(d => d.id === plantillaDocId(temporada, teamKey))?.fotoPortada
@@ -3860,12 +3922,14 @@ async function renderPlantillaPresentacion(container) {
   const pdfBtn = container.querySelector('#pl-pres-pdf');
   const addHTML = html => lista.insertAdjacentHTML('beforeend', html);
   const campoHost = document.createElement('div');   // aquí va la diapositiva del campograma (tras "Mapa de nivel")
+  const mapaHost = document.createElement('div');    // diapositiva "Mapa de nivel" (antes del campograma)
+  lista.appendChild(mapaHost);
   lista.appendChild(campoHost);
 
   const dibujarPortadas = () => {
     lista.querySelectorAll('[data-pl-fijo]').forEach(el => el.remove());
     const tmp = document.createElement('div');
-    tmp.innerHTML = plPortadaGeneral(c, fotoPortadaDe(temporada, plVista.teamKey)) + plPortadaEquipo(c, docP().fotoEquipo, t?.label || '', temporada) + plPendiente(c, 'Mapa de nivel');
+    tmp.innerHTML = plPortadaGeneral(c, fotoPortadaDe(temporada, plVista.teamKey)) + plPortadaEquipo(c, docP().fotoEquipo, t?.label || '', temporada);
     [...tmp.children].reverse().forEach(el => { el.dataset.plFijo = '1'; lista.prepend(el); });
     // Botón "Subir foto" sobre las dos portadas (solo en pantalla: queda fuera de la diapositiva que se captura al PDF)
     [['#pl-foto-portada', 0, 'portada (todos los equipos)'], ['#pl-foto-portada-eq', 0, 'portada (solo este equipo)'], ['#pl-foto-equipo', 1, 'del equipo']].forEach(([inp, i, txt]) => {
@@ -3967,6 +4031,8 @@ async function renderPlantillaPresentacion(container) {
       await guardarCampo(nuevo); dibujarCampo();
     });
   };
+  mapaHost.innerHTML = plMapaNivel(t?.label || '', temporada, jugs.map(j => ({ j, f1: f1Map[j.id] })));
+  ajustarSlides(lista);
   dibujarCampo();
 
   // Media de comparación = media de las medias de cada jugador de la plantilla (cada uno pesa 1; sin consultas extra).
