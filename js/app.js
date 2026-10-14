@@ -3676,8 +3676,10 @@ function plSeparadorPosicion(c, titulo, jugadores) {
     const enFila = fila === filas - 1 ? n - porFila * (filas - 1) : porFila;
     const x0 = (PL_W - enFila * slot) / 2 + col * slot;
     const y0 = top0 + fila * (fotoH + 130);
+    const D = Math.round(Math.min(slot * 0.84, fotoH)), R0 = D / 2, cid = `plsep${++plUid}`;
+    // Igual que en las fichas: jugador dentro de un círculo blanco (SVG como imagen: el PDF lo pinta bien).
     const img = j.fotoUrl
-      ? `<img data-sin-fondo="1" src="${j.fotoUrl}" alt="" style="position:absolute;left:${slot * 0.08}px;top:0;width:${slot * 0.84}px;height:${fotoH}px;object-fit:contain;object-position:center bottom;" />`
+      ? svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${D}" height="${D}" viewBox="0 0 ${D} ${D}"><clipPath id="${cid}"><circle cx="${R0}" cy="${R0}" r="${R0}"/></clipPath><circle cx="${R0}" cy="${R0}" r="${R0}" fill="#ffffff"/><image xlink:href="${j.fotoUrl}" href="${j.fotoUrl}" x="0" y="0" width="${D}" height="${D}" preserveAspectRatio="xMidYMin slice" clip-path="url(#${cid})"/></svg>`, D, D, `position:absolute;left:${(slot - D) / 2}px;top:${fotoH - D}px;`)
       : `<svg style="position:absolute;left:${slot * 0.08}px;top:0;" width="${slot * 0.84}" height="${fotoH}" viewBox="0 0 100 100" preserveAspectRatio="xMidYMax meet"><circle cx="50" cy="38" r="22" fill="rgba(255,255,255,0.15)"/><rect x="18" y="64" width="64" height="40" rx="20" fill="rgba(255,255,255,0.15)"/></svg>`;
     return `<div style="position:absolute;left:${x0}px;top:${y0}px;width:${slot}px;">
       <div style="position:relative;width:${slot}px;height:${fotoH}px;">${img}</div>
