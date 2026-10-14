@@ -3830,8 +3830,8 @@ const svgComoImg = (svg, w, h, estilo) => `<img alt="" draggable="false" width="
 const PL_CARD_ESCALA = 0.65;   // tamaño de cada jugador en el campograma (24 jugadores caben); ajustable
 // Todas las medidas ya van multiplicadas por la escala (sin transform CSS ni viewBox escalado):
 // html2canvas pintaba mal los SVG dentro de elementos con transform al exportar el PDF.
-function plCardJugador(j, f1, x, y) {
-  const K = PL_CARD_ESCALA, k = v => Math.round(v * K * 10) / 10;
+function plCardJugador(j, f1, x, y, escala) {
+  const K = escala || PL_CARD_ESCALA, k = v => Math.round(v * K * 10) / 10;
   const R = k(84), r = k(52), cx = R, cy = R;
   const pol = (rad, deg) => { const a = (deg - 90) * Math.PI / 180; return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)]; };
   const order = f1.gridOrder || { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: 'tactico' };
@@ -3859,6 +3859,28 @@ function plCardJugador(j, f1, x, y) {
     <div style="position:absolute;left:${-k(90)}px;width:${k(180)}px;top:${R + k(6)}px;text-align:center;"><span style="display:inline-block;background:#d4a63a;color:#111;font-family:system-ui,sans-serif;font-weight:800;font-size:${k(20)}px;padding:${k(3)}px ${k(16)}px;border-radius:20px;white-space:nowrap;">${safeText(apellido)}</span></div>
     <div style="position:absolute;left:${R + k(28)}px;top:${-k(46)}px;">${barras}</div>
   </div>`;
+}
+
+// Resumen de posición: los jugadores de esa posición con su donut, notas y barras (igual que en el campograma), en cuadrícula.
+function plResumenPosicion(titulo, temporada, teamLabel, items, f1Map) {
+  const its = items.filter(x => f1Map[x.j.id]);
+  const n = its.length, cols = n <= 4 ? Math.max(1, n) : (n <= 12 ? 4 : 5);
+  const rows = Math.ceil(n / cols), L = 60, W = PL_W - 2 * L, cellW = W / cols;
+  const K = Math.min(1.0, cellW / 480, (PL_H - 330) / rows / 270);
+  const rowH = Math.min(330, (PL_H - 330) / rows);
+  const cards = its.map(({ j }, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    const enFila = row === rows - 1 ? n - cols * (rows - 1) : cols;
+    const x0 = L + (cols - enFila) * cellW / 2 + col * cellW;
+    const cx = x0 + 110 * K, cy = 270 + row * rowH + 120 * K;
+    return plCardJugador(j, f1Map[j.id], cx / PL_W * 100, cy / PL_H * 100, K).replace('cursor:grab;', '').replace(/ title="[^"]*"/, '');
+  }).join('');
+  return plSlide(`<img src="./campo1.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;" />
+    ${plCrest('right:30px;top:24px;width:110px;height:110px;')}
+    <div style="position:absolute;left:60px;top:10px;background:rgba(15,23,32,0.78);border-radius:10px;padding:4px 20px;display:flex;align-items:baseline;gap:14px;">
+      <span class="pl-t pl-t-m" style="font-size:34px;">${safeText(plPlural(titulo))} · ${safeText(teamLabel)}</span><span class="pl-sub" style="font-size:22px;">${safeText(temporada)}</span></div>
+    ${plLeyendaCirculo(state.fichaGridOrder || { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: 'tactico' })}
+    ${cards}`, '#1f6b2a');
 }
 
 // Leyenda: mismo donut que el de cada jugador, sin foto y en blanco, con el nombre de cada bloque en su cuarto (texto curvo).
@@ -4195,6 +4217,7 @@ async function renderPlantillaPresentacion(container) {
     addHTML(plSeparadorPosicion(c, g.titulo, g.items.map(x => x.j)));
     lista.lastElementChild.dataset.plObs = `sep.${g.titulo}`;
     obsMontar();
+    if (g.items.some(x => f1Map[x.j.id])) { addHTML(plResumenPosicion(g.titulo, temporada, t?.label || '', g.items, f1Map)); lista.lastElementChild.dataset.plObs = `res.${g.titulo}`; obsMontar(); }
     await aplicarSinFondo(lista);
     ajustarSlides(lista);
     for (const { j, prep } of g.items) {
