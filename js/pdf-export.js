@@ -126,6 +126,25 @@ async function capturarFicha(fichaEl) {
  * @param {HTMLElement[]} fichaEls — nodos .ficha-detalle, en el orden de las páginas
  * @param {string} filename
  */
+/**
+ * Miniatura JPEG de una diapositiva/ficha (para la pestaña Observaciones).
+ * Se captura sobre un clon a tamaño natural (transform: none solo en el clon), así la pantalla no parpadea.
+ * @param {HTMLElement} el — .pl-slide, .p1-detalle o .ficha-detalle
+ * @param {number} ancho — ancho final en px
+ * @returns {Promise<string>} data URL JPEG
+ */
+export async function capturarMiniatura(el, ancho = 520) {
+  await ensurePdfLibs();
+  const natural = el.offsetWidth || 1920; // offsetWidth ignora el transform
+  const canvas = await window.html2canvas(el, {
+    backgroundColor: '#24313d',
+    scale: ancho / natural,
+    useCORS: true,
+    onclone: (_doc, clon) => { if (clon && clon.style) clon.style.transform = 'none'; },
+  });
+  return canvas.toDataURL('image/jpeg', 0.6);
+}
+
 export async function exportFichasAsPDF(fichaEls, filename = 'fichas-jugador.pdf') {
   await ensurePdfLibs();
   const { jsPDF } = window.jspdf;
@@ -137,16 +156,23 @@ export async function exportFichasAsPDF(fichaEls, filename = 'fichas-jugador.pdf
 
   for (let i = 0; i < fichaEls.length; i++) {
     const canvas = await capturarFicha(fichaEls[i]);
+    // Pie pequeño con la fecha de la EVALUACIÓN (no la de impresión): texto en data-pie del elemento o de un ancestro.
+    const pie = fichaEls[i].dataset?.pie || fichaEls[i].closest?.('[data-pie]')?.dataset.pie || '';
+    const pieH = pie ? 5 : 0;
     const imgRatio = canvas.width / canvas.height;
     let w = pageW;
     let h = w / imgRatio;
-    if (h > pageH) {
-      h = pageH;
+    if (h > pageH - pieH) {
+      h = pageH - pieH;
       w = h * imgRatio;
     }
     const x = (297 - w) / 2;
-    const y = (210 - h) / 2;
+    const y = (210 - pieH - h) / 2;
     if (i > 0) doc.addPage('a4', 'landscape');
+    if (pie) {
+      doc.setFontSize(7); doc.setTextColor(90, 100, 110);
+      doc.text(pie, 297 / 2, 210 - 2.5, { align: 'center' });
+    }
     // JPEG, no PNG: con PNG a este tamaño el PDF salía de ~144MB y muchos visores no lo aguantan.
     // JPEG calidad 0.92 se ve igual y pesa un par de MB por página.
     doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', x, y, w, h);
