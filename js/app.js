@@ -3589,6 +3589,7 @@ function injectPlantillaStyles() {
     .pl-t-l{font-size:96px;}
     .pl-t-m{font-size:66px;}
     .pl-sub{font-family:system-ui,'Segoe UI',sans-serif;font-weight:600;font-size:40px;opacity:0.8;}
+    .pl-barra{position:sticky;top:calc(var(--header-h) + var(--tabs-h));z-index:80;background:var(--bg-app);padding:8px 0;margin-top:-4px;box-shadow:0 2px 6px rgba(0,0,0,0.12);}
     .pl-ed{white-space:pre-line;outline:none;cursor:text;}
     .pl-ed:hover{outline:2px dashed rgba(255,255,255,0.45);outline-offset:6px;}
     .pl-ed:focus{outline:2px solid #ffab40;outline-offset:6px;}
@@ -3932,7 +3933,7 @@ async function renderPlantillaPresentacion(container) {
   const c = state.fichaColors || { slate: '#24313d', wine: '#7f3a52' };
   container.innerHTML = `
     ${firebaseNotice()}
-    <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
+    <div class="pl-barra flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
       <button class="btn btn-ghost" id="pl-volver">← Plantillas</button>
       <b>${safeText(t?.label || '')} · ${safeText(temporada)} · ${jugs.length} jugadores</b>
       <label class="btn btn-sm" style="cursor:pointer;" title="Se usa en todos los equipos de la temporada salvo los que tengan una propia">Foto portada (todos los equipos)<input type="file" accept="image/*" id="pl-foto-portada" hidden /></label>
