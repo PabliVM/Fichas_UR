@@ -3593,8 +3593,19 @@ function injectPlantillaStyles() {
     .pl-ed:hover{outline:2px dashed rgba(255,255,255,0.45);outline-offset:6px;}
     .pl-ed:focus{outline:2px solid #ffab40;outline-offset:6px;}
     #pl-pres-lista:fullscreen{background:#111;overflow-y:auto;padding:8px 0;scroll-snap-type:y proximity;}
-    #pl-pres-lista:fullscreen > *{max-width:calc((100vh - 70px) * ${PL_W} / ${PL_H});margin-left:auto;margin-right:auto;}
-    #pl-pres-lista:fullscreen .pl-frame,#pl-pres-lista:fullscreen .ficha-wrap{scroll-snap-align:center;}
+    .pl-obs{margin:0 auto 20px;}
+    .pl-obs textarea{width:100%;box-sizing:border-box;min-height:56px;resize:vertical;font:14px system-ui,sans-serif;padding:8px 10px;border-radius:8px;}
+    #pl-pres-lista:fullscreen .pl-obs textarea{background:#1b1b1b;color:#eee;border:1px solid #444;}
+    #pl-pres-lista.pl-solo .pl-obs{display:none;}
+    #pl-pres-lista.pl-solo > .pl-cur + .pl-obs,#pl-pres-lista.pl-solo .pl-cur + .pl-obs{display:block;}
+    #pl-pres-lista:fullscreen > *{max-width:calc((100vh - 140px) * ${PL_W} / ${PL_H});margin-left:auto;margin-right:auto;}
+    #pl-pres-lista.pl-solo > *{display:none;}
+    #pl-pres-lista.pl-solo > .pl-host{display:block;}
+    #pl-pres-lista.pl-solo .pl-frame:not(.pl-cur),#pl-pres-lista.pl-solo .ficha-wrap:not(.pl-cur){display:none;}
+    #pl-pres-lista.pl-solo .pl-cur{display:block;}
+    #pl-solo-nav{display:none;}
+    #pl-pres-lista.pl-solo > #pl-solo-nav{display:flex;position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:10;gap:12px;align-items:center;background:rgba(0,0,0,0.75);color:#fff;padding:6px 16px;border-radius:22px;font:600 15px system-ui,sans-serif;}
+    #pl-solo-nav button{background:#fff;color:#111;border:0;border-radius:14px;padding:4px 14px;font-weight:700;cursor:pointer;}
     #pl-pres-lista:fullscreen .btn-print-ficha{color:#ddd;}
     .pl-nombre{font-weight:800;text-transform:uppercase;text-align:center;line-height:1.1;letter-spacing:-0.01em;}
   `;
@@ -3734,7 +3745,8 @@ function ajustarSlides(root) {
   root.querySelectorAll('.pl-frame').forEach(fr => {
     const sl = fr.querySelector('.pl-slide');
     if (!sl) return;
-    const maxW = Math.min(fr.parentElement?.clientWidth || root.clientWidth || 1700, 1700); // misma regla de ancho que las fichas (fitFichaToFrame)
+    let maxW = Math.min(fr.parentElement?.clientWidth || root.clientWidth || 1700, 1700); // misma regla de ancho que las fichas (fitFichaToFrame)
+    const lim = parseFloat(getComputedStyle(fr).maxWidth); if (lim > 0) maxW = Math.min(maxW, lim);   // pantalla completa: un frame suelto también se ajusta al alto
     fr.style.width = `${maxW}px`;
     fr.style.margin = '0 auto 16px';
     sl.style.transform = `scale(${maxW / PL_W})`;
@@ -3951,7 +3963,29 @@ async function renderPlantillaPresentacion(container) {
     try { await guardarPlantilla(temporada, dest, { textos: nuevo }); }
     catch (err) { console.error(err); showError('No se pudo guardar el texto.'); }
   });
+  let plObs = { ...(docP().observaciones || {}) };
+  // Cuadro de observaciones bajo cada diapositiva (solo en pantalla; no entra en el PDF). Cada diapositiva lleva data-pl-obs="clave".
+  const obsMontar = () => {
+    lista.querySelectorAll('[data-pl-obs]').forEach(u => {
+      if (u.nextElementSibling?.classList.contains('pl-obs')) return;
+      const box = document.createElement('div');
+      box.className = 'pl-obs btn-print-ficha';
+      if (u.dataset.plFijo) box.dataset.plFijo = '1';
+      box.innerHTML = `<textarea class="input" data-pl-obs-key="${safeText(u.dataset.plObs)}" rows="2" placeholder="Observaciones…">${safeText(plObs[u.dataset.plObs] || '')}</textarea>`;
+      u.after(box);
+    });
+  };
+  lista.addEventListener('focusout', async e => {
+    const ta = e.target.closest?.('[data-pl-obs-key]'); if (!ta) return;
+    const key = ta.dataset.plObsKey, val = ta.value.trim();
+    if (val === (plObs[key] || '')) return;
+    const next = { ...plObs }; if (val) next[key] = val; else delete next[key];
+    plObs = next;
+    try { await guardarPlantilla(temporada, plVista.teamKey, { observaciones: next }); }
+    catch (err) { console.error(err); showError('No se pudieron guardar las observaciones.'); }
+  });
   const campoHost = document.createElement('div');   // aquí va la diapositiva del campograma (tras "Mapa de nivel")
+  let soloRefrescar = null;   // modo diapositiva a diapositiva (pantalla completa)
   const mapaHost = document.createElement('div');    // diapositiva "Mapa de nivel" (antes del campograma)
   lista.appendChild(mapaHost);
   lista.appendChild(campoHost);
@@ -3960,6 +3994,7 @@ async function renderPlantillaPresentacion(container) {
     lista.querySelectorAll('[data-pl-fijo]').forEach(el => el.remove());
     const tmp = document.createElement('div');
     tmp.innerHTML = plPortadaGeneral(c, fotoPortadaDe(temporada, plVista.teamKey)) + plPortadaEquipo(c, docP().fotoEquipo, t?.label || '', temporada);
+    [...tmp.children].forEach((el, i) => { el.dataset.plObs = ['portada', 'equipo'][i] || `fijo${i}`; });
     [...tmp.children].reverse().forEach(el => { el.dataset.plFijo = '1'; lista.prepend(el); });
     // Botón "Subir foto" sobre las dos portadas (solo en pantalla: queda fuera de la diapositiva que se captura al PDF)
     [['#pl-foto-portada', 0, 'portada (todos los equipos)'], ['#pl-foto-portada-eq', 0, 'portada (solo este equipo)'], ['#pl-foto-equipo', 1, 'del equipo']].forEach(([inp, i, txt]) => {
@@ -3973,6 +4008,7 @@ async function renderPlantillaPresentacion(container) {
       b.addEventListener('click', () => container.querySelector(inp).click());
       fr.appendChild(b);
     });
+    obsMontar();
     ajustarSlides(lista);
   };
   dibujarPortadas();
@@ -4022,7 +4058,10 @@ async function renderPlantillaPresentacion(container) {
           <span class="pl-t pl-t-m" style="font-size:34px;">${safeText(t?.label || '')}</span><span class="pl-sub" style="font-size:22px;">${safeText(temporada)}</span></div>
         ${plLeyendaCirculo(state.fichaGridOrder || { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: 'tactico' })}
         ${colocados.map(j => plCardJugador(j, f1Map[j.id], pos[j.id].x, pos[j.id].y)).join('')}`, '#1f6b2a')}`;
+    const fCampo = campoHost.querySelector('.pl-frame'); if (fCampo) fCampo.dataset.plObs = 'campo';
+    obsMontar();
     ajustarSlides(lista);
+    soloRefrescar?.();
     const sl = campoHost.querySelector('.pl-slide');
     const guardarCampo = async nuevo => {
       try { await guardarPlantilla(temporada, plVista.teamKey, { campograma: nuevo }); }
@@ -4070,7 +4109,10 @@ async function renderPlantillaPresentacion(container) {
       </div>
       ${(plMapaModo === 'rp' ? ['r', 'p'] : [plMapaModo]).map(m => plMapaNivel(t?.label || '', temporada, jugs.map(j => ({ j, f1: f1Map[j.id] })), m)).join('')}`;
     mapaHost.querySelector('#pl-mapa-modo').addEventListener('change', e => { plMapaModo = e.target.value; dibujarMapa(); });
+    [...mapaHost.querySelectorAll('.pl-frame')].forEach((f, i, arr) => { f.dataset.plObs = arr.length > 1 ? `mapa-${i ? 'p' : 'r'}` : `mapa-${plMapaModo}`; });
+    obsMontar();
     ajustarSlides(lista);
+    soloRefrescar?.();
   };
   dibujarMapa();
   dibujarCampo();
@@ -4092,6 +4134,8 @@ async function renderPlantillaPresentacion(container) {
   let hechas = 0;
   for (const g of grupos.filter(g => g.items.length)) {
     addHTML(plSeparadorPosicion(c, g.titulo, g.items.map(x => x.j)));
+    lista.lastElementChild.dataset.plObs = `sep.${g.titulo}`;
+    obsMontar();
     await aplicarSinFondo(lista);
     ajustarSlides(lista);
     for (const { j, prep } of g.items) {
@@ -4107,6 +4151,8 @@ async function renderPlantillaPresentacion(container) {
         ${prep.fPos ? '<div class="ficha-wrap mb-16" data-pr-f1></div><div class="ficha-wrap" data-pr-f2></div>' : '<p class="text-xs text-muted">Sin posición ni evaluación: asigna una posición en Datos (no entra en el PDF).</p>'}`;
       lista.appendChild(sec);
       if (!prep.fPos) continue;
+      sec.querySelector('[data-pr-f1]').dataset.plObs = `j1.${j.id}`; sec.querySelector('[data-pr-f2]').dataset.plObs = `j2.${j.id}`;
+      obsMontar();
       renderFichaPagina1(sec.querySelector('[data-pr-f1]'), buildFicha1RealData(prep.fPos, prep.fMedia, j, prep.aspectosTxt, prep.evSel?.eid), LOGO_PATH, state.fichaColors);
       renderFichaDetalle(sec.querySelector('[data-pr-f2]'), buildFichaRealData(prep.fPos, prep.fMedia, j, prep.evSel?.eid, refDe(j, prep)), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
       sec.querySelector('[data-pr-textos]').addEventListener('click', async e => {
@@ -4141,17 +4187,47 @@ async function renderPlantillaPresentacion(container) {
     }).observe(lista);
   }
   pdfBtn.disabled = false;
-  container.querySelector('#pl-pres-full').addEventListener('click', () => { (lista.requestFullscreen || lista.webkitRequestFullscreen)?.call(lista); });
-  document.addEventListener('fullscreenchange', () => { if (container.isConnected) requestAnimationFrame(reajustar); });
+  // Pantalla completa, diapositiva a diapositiva (flechas / botones). Las demás quedan ocultas.
+  let cur = 0;
+  const nav = document.createElement('div');
+  nav.id = 'pl-solo-nav';
+  nav.innerHTML = '<button data-n="-1">◀</button><span id="pl-solo-cnt"></span><button data-n="1">▶</button>';
+  lista.appendChild(nav);
+  const unidades = () => [...lista.querySelectorAll('.pl-frame, .ficha-wrap')];
+  const mostrar = i => {
+    const us = unidades(); if (!us.length) return;
+    cur = Math.max(0, Math.min(us.length - 1, i));
+    lista.querySelectorAll('.pl-cur,.pl-host').forEach(x => x.classList.remove('pl-cur', 'pl-host'));
+    const u = us[cur]; u.classList.add('pl-cur');
+    let T = u; while (T.parentElement && T.parentElement !== lista) T = T.parentElement;
+    T.classList.add('pl-host');
+    nav.querySelector('#pl-solo-cnt').textContent = `${cur + 1} / ${us.length}`;
+    reajustar();
+  };
+  soloRefrescar = () => { if (lista.classList.contains('pl-solo')) mostrar(cur); };
+  nav.addEventListener('click', e => { const n = e.target.closest('button')?.dataset.n; if (n) mostrar(cur + Number(n)); });
+  container.querySelector('#pl-pres-full').addEventListener('click', () => {
+    const us = unidades(), mid = window.innerHeight / 2;   // empieza por la diapositiva que estás viendo
+    const i = us.findIndex(x => { const r = x.getBoundingClientRect(); return r.top <= mid && r.bottom >= mid; });
+    cur = Math.max(0, i);
+    (lista.requestFullscreen || lista.webkitRequestFullscreen)?.call(lista);
+  });
+  document.addEventListener('fullscreenchange', () => {
+    if (!container.isConnected) return;
+    if (document.fullscreenElement === lista) { lista.classList.add('pl-solo'); requestAnimationFrame(() => mostrar(cur)); }
+    else if (lista.classList.contains('pl-solo')) {
+      const actual = unidades()[cur];
+      lista.classList.remove('pl-solo');
+      lista.querySelectorAll('.pl-cur,.pl-host').forEach(x => x.classList.remove('pl-cur', 'pl-host'));
+      requestAnimationFrame(() => { reajustar(); actual?.scrollIntoView({ block: 'center' }); });
+    }
+  });
   document.addEventListener('keydown', e => {
     if (!container.isConnected || document.fullscreenElement !== lista || e.target.closest?.('[contenteditable],textarea,input,select')) return;
     const sig = ['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key), ant = ['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key);
     if (!sig && !ant) return;
     e.preventDefault();
-    const sl = [...lista.querySelectorAll('.pl-frame, .ficha-wrap')], mid = lista.getBoundingClientRect().top + lista.clientHeight / 2;
-    let i = sl.findIndex(x => { const r = x.getBoundingClientRect(); return r.top <= mid && r.bottom >= mid; });
-    if (i < 0) i = 0;
-    sl[Math.max(0, Math.min(sl.length - 1, i + (sig ? 1 : -1)))].scrollIntoView({ block: 'center', behavior: 'smooth' });
+    mostrar(cur + (sig ? 1 : -1));
   });
   lista.tabIndex = -1;
   pdfBtn.addEventListener('click', async () => {
