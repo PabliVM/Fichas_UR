@@ -3594,15 +3594,20 @@ function injectPlantillaStyles() {
     .pl-ed:focus{outline:2px solid #ffab40;outline-offset:6px;}
     #pl-pres-lista:fullscreen{background:#111;overflow-y:auto;padding:8px 0;scroll-snap-type:y proximity;}
     .pl-obs{margin:0 auto 20px;}
-    .pl-obs textarea{width:100%;box-sizing:border-box;min-height:56px;resize:vertical;font:14px system-ui,sans-serif;padding:8px 10px;border-radius:8px;}
+    .pl-obs{display:flex;gap:8px;align-items:stretch;}
+    .pl-obs textarea{flex:1;min-width:0;box-sizing:border-box;min-height:56px;resize:vertical;font:14px system-ui,sans-serif;padding:8px 10px;border-radius:8px;}
+    .pl-obs-ctl{display:flex;flex-direction:column;justify-content:center;gap:6px;font:12px system-ui,sans-serif;white-space:nowrap;}
+    .pl-obs-ctl button{cursor:pointer;border-radius:8px;padding:4px 8px;}
+    #pl-pres-lista:fullscreen .pl-obs-ctl{color:#ddd;}
     #pl-pres-lista:fullscreen .pl-obs textarea{background:#1b1b1b;color:#eee;border:1px solid #444;}
     #pl-pres-lista.pl-solo .pl-obs{display:none;}
-    #pl-pres-lista.pl-solo > .pl-cur + .pl-obs,#pl-pres-lista.pl-solo .pl-cur + .pl-obs{display:block;}
+    #pl-pres-lista.pl-solo > .pl-cur + .pl-obs,#pl-pres-lista.pl-solo .pl-cur + .pl-obs{display:flex;}
     #pl-pres-lista:fullscreen > *{max-width:calc((100vh - 140px) * ${PL_W} / ${PL_H});margin-left:auto;margin-right:auto;}
     #pl-pres-lista.pl-solo > *{display:none;}
     #pl-pres-lista.pl-solo > .pl-host{display:block;}
     #pl-pres-lista.pl-solo .pl-frame:not(.pl-cur),#pl-pres-lista.pl-solo .ficha-wrap:not(.pl-cur){display:none;}
     #pl-pres-lista.pl-solo .pl-cur{display:block;}
+    #pl-pres-lista.pl-solo .pl-foto-btn{display:none !important;}
     #pl-solo-nav{display:none;}
     #pl-pres-lista.pl-solo > #pl-solo-nav{display:flex;position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:10;gap:12px;align-items:center;background:rgba(0,0,0,0.75);color:#fff;padding:6px 16px;border-radius:22px;font:600 15px system-ui,sans-serif;}
     #pl-solo-nav button{background:#fff;color:#111;border:0;border-radius:14px;padding:4px 14px;font-weight:700;cursor:pointer;}
@@ -3965,15 +3970,24 @@ async function renderPlantillaPresentacion(container) {
   });
   let plObs = { ...(docP().observaciones || {}) };
   // Cuadro de observaciones bajo cada diapositiva (solo en pantalla; no entra en el PDF). Cada diapositiva lleva data-pl-obs="clave".
+  const obsFechaAuto = () => { try { return localStorage.getItem('rm-obs-fecha') !== '0'; } catch { return true; } };
+  const hoy = () => new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const obsAnchos = () => lista.querySelectorAll('.pl-obs').forEach(b => {   // el cuadro mide lo mismo que la diapositiva
+    const u = b.previousElementSibling; if (!u) return;
+    const w = (u.querySelector?.('.ficha-a4-frame') || u).getBoundingClientRect().width;
+    if (w > 0) { b.style.width = `${Math.round(w)}px`; b.style.maxWidth = '100%'; }
+  });
   const obsMontar = () => {
     lista.querySelectorAll('[data-pl-obs]').forEach(u => {
       if (u.nextElementSibling?.classList.contains('pl-obs')) return;
       const box = document.createElement('div');
       box.className = 'pl-obs btn-print-ficha';
       if (u.dataset.plFijo) box.dataset.plFijo = '1';
-      box.innerHTML = `<textarea class="input" data-pl-obs-key="${safeText(u.dataset.plObs)}" rows="2" placeholder="Observaciones…">${safeText(plObs[u.dataset.plObs] || '')}</textarea>`;
+      box.innerHTML = `<textarea class="input" data-pl-obs-key="${safeText(u.dataset.plObs)}" rows="2" placeholder="Observaciones…">${safeText(plObs[u.dataset.plObs] || '')}</textarea>
+        <div class="pl-obs-ctl"><label title="Al hacer clic por primera vez en un cuadro vacío se escribe la fecha de hoy"><input type="checkbox" data-pl-obs-auto ${obsFechaAuto() ? 'checked' : ''}/> Fecha automática</label><button type="button" class="btn btn-sm" data-pl-obs-fecha>📅 Insertar fecha</button></div>`;
       u.after(box);
     });
+    obsAnchos(); requestAnimationFrame(obsAnchos);
   };
   lista.addEventListener('focusout', async e => {
     const ta = e.target.closest?.('[data-pl-obs-key]'); if (!ta) return;
@@ -3983,6 +3997,17 @@ async function renderPlantillaPresentacion(container) {
     plObs = next;
     try { await guardarPlantilla(temporada, plVista.teamKey, { observaciones: next }); }
     catch (err) { console.error(err); showError('No se pudieron guardar las observaciones.'); }
+  });
+  lista.addEventListener('focusin', e => {   // primer clic en un cuadro vacío → fecha de hoy
+    const ta = e.target.closest?.('[data-pl-obs-key]');
+    if (ta && !ta.value.trim() && obsFechaAuto()) { ta.value = `${hoy()}: `; ta.setSelectionRange(ta.value.length, ta.value.length); }
+  });
+  lista.addEventListener('change', e => { if (e.target.matches?.('[data-pl-obs-auto]')) { try { localStorage.setItem('rm-obs-fecha', e.target.checked ? '1' : '0'); } catch {} lista.querySelectorAll('[data-pl-obs-auto]').forEach(c => { c.checked = e.target.checked; }); } });
+  lista.addEventListener('click', e => {
+    const b = e.target.closest?.('[data-pl-obs-fecha]'); if (!b) return;
+    const ta = b.closest('.pl-obs').querySelector('textarea');
+    ta.value = `${ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n' : ''}${hoy()}: `;
+    ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
   });
   const campoHost = document.createElement('div');   // aquí va la diapositiva del campograma (tras "Mapa de nivel")
   let soloRefrescar = null;   // modo diapositiva a diapositiva (pantalla completa)
@@ -4002,7 +4027,7 @@ async function renderPlantillaPresentacion(container) {
       if (!fr) return;
       fr.style.position = 'relative';
       const b = document.createElement('button');
-      b.className = 'btn btn-sm btn-primary';
+      b.className = 'btn btn-sm btn-primary pl-foto-btn';
       b.textContent = `📷 Foto ${txt}`;
       b.style.cssText = `position:absolute;right:12px;bottom:${12 + 36 * (inp === '#pl-foto-portada' ? 1 : 0)}px;z-index:5;`;
       b.addEventListener('click', () => container.querySelector(inp).click());
@@ -4176,7 +4201,7 @@ async function renderPlantillaPresentacion(container) {
     }
   }
   estado.textContent = '';
-  const reajustar = () => { ajustarSlides(lista); lista.querySelectorAll('.ficha-wrap').forEach(w => fitFichaToFrame(w)); };
+  const reajustar = () => { ajustarSlides(lista); lista.querySelectorAll('.ficha-wrap').forEach(w => fitFichaToFrame(w)); obsAnchos(); };
   reajustar();
   if (window.ResizeObserver) {
     let ultimoAncho = lista.clientWidth;
