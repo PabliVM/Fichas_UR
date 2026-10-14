@@ -3402,6 +3402,7 @@ function renderPanelPlantillas(container) {
     <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
       <label class="text-xs text-muted" for="pl-temporada">Temporada</label>
       <select class="select" id="pl-temporada" style="max-width:200px;">${state.seasons.map(t => `<option value="${safeText(t)}" ${t === plantillaTemporada ? 'selected' : ''}>${safeText(t)}</option>`).join('')}</select>
+      <label class="btn btn-sm" style="cursor:pointer;" title="Una sola vez para todos los equipos de esta temporada. En cada equipo puedes cambiarla.">📷 Foto de portada (todos los equipos)<input type="file" accept="image/*" id="pl-foto-global" hidden /></label>
       <span class="text-xs text-muted">Un jugador puede estar en varios equipos. Los jugadores nuevos con equipo se añaden aquí solos (temporada activa).</span>
     </div>
     <div style="display:flex;flex-direction:column;gap:10px;">
@@ -3443,6 +3444,11 @@ function renderPanelPlantillas(container) {
     }
   };
   container.querySelector('#pl-temporada')?.addEventListener('change', e => { plantillaTemporada = e.target.value; renderPanelPlantillas(container); });
+  container.querySelector('#pl-foto-global')?.addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try { await guardarPlantilla(plantillaTemporada, '_portada', { fotoPortada: await fotoADataUrl(f) }); showSuccess('Foto de portada guardada para todos los equipos.'); }
+    catch (err) { console.error(err); showError('No se pudo guardar la foto (¿demasiado grande?).'); }
+  });
   container.querySelectorAll('[data-pl-add]').forEach(btn => btn.addEventListener('click', () => {
     const teamKey = btn.dataset.plAdd;
     const sel = container.querySelector(`[data-pl-sel="${teamKey}"]`);
@@ -3805,6 +3811,11 @@ function plLeyendaCirculo(order) {
   return svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}"><defs>${defs.join('')}</defs>${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${textos.join('')}</svg>`, R * 2, R * 2, 'position:absolute;right:60px;bottom:45px;');
 }
 
+// Foto de portada: la del equipo si tiene una propia; si no, la general de la temporada (para todos los equipos).
+const fotoPortadaDe = (temporada, teamKey) =>
+  plantillasCache?.find(d => d.id === plantillaDocId(temporada, teamKey))?.fotoPortada
+  || plantillasCache?.find(d => d.id === plantillaDocId(temporada, '_portada'))?.fotoPortada || null;
+
 // Estructura del PDF de equipo: portada · portada del equipo · campograma (pendiente) · mapa de nivel (pendiente)
 // · por cada posición: separador + Ficha 1 y 2 de cada jugador.
 async function renderPlantillaPresentacion(container) {
@@ -3819,7 +3830,9 @@ async function renderPlantillaPresentacion(container) {
     <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
       <button class="btn btn-ghost" id="pl-volver">← Plantillas</button>
       <b>${safeText(t?.label || '')} · ${safeText(temporada)} · ${jugs.length} jugadores</b>
-      <label class="btn btn-sm" style="cursor:pointer;">Foto portada (temporada)<input type="file" accept="image/*" id="pl-foto-portada" hidden /></label>
+      <label class="btn btn-sm" style="cursor:pointer;" title="Se usa en todos los equipos de la temporada salvo los que tengan una propia">Foto portada (todos los equipos)<input type="file" accept="image/*" id="pl-foto-portada" hidden /></label>
+      <label class="btn btn-sm" style="cursor:pointer;" title="Solo para este equipo">Foto portada (solo este equipo)<input type="file" accept="image/*" id="pl-foto-portada-eq" hidden /></label>
+      <button class="btn btn-sm btn-ghost" id="pl-foto-portada-quitar" ${docP().fotoPortada ? '' : 'style="display:none;"'}>↺ Usar la general</button>
       <label class="btn btn-sm" style="cursor:pointer;">Foto equipo<input type="file" accept="image/*" id="pl-foto-equipo" hidden /></label>
       <label class="text-xs text-muted" for="pl-ref">Comparar medias con</label>
       <select class="select" id="pl-ref" style="max-width:260px;">
@@ -3844,17 +3857,17 @@ async function renderPlantillaPresentacion(container) {
   const dibujarPortadas = () => {
     lista.querySelectorAll('[data-pl-fijo]').forEach(el => el.remove());
     const tmp = document.createElement('div');
-    tmp.innerHTML = plPortadaGeneral(c, (plantillasCache.find(d => d.id === plantillaDocId(temporada, '_portada'))?.fotoPortada)) + plPortadaEquipo(c, docP().fotoEquipo, t?.label || '', temporada) + plPendiente(c, 'Mapa de nivel');
+    tmp.innerHTML = plPortadaGeneral(c, fotoPortadaDe(temporada, plVista.teamKey)) + plPortadaEquipo(c, docP().fotoEquipo, t?.label || '', temporada) + plPendiente(c, 'Mapa de nivel');
     [...tmp.children].reverse().forEach(el => { el.dataset.plFijo = '1'; lista.prepend(el); });
     // Botón "Subir foto" sobre las dos portadas (solo en pantalla: queda fuera de la diapositiva que se captura al PDF)
-    [['#pl-foto-portada', 0, 'portada de la temporada'], ['#pl-foto-equipo', 1, 'del equipo']].forEach(([inp, i, txt]) => {
+    [['#pl-foto-portada', 0, 'portada (todos los equipos)'], ['#pl-foto-portada-eq', 0, 'portada (solo este equipo)'], ['#pl-foto-equipo', 1, 'del equipo']].forEach(([inp, i, txt]) => {
       const fr = lista.children[i];
       if (!fr) return;
       fr.style.position = 'relative';
       const b = document.createElement('button');
       b.className = 'btn btn-sm btn-primary';
       b.textContent = `📷 Foto ${txt}`;
-      b.style.cssText = 'position:absolute;right:12px;bottom:12px;z-index:5;';
+      b.style.cssText = `position:absolute;right:12px;bottom:${12 + 36 * (inp === '#pl-foto-portada' ? 1 : 0)}px;z-index:5;`;
       b.addEventListener('click', () => container.querySelector(inp).click());
       fr.appendChild(b);
     });
@@ -3863,15 +3876,20 @@ async function renderPlantillaPresentacion(container) {
   dibujarPortadas();
   const subirFoto = (inputId, campo) => container.querySelector(inputId).addEventListener('change', async e => {
     const f = e.target.files[0]; if (!f) return;
-    try { await guardarPlantilla(temporada, plVista.teamKey, { [campo]: await fotoADataUrl(f) }); dibujarPortadas(); showSuccess('Foto guardada.'); }
+    try { await guardarPlantilla(temporada, plVista.teamKey, { [campo]: await fotoADataUrl(f) }); if (campo === 'fotoPortada') container.querySelector('#pl-foto-portada-quitar').style.display = ''; dibujarPortadas(); showSuccess('Foto guardada.'); }
     catch (err) { console.error(err); showError('No se pudo guardar la foto (¿demasiado grande?).'); }
   });
   container.querySelector('#pl-foto-portada').addEventListener('change', async e => {
     const f = e.target.files[0]; if (!f) return;
-    try { await guardarPlantilla(temporada, '_portada', { fotoPortada: await fotoADataUrl(f) }); dibujarPortadas(); showSuccess('Foto de portada de la temporada guardada.'); }
+    try { await guardarPlantilla(temporada, '_portada', { fotoPortada: await fotoADataUrl(f) }); dibujarPortadas(); showSuccess('Foto de portada guardada para todos los equipos.'); }
     catch (err) { console.error(err); showError('No se pudo guardar la foto (¿demasiado grande?).'); }
   });
   subirFoto('#pl-foto-equipo', 'fotoEquipo');
+  subirFoto('#pl-foto-portada-eq', 'fotoPortada');
+  container.querySelector('#pl-foto-portada-quitar').addEventListener('click', async e => {
+    try { await guardarPlantilla(temporada, plVista.teamKey, { fotoPortada: '' }); e.target.style.display = 'none'; dibujarPortadas(); showSuccess('Este equipo vuelve a usar la portada general.'); }
+    catch (err) { console.error(err); showError('No se pudo guardar el cambio.'); }
+  });
   window.addEventListener('resize', () => { if (container.isConnected) ajustarSlides(lista); });
 
   if (!isFirebaseUnconfigured()) {
