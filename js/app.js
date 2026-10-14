@@ -3820,15 +3820,17 @@ function plLeyendaCirculo(order) {
 }
 
 // Mapa de nivel: izquierda = residen en Madrid (Residente / Media pensión), derecha = En residencia.
-// Franjas por nota de rendimiento (R, o P si no hay R): ≥4 verde · 3–<4 amarillo · <3 rojo. Sin nota → franja 3-4 con "X".
+// Franjas por la nota elegida (Rendimiento o Proyección): ≥4 verde · 3–<4 amarillo · <3 rojo. Sin esa nota → franja 3-4 con "X".
 const PL_RESI = {
   'Residente en Madrid': { lado: 'izq', bg: '#ffffff', fg: '#0b2a6b', txt: 'MADRID' },
   'Media pensión':       { lado: 'izq', bg: '#0b2a6b', fg: '#ffffff', txt: 'MEDIA PENSIÓN' },
   'En residencia':       { lado: 'der', bg: '#d4a63a', fg: '#111111', txt: 'RESIDENCIA' },
 };
-function plMapaNivel(tLabel, temporada, items) {
+let plMapaModo = 'r';   // nota que ordena el mapa de nivel: 'r' rendimiento · 'p' proyección
+function plMapaNivel(tLabel, temporada, items, modo = 'r') {
   const conf = it => PL_RESI[it.j.residencia] || PL_RESI['Residente en Madrid'];
-  const notaDe = it => { const r = notaNum(it.f1?.player?.rValue); return r != null ? r : notaNum(it.f1?.player?.pValue); };
+  const campoN = modo === 'p' ? 'pValue' : 'rValue';
+  const notaDe = it => notaNum(it.f1?.player?.[campoN]);
   const bandas = [
     { lab: '+4', bg: '#7bbf90', ok: v => v != null && v >= 4 },
     { lab: '3-4', bg: '#f2e09c', ok: v => v == null || (v >= 3 && v < 4) },
@@ -3845,14 +3847,14 @@ function plMapaNivel(tLabel, temporada, items) {
   let y = TOP;
   const partes = datos.map(d => {
     const h = Math.round(libre * d.filas / totalFilas), y0 = y; y += h + GAP;
-    const rowH = Math.min(240, (h - 90) / d.filas), D = Math.round(Math.min(150, rowH * 0.6));
+    const rowH = Math.min(240, (h - 90) / d.filas), D = Math.round(Math.min(120, rowH * 0.5));
     const lado = (arr, x0, x1) => arr.map((it, i) => {
       const fila = Math.floor(i / POR_FILA), enFila = Math.min(POR_FILA, arr.length - fila * POR_FILA), col = i % POR_FILA;
       const cx = (x0 + x1) / 2 - (enFila * ITEM_W) / 2 + col * ITEM_W + ITEM_W / 2;
       const top = y0 + 84 + fila * rowH + Math.max(0, (rowH - D - 44) / 2);
       const cf = conf(it), v = notaDe(it), hex = v != null ? hexDeNota(v) : null;
       const pl = it.f1?.player || {};
-      const txtNota = hex ? String(notaNum(pl.rValue) != null ? pl.rValue : pl.pValue) : 'X';
+      const txtNota = hex ? String(pl[campoN]) : 'X';
       const bgN = hex || '#ffffff', fgN = hex ? textoSobre(hex) : '#111';
       const cid = `plmn${++plUid}`, R0 = D / 2, dN = Math.round(D * 0.44);
       const foto = it.j.fotoUrl
@@ -3865,6 +3867,7 @@ function plMapaNivel(tLabel, temporada, items) {
         <div style="position:absolute;left:-10px;width:${ITEM_W + 20}px;top:${D + 8}px;text-align:center;"><span style="display:inline-block;background:${cf.bg};color:${cf.fg};font-family:system-ui,sans-serif;font-weight:800;font-size:17px;padding:3px 14px;border-radius:18px;white-space:nowrap;">${safeText(ap)}</span></div></div>`;
     }).join('');
     return `<div style="position:absolute;left:20px;top:${y0}px;width:${PL_W - 40}px;height:${h}px;background:${d.b.bg};border-radius:70px;"></div>
+      <div style="position:absolute;left:${MITAD - 3}px;top:${y0}px;width:6px;height:${h}px;background:rgba(0,0,0,0.4);"></div>
       ${lado(d.izq, 40, MITAD - 10)}${lado(d.der, MITAD + 10, PL_W - 40)}
       <div style="position:absolute;left:${MITAD - 70}px;top:${y0 + 14}px;width:140px;height:56px;border-radius:28px;background:#14306e;color:#fff;font-family:system-ui,sans-serif;font-weight:900;font-size:34px;display:flex;align-items:center;justify-content:center;">${d.b.lab}</div>`;
   }).join('');
@@ -3874,11 +3877,12 @@ function plMapaNivel(tLabel, temporada, items) {
     ${plCrest('right:30px;top:24px;width:110px;height:110px;')}
     <div style="position:absolute;left:60px;top:10px;background:rgba(15,23,32,0.78);border-radius:10px;padding:4px 20px;display:flex;align-items:baseline;gap:14px;">
       <span class="pl-t pl-t-m" style="font-size:34px;">${safeText(tLabel)}</span><span class="pl-sub" style="font-size:22px;">${safeText(temporada)}</span></div>
+    <div style="position:absolute;left:60px;top:66px;background:#14306e;color:#fff;border-radius:10px;padding:4px 18px;font:800 22px system-ui,sans-serif;">NIVEL SEGÚN ${modo === 'p' ? 'PROYECCIÓN' : 'RENDIMIENTO'}</div>
     <div style="position:absolute;right:170px;top:18px;display:flex;flex-direction:column;gap:6px;">${chip('RESIDENCIA')}${chip('MADRID')}${chip('MEDIA PENSIÓN')}</div>
     <img src="./madrid.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:${MITAD / 2 - 75}px;top:100px;width:150px;height:95px;object-fit:cover;" />
     <img src="./espa%C3%B1a.png" alt="" onerror="this.style.display='none'" style="position:absolute;left:${MITAD + MITAD / 2 - 75}px;top:100px;width:150px;height:95px;object-fit:cover;" />
     ${partes}
-    <div style="position:absolute;left:${MITAD - 3}px;top:${TOP}px;width:6px;height:${BOT - TOP}px;background:rgba(0,0,0,0.4);"></div>`, '#e4e6e1');
+`, '#e4e6e1');
 }
 
 // Foto de portada: la del equipo si tiene una propia; si no, la general de la temporada (para todos los equipos).
@@ -4031,8 +4035,18 @@ async function renderPlantillaPresentacion(container) {
       await guardarCampo(nuevo); dibujarCampo();
     });
   };
-  mapaHost.innerHTML = plMapaNivel(t?.label || '', temporada, jugs.map(j => ({ j, f1: f1Map[j.id] })));
-  ajustarSlides(lista);
+  const dibujarMapa = () => {
+    mapaHost.innerHTML = `
+      <div class="flex gap-8 mb-8 btn-print-ficha" style="align-items:center;flex-wrap:wrap;">
+        <b>Mapa de nivel</b>
+        <label class="text-xs text-muted" for="pl-mapa-modo">Ordenar por la nota de</label>
+        <select class="select" id="pl-mapa-modo" style="max-width:200px;"><option value="r" ${plMapaModo === 'r' ? 'selected' : ''}>Rendimiento</option><option value="p" ${plMapaModo === 'p' ? 'selected' : ''}>Proyección</option></select>
+      </div>
+      ${plMapaNivel(t?.label || '', temporada, jugs.map(j => ({ j, f1: f1Map[j.id] })), plMapaModo)}`;
+    mapaHost.querySelector('#pl-mapa-modo').addEventListener('change', e => { plMapaModo = e.target.value; dibujarMapa(); });
+    ajustarSlides(lista);
+  };
+  dibujarMapa();
   dibujarCampo();
 
   // Media de comparación = media de las medias de cada jugador de la plantilla (cada uno pesa 1; sin consultas extra).
