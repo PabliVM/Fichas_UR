@@ -3608,6 +3608,8 @@ function injectPlantillaStyles() {
     #pl-pres-lista.pl-solo .pl-frame:not(.pl-cur),#pl-pres-lista.pl-solo .ficha-wrap:not(.pl-cur){display:none;}
     #pl-pres-lista.pl-solo .pl-cur{display:block;}
     #pl-pres-lista.pl-solo .pl-foto-btn{display:none !important;}
+    #pl-pres-lista.pl-sin-obs .pl-obs{display:none !important;}
+    #pl-pres-lista.pl-sin-obs:fullscreen > *{max-width:calc((100vh - 70px) * ${PL_W} / ${PL_H});}
     #pl-solo-nav{display:none;}
     #pl-pres-lista.pl-solo > #pl-solo-nav{display:flex;position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:10;gap:12px;align-items:center;background:rgba(0,0,0,0.75);color:#fff;padding:6px 16px;border-radius:22px;font:600 15px system-ui,sans-serif;}
     #pl-solo-nav button{background:#fff;color:#111;border:0;border-radius:14px;padding:4px 14px;font-weight:700;cursor:pointer;}
@@ -3619,6 +3621,7 @@ function injectPlantillaStyles() {
 let plUid = 0;
 // Textos editables de las diapositivas fijas (portadas y separadores). Se guardan en la plantilla: 'portada.*' en la general de la temporada, el resto por equipo.
 let plTextos = {};
+const plVerObs = () => { try { return localStorage.getItem('rm-pl-ver-obs') !== '0'; } catch { return true; } };
 const plT = (key, def) => safeText(plTextos[key] ?? def);
 const plEd = key => `data-pl-ed="${key}" contenteditable="true" spellcheck="false"`;
 // Formas en SVG en línea (html2canvas no soporta clip-path de CSS, pero sí SVG).
@@ -3943,6 +3946,7 @@ async function renderPlantillaPresentacion(container) {
         <option value="none" ${plRefModo === 'none' ? 'selected' : ''}>Sin comparar</option>
       </select>
       <label class="text-xs"><input type="checkbox" id="pl-inc-pend" /> Incluir páginas "por definir" en el PDF</label>
+      <label class="text-xs btn-print-ficha"><input type="checkbox" id="pl-ver-obs" ${plVerObs() ? 'checked' : ''} /> Ver observaciones</label>
       <button class="btn btn-primary btn-print-ficha" id="pl-pres-pdf" disabled>⬇ PDF del equipo</button>
       <button class="btn btn-print-ficha" id="pl-pres-full" title="Pantalla completa: flechas del teclado para pasar de diapositiva, Esc para salir">▶ Presentar</button>
       <span class="text-xs text-muted" id="pl-pres-estado">Cargando fichas…</span>
@@ -4216,7 +4220,7 @@ async function renderPlantillaPresentacion(container) {
   let cur = 0;
   const nav = document.createElement('div');
   nav.id = 'pl-solo-nav';
-  nav.innerHTML = '<button data-n="-1">◀</button><span id="pl-solo-cnt"></span><button data-n="1">▶</button>';
+  nav.innerHTML = '<button data-n="-1">◀</button><span id="pl-solo-cnt"></span><button data-n="1">▶</button><button data-obs="1" title="Mostrar u ocultar las observaciones (tecla N)">📝 Notas</button>';
   lista.appendChild(nav);
   const unidades = () => [...lista.querySelectorAll('.pl-frame, .ficha-wrap')];
   const mostrar = i => {
@@ -4230,7 +4234,19 @@ async function renderPlantillaPresentacion(container) {
     reajustar();
   };
   soloRefrescar = () => { if (lista.classList.contains('pl-solo')) mostrar(cur); };
-  nav.addEventListener('click', e => { const n = e.target.closest('button')?.dataset.n; if (n) mostrar(cur + Number(n)); });
+  const aplicarVerObs = v => {
+    lista.classList.toggle('pl-sin-obs', !v);
+    try { localStorage.setItem('rm-pl-ver-obs', v ? '1' : '0'); } catch {}
+    const chk = container.querySelector('#pl-ver-obs'); if (chk) chk.checked = v;
+    requestAnimationFrame(reajustar);
+  };
+  aplicarVerObs(plVerObs());
+  container.querySelector('#pl-ver-obs').addEventListener('change', e => aplicarVerObs(e.target.checked));
+  nav.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.obs) { aplicarVerObs(lista.classList.contains('pl-sin-obs')); return; }
+    if (b.dataset.n) mostrar(cur + Number(b.dataset.n));
+  });
   container.querySelector('#pl-pres-full').addEventListener('click', () => {
     const us = unidades(), mid = window.innerHeight / 2;   // empieza por la diapositiva que estás viendo
     const i = us.findIndex(x => { const r = x.getBoundingClientRect(); return r.top <= mid && r.bottom >= mid; });
@@ -4249,6 +4265,7 @@ async function renderPlantillaPresentacion(container) {
   });
   document.addEventListener('keydown', e => {
     if (!container.isConnected || document.fullscreenElement !== lista || e.target.closest?.('[contenteditable],textarea,input,select')) return;
+    if (e.key === 'n' || e.key === 'N') { aplicarVerObs(lista.classList.contains('pl-sin-obs')); return; }
     const sig = ['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key), ant = ['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key);
     if (!sig && !ant) return;
     e.preventDefault();
