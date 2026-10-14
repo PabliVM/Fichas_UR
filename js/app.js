@@ -3301,6 +3301,13 @@ let plantillaTemporada = '';
 const plantillaDocId = (temporada, teamKey) => `${String(temporada).replace(/\//g, '-')}__${teamKey}`;
 const TEAMS_ORDEN_PLANTILLA = [...TEAMS]; // de Castilla hacia abajo (Castilla, RMC, Juveniles… Alevín A)
 const plAbiertos = new Set(); // equipos desplegados en la pestaña Plantillas
+// Abreviatura de cada posición (columnas de la vista de plantillas). Se deduce del nombre definido en Configuración.
+const posAbrev = label => {
+  const n = String(label || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const mapa = [['portero', 'PO'], ['lateral', 'LAT'], ['central', 'CT'], ['mediocentro', 'MC'], ['interior', 'INT'], ['extremo', 'EXT'], ['delantero', 'DC']];
+  return mapa.find(([k]) => n.startsWith(k))?.[1] || String(label || '?').slice(0, 3).toUpperCase();
+};
+const esPortero = pos => /portero/i.test(String(pos?.label || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
 
 async function ensurePlantillas() {
   if (plantillasCache) return plantillasCache;
@@ -3417,8 +3424,12 @@ function renderPanelPlantillas(container) {
       ${TEAMS_ORDEN_PLANTILLA.map(t => {
         const ids = docDe(t.key)?.jugadorIds || [];
         const libres = todos.filter(j => !ids.includes(j.id));
+        const colDe = id => { const pk = state.players.find(x => x.id === id)?.positionKey; return state.positions.some(p => p.key === pk) ? pk : '_sin'; };
+        const porteros = ids.filter(id => esPortero(state.positions.find(p => p.key === colDe(id)))).length;
+        const campo = ids.length - porteros;
+        const columnas = [...state.positions.map(p => ({ key: p.key, abrev: posAbrev(p.label), titulo: p.label })), ...(ids.some(id => colDe(id) === '_sin') ? [{ key: '_sin', abrev: '—', titulo: 'Sin posición' }] : [])];
         return `<details class="card" data-pl-det="${t.key}" ${plAbiertos.has(t.key) ? 'open' : ''}><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;">
-          <b style="min-width:150px;">▸ ${safeText(t.label)} <span class="text-xs text-muted">(${ids.length})</span></b>
+          <div style="min-width:150px;"><b>▸ ${safeText(t.label)}</b><div class="text-xs text-muted" title="Jugadores de campo + porteros">${campo}+${porteros} <span style="opacity:.7;">campo+porteros</span></div></div>
           <button class="btn btn-sm" data-pl-datos="${t.key}" ${ids.length ? '' : 'disabled'}>Datos</button>
           <button class="btn btn-sm btn-primary" data-pl-pres="${t.key}" ${ids.length ? '' : 'disabled'}>Presentación de fichas</button>
           <button class="btn btn-sm" data-pl-lista-btn="${t.key}">+ Lista</button>
@@ -3427,9 +3438,12 @@ function renderPanelPlantillas(container) {
             <textarea class="input" data-pl-lista="${t.key}" rows="6" style="width:100%;" placeholder="Un jugador por línea:&#10;Apellidos, Nombre&#10;o: Nombre Apellidos"></textarea>
             <button class="btn btn-sm btn-primary mt-8" data-pl-lista-ok="${t.key}">Crear plantilla</button>
           </div>
-          <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">
-            ${ids.length ? ids.map(id => `<div class="flex" style="justify-content:space-between;align-items:center;gap:8px;"><span>${safeText(nombreDe(id))}</span><button class="btn btn-sm btn-ghost" data-pl-del="${t.key}|${id}" title="Quitar de la plantilla">✕</button></div>`).join('') : '<span class="text-xs text-muted">Sin jugadores.</span>'}
-          </div>
+          <div style="overflow-x:auto;margin-bottom:12px;"><div style="display:grid;grid-template-columns:repeat(${columnas.length},minmax(120px,1fr));min-height:150px;border:1px solid var(--border-default);border-radius:8px;">
+            ${columnas.map((col, ci) => `<div style="${ci ? 'border-left:1px solid var(--border-default);' : ''}padding:6px 8px;display:flex;flex-direction:column;gap:4px;min-width:0;">
+              <div style="font-weight:800;font-size:12px;letter-spacing:.04em;border-bottom:1px solid var(--border-default);padding-bottom:4px;margin-bottom:2px;" title="${safeText(col.titulo)}">${col.abrev} <span class="text-xs text-muted" style="font-weight:600;">${ids.filter(id => colDe(id) === col.key).length || ''}</span></div>
+              ${ids.filter(id => colDe(id) === col.key).map(id => `<div class="flex" style="justify-content:space-between;align-items:center;gap:4px;"><span class="text-xs" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${safeText(nombreDe(id))}">${safeText(nombreDe(id))}</span><button class="btn btn-sm btn-ghost" data-pl-del="${t.key}|${id}" title="Quitar de la plantilla">✕</button></div>`).join('')}
+            </div>`).join('')}
+          </div></div>
           <div class="flex gap-8">
             <select class="select" data-pl-sel="${t.key}" style="flex:1;min-width:0;"><option value="">Añadir jugador…</option>${libres.map(j => `<option value="${j.id}">${safeText(nombreCompleto(j))}</option>`).join('')}</select>
             <button class="btn btn-sm btn-primary" data-pl-add="${t.key}">Añadir</button>
