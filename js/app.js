@@ -3589,11 +3589,22 @@ function injectPlantillaStyles() {
     .pl-t-l{font-size:96px;}
     .pl-t-m{font-size:66px;}
     .pl-sub{font-family:system-ui,'Segoe UI',sans-serif;font-weight:600;font-size:40px;opacity:0.8;}
+    .pl-ed{white-space:pre-line;outline:none;cursor:text;}
+    .pl-ed:hover{outline:2px dashed rgba(255,255,255,0.45);outline-offset:6px;}
+    .pl-ed:focus{outline:2px solid #ffab40;outline-offset:6px;}
+    #pl-pres-lista:fullscreen{background:#111;overflow-y:auto;padding:8px 0;scroll-snap-type:y proximity;}
+    #pl-pres-lista:fullscreen > *{max-width:calc((100vh - 70px) * ${PL_W} / ${PL_H});margin-left:auto;margin-right:auto;}
+    #pl-pres-lista:fullscreen .pl-frame,#pl-pres-lista:fullscreen .ficha-wrap{scroll-snap-align:center;}
+    #pl-pres-lista:fullscreen .btn-print-ficha{color:#ddd;}
     .pl-nombre{font-weight:800;text-transform:uppercase;text-align:center;line-height:1.1;letter-spacing:-0.01em;}
   `;
   document.head.appendChild(st);
 }
 let plUid = 0;
+// Textos editables de las diapositivas fijas (portadas y separadores). Se guardan en la plantilla: 'portada.*' en la general de la temporada, el resto por equipo.
+let plTextos = {};
+const plT = (key, def) => safeText(plTextos[key] ?? def);
+const plEd = key => `data-pl-ed="${key}" contenteditable="true" spellcheck="false"`;
 // Formas en SVG en línea (html2canvas no soporta clip-path de CSS, pero sí SVG).
 function plPoligono(style, w, h, pts, fill) {
   return `<svg style="position:absolute;${style}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polygon points="${pts.map(([x, y]) => `${x * w / 100},${y * h / 100}`).join(' ')}" fill="${fill}"/></svg>`;
@@ -3620,11 +3631,11 @@ const plCrest = style => `<img class="pl-crest" src="${LOGO_PATH}" style="${styl
 function plPortadaGeneral(c, foto) {
   return plSlide(`
     ${plCrest('left:40px;top:40px;')}
-    <h1 class="pl-t pl-t-xl" style="position:absolute;left:80px;top:230px;width:1100px;">Evolución<br>de los<br>jugadores</h1>
+    <h1 class="pl-t pl-t-xl pl-ed" ${plEd('portada.titulo')} style="position:absolute;left:80px;top:230px;width:1100px;">${plT('portada.titulo', 'Evolución\nde los\njugadores')}</h1>
     ${plFotoPoligono('right:60px;top:230px;', 1000, 800, [[12, 0], [100, 0], [88, 100], [0, 100]], foto, 'Foto de portada')}
     ${plOro('right:60px;bottom:150px;', 230, 300)}
     ${plPoligono('left:0;bottom:0;', 900, 260, [[0, 0], [100, 0], [94, 100], [0, 100]], c.wine)}
-    <div class="pl-t pl-t-m" style="position:absolute;left:60px;bottom:0;height:260px;display:flex;align-items:center;color:#111;font-style:italic;">Informes<br>individuales</div>`, c.slate);
+    <div class="pl-t pl-t-m" style="position:absolute;left:60px;bottom:0;height:260px;display:flex;align-items:center;color:#111;font-style:italic;"><span class="pl-ed" ${plEd('portada.sub')}>${plT('portada.sub', 'Informes\nindividuales')}</span></div>`, c.slate);
 }
 function plPortadaEquipo(c, foto, equipo, temporada) {
   return plSlide(`
@@ -3632,8 +3643,8 @@ function plPortadaEquipo(c, foto, equipo, temporada) {
     ${plCrest('right:60px;top:50px;')}
     ${plOro('right:60px;bottom:60px;', 230, 340)}
     <div style="position:absolute;left:1120px;right:60px;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center;">
-      <div class="pl-t pl-t-m" style="white-space:nowrap;">${safeText(equipo)}</div>
-      <div class="pl-sub">${safeText(temporada)}</div>
+      <div class="pl-t pl-t-m pl-ed" ${plEd('equipo.nombre')} style="white-space:nowrap;">${plT('equipo.nombre', equipo)}</div>
+      <div class="pl-sub pl-ed" ${plEd('equipo.temporada')}>${plT('equipo.temporada', temporada)}</div>
     </div>`, c.slate);
 }
 function plPlural(label) {
@@ -3708,7 +3719,7 @@ function plSeparadorPosicion(c, titulo, jugadores) {
   return plSlide(`
     ${plCrest('left:40px;top:40px;')}
     ${plOro('right:140px;top:60px;', 200, 330)}${plOro('right:60px;top:100px;', 200, 330)}
-    <div class="pl-t pl-t-l" style="position:absolute;left:0;right:0;top:200px;text-align:center;">${safeText(plPlural(titulo))}</div>
+    <div class="pl-t pl-t-l" style="position:absolute;left:0;right:0;top:200px;text-align:center;"><span class="pl-ed" ${plEd('sep.' + titulo)}>${plT('sep.' + titulo, plPlural(titulo))}</span></div>
     ${celdas}
     ${plPoligono('left:0;bottom:0;', 520, 150, [[0, 0], [94, 0], [100, 100], [0, 100]], PL_ORO_SOLIDO)}
     ${plPoligono('right:0;bottom:0;', 640, 150, [[6, 0], [100, 0], [100, 100], [0, 100]], PL_ORO_SOLIDO)}`, c.slate);
@@ -3723,7 +3734,7 @@ function ajustarSlides(root) {
   root.querySelectorAll('.pl-frame').forEach(fr => {
     const sl = fr.querySelector('.pl-slide');
     if (!sl) return;
-    const maxW = Math.min(root.clientWidth || 1700, 1700); // misma regla de ancho que las fichas (fitFichaToFrame)
+    const maxW = Math.min(fr.parentElement?.clientWidth || root.clientWidth || 1700, 1700); // misma regla de ancho que las fichas (fitFichaToFrame)
     fr.style.width = `${maxW}px`;
     fr.style.margin = '0 auto 16px';
     sl.style.transform = `scale(${maxW / PL_W})`;
@@ -3916,6 +3927,7 @@ async function renderPlantillaPresentacion(container) {
       </select>
       <label class="text-xs"><input type="checkbox" id="pl-inc-pend" /> Incluir páginas "por definir" en el PDF</label>
       <button class="btn btn-primary btn-print-ficha" id="pl-pres-pdf" disabled>⬇ PDF del equipo</button>
+      <button class="btn btn-print-ficha" id="pl-pres-full" title="Pantalla completa: flechas del teclado para pasar de diapositiva, Esc para salir">▶ Presentar</button>
       <span class="text-xs text-muted" id="pl-pres-estado">Cargando fichas…</span>
     </div>
     <div id="pl-pres-lista"></div>`;
@@ -3925,6 +3937,20 @@ async function renderPlantillaPresentacion(container) {
   const estado = container.querySelector('#pl-pres-estado');
   const pdfBtn = container.querySelector('#pl-pres-pdf');
   const addHTML = html => lista.insertAdjacentHTML('beforeend', html);
+  plTextos = { ...(plantillasCache.find(d => d.id === plantillaDocId(temporada, '_portada'))?.textos || {}), ...(docP().textos || {}) };
+  lista.addEventListener('paste', e => { if (e.target.closest?.('[data-pl-ed]')) { e.preventDefault(); document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain')); } });
+  lista.addEventListener('focusout', async e => {
+    const el = e.target.closest?.('[data-pl-ed]'); if (!el) return;
+    const key = el.dataset.plEd, val = el.innerText.replace(/\n+$/, '').trim();
+    if (val === (plTextos[key] ?? null) || (val === '' && plTextos[key] == null)) return;
+    const next = { ...plTextos }; if (val) next[key] = val; else delete next[key];
+    plTextos = next;
+    const dest = key.startsWith('portada.') ? '_portada' : plVista.teamKey;
+    const docDest = plantillasCache.find(d => d.id === plantillaDocId(temporada, dest))?.textos || {};
+    const nuevo = { ...docDest }; if (val) nuevo[key] = val; else delete nuevo[key];
+    try { await guardarPlantilla(temporada, dest, { textos: nuevo }); }
+    catch (err) { console.error(err); showError('No se pudo guardar el texto.'); }
+  });
   const campoHost = document.createElement('div');   // aquí va la diapositiva del campograma (tras "Mapa de nivel")
   const mapaHost = document.createElement('div');    // diapositiva "Mapa de nivel" (antes del campograma)
   lista.appendChild(mapaHost);
@@ -4115,6 +4141,19 @@ async function renderPlantillaPresentacion(container) {
     }).observe(lista);
   }
   pdfBtn.disabled = false;
+  container.querySelector('#pl-pres-full').addEventListener('click', () => { (lista.requestFullscreen || lista.webkitRequestFullscreen)?.call(lista); });
+  document.addEventListener('fullscreenchange', () => { if (container.isConnected) requestAnimationFrame(reajustar); });
+  document.addEventListener('keydown', e => {
+    if (!container.isConnected || document.fullscreenElement !== lista || e.target.closest?.('[contenteditable],textarea,input,select')) return;
+    const sig = ['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key), ant = ['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key);
+    if (!sig && !ant) return;
+    e.preventDefault();
+    const sl = [...lista.querySelectorAll('.pl-frame, .ficha-wrap')], mid = lista.getBoundingClientRect().top + lista.clientHeight / 2;
+    let i = sl.findIndex(x => { const r = x.getBoundingClientRect(); return r.top <= mid && r.bottom >= mid; });
+    if (i < 0) i = 0;
+    sl[Math.max(0, Math.min(sl.length - 1, i + (sig ? 1 : -1)))].scrollIntoView({ block: 'center', behavior: 'smooth' });
+  });
+  lista.tabIndex = -1;
   pdfBtn.addEventListener('click', async () => {
     const incluirPend = container.querySelector('#pl-inc-pend').checked;
     const els = [...lista.querySelectorAll('.pl-slide, .p1-detalle, .ficha-detalle')].filter(el => incluirPend || !el.closest('.pl-pendiente'));
