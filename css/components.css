@@ -404,3 +404,15 @@
   text-decoration: underline;
 }
 .link-btn:hover { color: var(--blue-600, #1d4ed8); }
+
+
+/* Barras de filtros / submenús que se quedan fijas bajo las pestañas al hacer scroll */
+.rm-sticky {
+  position: sticky;
+  top: calc(var(--header-h) + var(--tabs-h));
+  z-index: 70;
+  background: var(--bg-app);
+}
+.rm-sticky.card { background: var(--bg-surface); }
+.rm-sticky-2 { top: calc(var(--header-h) + var(--tabs-h) + 44px); z-index: 60; } /* segunda barra, bajo la de subpestañas */
+@media print { .rm-sticky { position: static; } }
