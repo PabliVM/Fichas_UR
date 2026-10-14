@@ -3291,7 +3291,8 @@ let plantillasLoading = null;
 let plantillaTemporada = '';
 
 const plantillaDocId = (temporada, teamKey) => `${String(temporada).replace(/\//g, '-')}__${teamKey}`;
-const TEAMS_ORDEN_PLANTILLA = [...TEAMS].reverse(); // de Alevín A a Real Madrid C
+const TEAMS_ORDEN_PLANTILLA = [...TEAMS]; // de Castilla hacia abajo (Castilla, RMC, Juveniles… Alevín A)
+const plAbiertos = new Set(); // equipos desplegados en la pestaña Plantillas
 
 async function ensurePlantillas() {
   if (plantillasCache) return plantillasCache;
@@ -3403,16 +3404,16 @@ function renderPanelPlantillas(container) {
       <select class="select" id="pl-temporada" style="max-width:200px;">${state.seasons.map(t => `<option value="${safeText(t)}" ${t === plantillaTemporada ? 'selected' : ''}>${safeText(t)}</option>`).join('')}</select>
       <span class="text-xs text-muted">Un jugador puede estar en varios equipos. Los jugadores nuevos con equipo se añaden aquí solos (temporada activa).</span>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;">
+    <div style="display:flex;flex-direction:column;gap:10px;">
       ${TEAMS_ORDEN_PLANTILLA.map(t => {
         const ids = docDe(t.key)?.jugadorIds || [];
         const libres = todos.filter(j => !ids.includes(j.id));
-        return `<div class="card"><div class="card-title">${safeText(t.label)} <span class="text-xs text-muted">(${ids.length})</span></div><div class="card-body">
-          <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">
-            <button class="btn btn-sm" data-pl-datos="${t.key}" ${ids.length ? '' : 'disabled'}>Datos</button>
-            <button class="btn btn-sm btn-primary" data-pl-pres="${t.key}" ${ids.length ? '' : 'disabled'}>Presentación de fichas</button>
-            <button class="btn btn-sm" data-pl-lista-btn="${t.key}">+ Lista</button>
-          </div>
+        return `<details class="card" data-pl-det="${t.key}" ${plAbiertos.has(t.key) ? 'open' : ''}><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;">
+          <b style="min-width:150px;">▸ ${safeText(t.label)} <span class="text-xs text-muted">(${ids.length})</span></b>
+          <button class="btn btn-sm" data-pl-datos="${t.key}" ${ids.length ? '' : 'disabled'}>Datos</button>
+          <button class="btn btn-sm btn-primary" data-pl-pres="${t.key}" ${ids.length ? '' : 'disabled'}>Presentación de fichas</button>
+          <button class="btn btn-sm" data-pl-lista-btn="${t.key}">+ Lista</button>
+        </summary><div class="card-body">
           <div data-pl-lista-box="${t.key}" style="display:none;margin-bottom:12px;">
             <textarea class="input" data-pl-lista="${t.key}" rows="6" style="width:100%;" placeholder="Un jugador por línea:&#10;Apellidos, Nombre&#10;o: Nombre Apellidos"></textarea>
             <button class="btn btn-sm btn-primary mt-8" data-pl-lista-ok="${t.key}">Crear plantilla</button>
@@ -3424,9 +3425,13 @@ function renderPanelPlantillas(container) {
             <select class="select" data-pl-sel="${t.key}" style="flex:1;min-width:0;"><option value="">Añadir jugador…</option>${libres.map(j => `<option value="${j.id}">${safeText(nombreCompleto(j))}</option>`).join('')}</select>
             <button class="btn btn-sm btn-primary" data-pl-add="${t.key}">Añadir</button>
           </div>
-        </div></div>`;
+        </div></details>`;
       }).join('')}
     </div>`;
+  container.querySelectorAll('details[data-pl-det]').forEach(d => {
+    d.addEventListener('toggle', () => { d.open ? plAbiertos.add(d.dataset.plDet) : plAbiertos.delete(d.dataset.plDet); });
+    d.querySelector('summary')?.addEventListener('click', e => { if (e.target.closest('button')) e.preventDefault(); });
+  });
 
   const guardar = async (teamKey, jugadorIds) => {
     try {
@@ -3453,6 +3458,7 @@ function renderPanelPlantillas(container) {
   container.querySelectorAll('[data-pl-lista-btn]').forEach(btn => btn.addEventListener('click', () => {
     const box = container.querySelector(`[data-pl-lista-box="${btn.dataset.plListaBtn}"]`);
     box.style.display = box.style.display === 'none' ? '' : 'none';
+    const det = box.closest('details'); if (det && box.style.display !== 'none') det.open = true;
   }));
   container.querySelectorAll('[data-pl-lista-ok]').forEach(btn => btn.addEventListener('click', async () => {
     const teamKey = btn.dataset.plListaOk;
