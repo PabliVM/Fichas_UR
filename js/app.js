@@ -3490,8 +3490,8 @@ function renderPanelPlantillas(container) {
   }));
   container.querySelectorAll('[data-pl-datos]').forEach(btn => btn.addEventListener('click', () => { plVista = { modo: 'datos', teamKey: btn.dataset.plDatos }; renderPanelPlantillas(container); }));
   container.querySelectorAll('[data-pl-ir]').forEach(el => el.addEventListener('click', e => {
-    e.preventDefault(); const [tk, id] = el.dataset.plIr.split('|');
-    plIrJugador = id; plVista = { modo: 'pres', teamKey: tk }; renderPanelPlantillas(container);
+    e.preventDefault(); const id = el.dataset.plIr.split('|')[1];
+    jugFichaId = null; jugadorFormId = id; switchTab('jugadores');
   }));
   container.querySelectorAll('[data-pl-pres]').forEach(btn => btn.addEventListener('click', () => { plVista = { modo: 'pres', teamKey: btn.dataset.plPres }; renderPanelPlantillas(container); }));
   container.querySelectorAll('[data-pl-lista-btn]').forEach(btn => btn.addEventListener('click', () => {
