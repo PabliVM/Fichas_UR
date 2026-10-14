@@ -3949,6 +3949,7 @@ async function renderPlantillaPresentacion(container) {
       <label class="text-xs btn-print-ficha"><input type="checkbox" id="pl-ver-obs" ${plVerObs() ? 'checked' : ''} /> Ver observaciones</label>
       <button class="btn btn-primary btn-print-ficha" id="pl-pres-pdf" disabled>⬇ PDF del equipo</button>
       <button class="btn btn-print-ficha" id="pl-pres-full" title="Pantalla completa: flechas del teclado para pasar de diapositiva, Esc para salir">▶ Presentar</button>
+      <span class="btn-print-ficha" id="pl-saltos" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;"></span>
       <span class="text-xs text-muted" id="pl-pres-estado">Cargando fichas…</span>
     </div>
     <div id="pl-pres-lista"></div>`;
@@ -4220,7 +4221,7 @@ async function renderPlantillaPresentacion(container) {
   let cur = 0;
   const nav = document.createElement('div');
   nav.id = 'pl-solo-nav';
-  nav.innerHTML = '<button data-n="-1">◀</button><span id="pl-solo-cnt"></span><button data-n="1">▶</button><button data-obs="1" title="Mostrar u ocultar las observaciones (tecla N)">📝 Notas</button>';
+  nav.innerHTML = '<button data-n="-1">◀</button><span id="pl-solo-cnt"></span><button data-n="1">▶</button><button data-obs="1" title="Mostrar u ocultar las observaciones (tecla N)">📝 Notas</button><select id="pl-solo-ir" title="Ir a…"></select>';
   lista.appendChild(nav);
   const unidades = () => [...lista.querySelectorAll('.pl-frame, .ficha-wrap')];
   const mostrar = i => {
@@ -4234,6 +4235,27 @@ async function renderPlantillaPresentacion(container) {
     reajustar();
   };
   soloRefrescar = () => { if (lista.classList.contains('pl-solo')) mostrar(cur); };
+  // Saltos rápidos: Inicio · Mapa de nivel · Campograma · una por posición (en pantalla y en modo presentación)
+  const saltos = [
+    { label: 'Inicio', ok: k => k === 'portada' },
+    { label: 'Mapa de nivel', ok: k => k.startsWith('mapa-') },
+    { label: 'Campograma', ok: k => k === 'campo' },
+    ...grupos.filter(g => g.items.length).map(g => ({ label: plPlural(g.titulo), ok: k => k === `sep.${g.titulo}` })),
+  ];
+  const irA = ok => {
+    const u = [...lista.querySelectorAll('[data-pl-obs]')].find(x => ok(x.dataset.plObs)); if (!u) return;
+    if (lista.classList.contains('pl-solo')) mostrar(unidades().indexOf(u)); else u.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const selIr = nav.querySelector('#pl-solo-ir');
+  selIr.innerHTML = '<option value="">Ir a…</option>' + saltos.map((x, i) => `<option value="${i}">${safeText(x.label)}</option>`).join('');
+  selIr.addEventListener('change', () => { if (selIr.value !== '') irA(saltos[Number(selIr.value)].ok); selIr.value = ''; selIr.blur(); });
+  const hostSaltos = container.querySelector('#pl-saltos');
+  saltos.forEach(x => {
+    const b = document.createElement('button');
+    b.className = 'btn btn-sm'; b.textContent = x.label;
+    b.addEventListener('click', () => irA(x.ok));
+    hostSaltos.appendChild(b);
+  });
   const aplicarVerObs = v => {
     lista.classList.toggle('pl-sin-obs', !v);
     try { localStorage.setItem('rm-pl-ver-obs', v ? '1' : '0'); } catch {}
