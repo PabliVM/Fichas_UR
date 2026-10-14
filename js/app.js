@@ -3834,7 +3834,7 @@ function plMapaNivel(tLabel, temporada, items) {
     { lab: '3-4', bg: '#f2e09c', ok: v => v == null || (v >= 3 && v < 4) },
     { lab: '-3', bg: '#f0728f', ok: v => v != null && v < 3 },
   ];
-  const POR_FILA = 6, ITEM_W = 150, TOP = 310, BOT = 1310, GAP = 16, MITAD = PL_W / 2;
+  const POR_FILA = 6, ITEM_W = 150, TOP = 210, BOT = 1310, GAP = 16, MITAD = PL_W / 2;
   const datos = bandas.map(b => {
     const its = items.filter(it => b.ok(notaDe(it))).sort((a, c2) => (notaDe(c2) ?? -1) - (notaDe(a) ?? -1));
     const izq = its.filter(it => conf(it).lado === 'izq'), der = its.filter(it => conf(it).lado === 'der');
@@ -3875,8 +3875,8 @@ function plMapaNivel(tLabel, temporada, items) {
     <div style="position:absolute;left:60px;top:10px;background:rgba(15,23,32,0.78);border-radius:10px;padding:4px 20px;display:flex;align-items:baseline;gap:14px;">
       <span class="pl-t pl-t-m" style="font-size:34px;">${safeText(tLabel)}</span><span class="pl-sub" style="font-size:22px;">${safeText(temporada)}</span></div>
     <div style="position:absolute;right:170px;top:18px;display:flex;flex-direction:column;gap:6px;">${chip('RESIDENCIA')}${chip('MADRID')}${chip('MEDIA PENSIÓN')}</div>
-    <img src="./madrid.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:${MITAD / 2 - 110}px;top:150px;width:220px;height:140px;object-fit:cover;" />
-    <img src="./espa%C3%B1a.png" alt="" onerror="this.style.display='none'" style="position:absolute;left:${MITAD + MITAD / 2 - 110}px;top:150px;width:220px;height:140px;object-fit:cover;" />
+    <img src="./madrid.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:${MITAD / 2 - 75}px;top:100px;width:150px;height:95px;object-fit:cover;" />
+    <img src="./espa%C3%B1a.png" alt="" onerror="this.style.display='none'" style="position:absolute;left:${MITAD + MITAD / 2 - 75}px;top:100px;width:150px;height:95px;object-fit:cover;" />
     ${partes}
     <div style="position:absolute;left:${MITAD - 3}px;top:${TOP}px;width:6px;height:${BOT - TOP}px;background:rgba(0,0,0,0.4);"></div>`, '#e4e6e1');
 }
