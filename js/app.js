@@ -3836,7 +3836,7 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
     { lab: '3-4', bg: '#f2e09c', ok: v => v == null || (v >= 3 && v < 4) },
     { lab: '-3', bg: '#f0728f', ok: v => v != null && v < 3 },
   ];
-  const POR_FILA = 6, ITEM_W = 150, TOP = 210, BOT = 1310, GAP = 16, MITAD = PL_W / 2;
+  const POR_FILA = 6, ITEM_W = 150, TOP = 165, BOT = 1310, GAP = 16, MITAD = PL_W / 2;
   const datos = bandas.map(b => {
     const its = items.filter(it => b.ok(notaDe(it))).sort((a, c2) => (notaDe(c2) ?? -1) - (notaDe(a) ?? -1));
     const izq = its.filter(it => conf(it).lado === 'izq'), der = its.filter(it => conf(it).lado === 'der');
@@ -3866,11 +3866,9 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
         <div style="position:absolute;left:${(ITEM_W + D) / 2 - dN * 0.6}px;top:${-dN * 0.1}px;width:${dN}px;height:${dN}px;border-radius:50%;background:${bgN};color:${fgN};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${txtNota.length > 3 ? 15 : 20}px;font-family:system-ui,sans-serif;">${safeText(txtNota)}</div>
         <div style="position:absolute;left:-10px;width:${ITEM_W + 20}px;top:${D + 8}px;text-align:center;"><span style="display:inline-block;background:${cf.bg};color:${cf.fg};font-family:system-ui,sans-serif;font-weight:800;font-size:17px;padding:3px 14px;border-radius:18px;white-space:nowrap;">${safeText(ap)}</span></div></div>`;
     }).join('');
-    return `<div style="position:absolute;left:20px;top:${y0}px;width:${PL_W - 40}px;height:${h}px;background:${d.b.bg};border-radius:70px;"></div>
-      <div style="position:absolute;left:${MITAD - 3}px;top:${y0}px;width:6px;height:${h}px;background:rgba(0,0,0,0.4);"></div>
-      ${lado(d.izq, 40, MITAD - 10)}${lado(d.der, MITAD + 10, PL_W - 40)}
-      <div style="position:absolute;left:${MITAD - 70}px;top:${y0 + 14}px;width:140px;height:56px;border-radius:28px;background:#14306e;color:#fff;font-family:system-ui,sans-serif;font-weight:900;font-size:34px;display:flex;align-items:center;justify-content:center;">${d.b.lab}</div>`;
-  }).join('');
+    return { band: `<div style="position:absolute;left:20px;top:${y0}px;width:${PL_W - 40}px;height:${h}px;background:${d.b.bg};border-radius:70px;"></div>`, cont: `${lado(d.izq, 40, MITAD - 10)}${lado(d.der, MITAD + 10, PL_W - 40)}
+      <div style="position:absolute;left:${MITAD - 70}px;top:${y0 + 14}px;width:140px;height:56px;border-radius:28px;background:#14306e;color:#fff;font-family:system-ui,sans-serif;font-weight:900;font-size:34px;display:flex;align-items:center;justify-content:center;">${d.b.lab}</div>` };
+  });
   const cuenta = k => items.filter(it => conf(it).txt === k).length;
   const chip = k => { const cf = Object.values(PL_RESI).find(x => x.txt === k); return `<div style="display:flex;align-items:center;gap:8px;"><span style="width:34px;height:34px;border-radius:50%;background:#fff;color:#111;border:2px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font:800 18px system-ui,sans-serif;">${cuenta(k)}</span><span style="background:${cf.bg};color:${cf.fg};font:800 15px system-ui,sans-serif;padding:3px 14px;border-radius:16px;min-width:130px;text-align:center;">${k}</span></div>`; };
   return plSlide(`
@@ -3879,9 +3877,11 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
       <span class="pl-t pl-t-m" style="font-size:34px;">${safeText(tLabel)}</span><span class="pl-sub" style="font-size:22px;">${safeText(temporada)}</span></div>
     <div style="position:absolute;left:60px;top:66px;background:#14306e;color:#fff;border-radius:10px;padding:4px 18px;font:800 22px system-ui,sans-serif;">NIVEL SEGÚN ${modo === 'p' ? 'PROYECCIÓN' : 'RENDIMIENTO'}</div>
     <div style="position:absolute;right:170px;top:18px;display:flex;flex-direction:column;gap:6px;">${chip('RESIDENCIA')}${chip('MADRID')}${chip('MEDIA PENSIÓN')}</div>
-    <img src="./madrid.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:${MITAD / 2 - 75}px;top:100px;width:150px;height:95px;object-fit:cover;" />
-    <img src="./espa%C3%B1a.png" alt="" onerror="this.style.display='none'" style="position:absolute;left:${MITAD + MITAD / 2 - 75}px;top:100px;width:150px;height:95px;object-fit:cover;" />
-    ${partes}
+    <img src="./madrid.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:${MITAD / 2 - 50}px;top:82px;width:100px;height:63px;object-fit:cover;" />
+    <img src="./espa%C3%B1a.png" alt="" onerror="this.style.display='none'" style="position:absolute;left:${MITAD + MITAD / 2 - 50}px;top:82px;width:100px;height:63px;object-fit:cover;" />
+    ${partes.map(p => p.band).join('')}
+    <div style="position:absolute;left:${MITAD - 3}px;top:60px;width:6px;height:${BOT - 60}px;background:rgba(0,0,0,0.4);"></div>
+    ${partes.map(p => p.cont).join('')}
 `, '#e4e6e1');
 }
 
