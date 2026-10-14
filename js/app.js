@@ -3331,6 +3331,7 @@ function equiposDeJugador(jugador, temporada) {
 }
 
 let plVista = { modo: 'grid', teamKey: null };
+let plIrJugador = null; // jugador al que saltar al abrir la presentación (clic en su nombre)
 let plRefModo = 'team';   // comparación de las medias en la Presentación: 'team' (precargado) | 'teampos' | 'none'  // 'grid' | 'datos' | 'pres'
 
 const nombreCompleto = j => `${j.apellidos || ''}, ${j.nombre || ''}`.replace(/^, |, $/g, '').trim();
@@ -3428,27 +3429,33 @@ function renderPanelPlantillas(container) {
         const porteros = ids.filter(id => esPortero(state.positions.find(p => p.key === colDe(id)))).length;
         const campo = ids.length - porteros;
         const columnas = [...state.positions.map(p => ({ key: p.key, abrev: posAbrev(p.label), titulo: p.label })), ...(ids.some(id => colDe(id) === '_sin') ? [{ key: '_sin', abrev: '—', titulo: 'Sin posición' }] : [])];
-        return `<details class="card" data-pl-det="${t.key}" ${plAbiertos.has(t.key) ? 'open' : ''}><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;">
-          <div style="min-width:150px;"><b>▸ ${safeText(t.label)}</b><div class="text-xs text-muted" title="Jugadores de campo + porteros">${campo}+${porteros} <span style="opacity:.7;">campo+porteros</span></div></div>
-          <button class="btn btn-sm" data-pl-datos="${t.key}" ${ids.length ? '' : 'disabled'}>Datos</button>
-          <button class="btn btn-sm btn-primary" data-pl-pres="${t.key}" ${ids.length ? '' : 'disabled'}>Presentación de fichas</button>
-          <button class="btn btn-sm" data-pl-lista-btn="${t.key}">+ Lista</button>
-        </summary><div class="card-body">
-          <div data-pl-lista-box="${t.key}" style="display:none;margin-bottom:12px;">
+        const jug = id => `<div class="flex" style="justify-content:space-between;align-items:center;gap:2px;"><a href="#" data-pl-ir="${t.key}|${id}" class="text-xs" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-primary);text-decoration:none;font-weight:600;" title="Ver ficha de ${safeText(nombreDe(id))}">${safeText(nombreDe(id))}</a><button class="btn btn-sm btn-ghost" style="padding:0 4px;" data-pl-del="${t.key}|${id}" title="Quitar de la plantilla">✕</button></div>`;
+        return `<div class="card" data-pl-det="${t.key}"><div class="card-body">
+          <div style="display:flex;gap:14px;align-items:stretch;flex-wrap:wrap;">
+            <div style="width:190px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;">
+              <div><b>${safeText(t.label)}</b><div class="text-xs text-muted" title="Jugadores de campo + porteros">${campo}+${porteros} <span style="opacity:.7;">campo+porteros</span></div></div>
+              <div class="flex gap-8" style="flex-wrap:wrap;">
+                <button class="btn btn-sm" data-pl-datos="${t.key}" ${ids.length ? '' : 'disabled'}>Datos</button>
+                <button class="btn btn-sm btn-primary" data-pl-pres="${t.key}" ${ids.length ? '' : 'disabled'}>Presentación de fichas</button>
+                <button class="btn btn-sm" data-pl-lista-btn="${t.key}">+ Lista</button>
+              </div>
+            </div>
+            <div style="flex:1;min-width:0;overflow-x:auto;"><div style="display:grid;grid-template-columns:repeat(${columnas.length},minmax(110px,1fr));min-height:90px;border:1px solid var(--border-default);border-radius:8px;">
+              ${columnas.map((col, ci) => { const cj = ids.filter(id => colDe(id) === col.key); return `<div style="${ci ? 'border-left:1px solid var(--border-default);' : ''}padding:6px 8px;display:flex;flex-direction:column;gap:3px;min-width:0;">
+                <div style="font-weight:800;font-size:12px;letter-spacing:.04em;border-bottom:1px solid var(--border-default);padding-bottom:4px;margin-bottom:2px;" title="${safeText(col.titulo)}">${col.abrev} <span class="text-xs text-muted" style="font-weight:600;">${cj.length || ''}</span></div>
+                ${cj.map(jug).join('')}
+              </div>`; }).join('')}
+            </div></div>
+          </div>
+          <div data-pl-lista-box="${t.key}" style="display:none;margin-top:12px;">
             <textarea class="input" data-pl-lista="${t.key}" rows="6" style="width:100%;" placeholder="Un jugador por línea:&#10;Apellidos, Nombre&#10;o: Nombre Apellidos"></textarea>
             <button class="btn btn-sm btn-primary mt-8" data-pl-lista-ok="${t.key}">Crear plantilla</button>
           </div>
-          <div style="overflow-x:auto;margin-bottom:12px;"><div style="display:grid;grid-template-columns:repeat(${columnas.length},minmax(120px,1fr));min-height:150px;border:1px solid var(--border-default);border-radius:8px;">
-            ${columnas.map((col, ci) => `<div style="${ci ? 'border-left:1px solid var(--border-default);' : ''}padding:6px 8px;display:flex;flex-direction:column;gap:4px;min-width:0;">
-              <div style="font-weight:800;font-size:12px;letter-spacing:.04em;border-bottom:1px solid var(--border-default);padding-bottom:4px;margin-bottom:2px;" title="${safeText(col.titulo)}">${col.abrev} <span class="text-xs text-muted" style="font-weight:600;">${ids.filter(id => colDe(id) === col.key).length || ''}</span></div>
-              ${ids.filter(id => colDe(id) === col.key).map(id => `<div class="flex" style="justify-content:space-between;align-items:center;gap:4px;"><span class="text-xs" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${safeText(nombreDe(id))}">${safeText(nombreDe(id))}</span><button class="btn btn-sm btn-ghost" data-pl-del="${t.key}|${id}" title="Quitar de la plantilla">✕</button></div>`).join('')}
-            </div>`).join('')}
-          </div></div>
-          <div class="flex gap-8">
-            <select class="select" data-pl-sel="${t.key}" style="flex:1;min-width:0;"><option value="">Añadir jugador…</option>${libres.map(j => `<option value="${j.id}">${safeText(nombreCompleto(j))}</option>`).join('')}</select>
+          <div class="flex gap-8" style="margin-top:12px;">
+            <select class="select" data-pl-sel="${t.key}" style="flex:1;min-width:0;max-width:420px;"><option value="">Añadir jugador…</option>${libres.map(j => `<option value="${j.id}">${safeText(nombreCompleto(j))}</option>`).join('')}</select>
             <button class="btn btn-sm btn-primary" data-pl-add="${t.key}">Añadir</button>
           </div>
-        </div></details>`;
+        </div></div>`;
       }).join('')}
     </div>`;
   container.querySelectorAll('details[data-pl-det]').forEach(d => {
@@ -3482,6 +3489,10 @@ function renderPanelPlantillas(container) {
     guardar(teamKey, (docDe(teamKey)?.jugadorIds || []).filter(x => x !== jid));
   }));
   container.querySelectorAll('[data-pl-datos]').forEach(btn => btn.addEventListener('click', () => { plVista = { modo: 'datos', teamKey: btn.dataset.plDatos }; renderPanelPlantillas(container); }));
+  container.querySelectorAll('[data-pl-ir]').forEach(el => el.addEventListener('click', e => {
+    e.preventDefault(); const [tk, id] = el.dataset.plIr.split('|');
+    plIrJugador = id; plVista = { modo: 'pres', teamKey: tk }; renderPanelPlantillas(container);
+  }));
   container.querySelectorAll('[data-pl-pres]').forEach(btn => btn.addEventListener('click', () => { plVista = { modo: 'pres', teamKey: btn.dataset.plPres }; renderPanelPlantillas(container); }));
   container.querySelectorAll('[data-pl-lista-btn]').forEach(btn => btn.addEventListener('click', () => {
     const box = container.querySelector(`[data-pl-lista-box="${btn.dataset.plListaBtn}"]`);
@@ -4288,6 +4299,7 @@ async function renderPlantillaPresentacion(container) {
     requestAnimationFrame(reajustar);
   };
   aplicarVerObs(plVerObs());
+  if (plIrJugador) { const jid = plIrJugador; plIrJugador = null; let n = 0; const t0 = setInterval(() => { if (lista.querySelector(`[data-pl-obs="j1.${jid}"]`) || ++n > 40) { clearInterval(t0); irA(k => k === `j1.${jid}`); } }, 150); }
   container.querySelector('#pl-ver-obs').addEventListener('change', e => aplicarVerObs(e.target.checked));
   nav.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
