@@ -3593,7 +3593,7 @@ function injectPlantillaStyles() {
     .pl-ed{white-space:pre-line;outline:none;cursor:text;}
     .pl-ed:hover{outline:2px dashed rgba(255,255,255,0.45);outline-offset:6px;}
     .pl-ed:focus{outline:2px solid #ffab40;outline-offset:6px;}
-    #pl-pres-lista:fullscreen{background:#111;overflow-y:auto;padding:8px 0;scroll-snap-type:y proximity;}
+    #pl-pres-lista:fullscreen{background:#111;overflow-y:auto;padding:48px 0 8px;scroll-snap-type:y proximity;}
     .pl-obs{margin:0 auto 20px;}
     .pl-obs{display:flex;gap:8px;align-items:stretch;}
     .pl-obs textarea{flex:1;min-width:0;box-sizing:border-box;min-height:56px;resize:vertical;font:14px system-ui,sans-serif;padding:8px 10px;border-radius:8px;}
@@ -3603,15 +3603,18 @@ function injectPlantillaStyles() {
     #pl-pres-lista:fullscreen .pl-obs textarea{background:#1b1b1b;color:#eee;border:1px solid #444;}
     #pl-pres-lista.pl-solo .pl-obs{display:none;}
     #pl-pres-lista.pl-solo > .pl-cur + .pl-obs,#pl-pres-lista.pl-solo .pl-cur + .pl-obs{display:flex;}
-    #pl-pres-lista:fullscreen > *{max-width:calc((100vh - 140px) * ${PL_W} / ${PL_H});margin-left:auto;margin-right:auto;}
+    #pl-pres-lista:fullscreen > *{max-width:calc((100vh - 190px) * ${PL_W} / ${PL_H});margin-left:auto;margin-right:auto;}
     #pl-pres-lista.pl-solo > *{display:none;}
     #pl-pres-lista.pl-solo > .pl-host{display:block;}
     #pl-pres-lista.pl-solo .pl-frame:not(.pl-cur),#pl-pres-lista.pl-solo .ficha-wrap:not(.pl-cur){display:none;}
     #pl-pres-lista.pl-solo .pl-cur{display:block;}
     #pl-pres-lista.pl-solo .pl-foto-btn{display:none !important;}
     #pl-pres-lista.pl-sin-obs .pl-obs{display:none !important;}
-    #pl-pres-lista.pl-sin-obs:fullscreen > *{max-width:calc((100vh - 70px) * ${PL_W} / ${PL_H});}
-    #pl-solo-nav{display:none;}
+    #pl-pres-lista.pl-sin-obs:fullscreen > *{max-width:calc((100vh - 120px) * ${PL_W} / ${PL_H});}
+    #pl-solo-nav,#pl-solo-top{display:none;}
+    #pl-pres-lista.pl-solo > #pl-solo-top{display:flex;position:fixed;top:0;left:0;right:0;z-index:10;gap:6px;justify-content:center;flex-wrap:wrap;padding:6px;background:rgba(0,0,0,0.75);}
+    #pl-solo-top button{background:#fff;color:#111;border:0;border-radius:14px;padding:4px 14px;font:700 13px system-ui,sans-serif;cursor:pointer;}
+    #pl-solo-top button:hover{background:#ffab40;}
     #pl-pres-lista.pl-solo > #pl-solo-nav{display:flex;position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:10;gap:12px;align-items:center;background:rgba(0,0,0,0.75);color:#fff;padding:6px 16px;border-radius:22px;font:600 15px system-ui,sans-serif;}
     #pl-solo-nav button{background:#fff;color:#111;border:0;border-radius:14px;padding:4px 14px;font-weight:700;cursor:pointer;}
     #pl-pres-lista:fullscreen .btn-print-ficha{color:#ddd;}
@@ -4222,7 +4225,7 @@ async function renderPlantillaPresentacion(container) {
   let cur = 0;
   const nav = document.createElement('div');
   nav.id = 'pl-solo-nav';
-  nav.innerHTML = '<button data-n="-1">◀</button><span id="pl-solo-cnt"></span><button data-n="1">▶</button><button data-obs="1" title="Mostrar u ocultar las observaciones (tecla N)">📝 Notas</button><select id="pl-solo-ir" title="Ir a…"></select>';
+  nav.innerHTML = '<button data-n="-1">◀</button><span id="pl-solo-cnt"></span><button data-n="1">▶</button><button data-obs="1" title="Mostrar u ocultar las observaciones (tecla N)">📝 Notas</button>';
   lista.appendChild(nav);
   const unidades = () => [...lista.querySelectorAll('.pl-frame, .ficha-wrap')];
   const mostrar = i => {
@@ -4247,9 +4250,6 @@ async function renderPlantillaPresentacion(container) {
     const u = [...lista.querySelectorAll('[data-pl-obs]')].find(x => ok(x.dataset.plObs)); if (!u) return;
     if (lista.classList.contains('pl-solo')) mostrar(unidades().indexOf(u)); else u.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-  const selIr = nav.querySelector('#pl-solo-ir');
-  selIr.innerHTML = '<option value="">Ir a…</option>' + saltos.map((x, i) => `<option value="${i}">${safeText(x.label)}</option>`).join('');
-  selIr.addEventListener('change', () => { if (selIr.value !== '') irA(saltos[Number(selIr.value)].ok); selIr.value = ''; selIr.blur(); });
   const hostSaltos = container.querySelector('#pl-saltos');
   saltos.forEach(x => {
     const b = document.createElement('button');
@@ -4257,6 +4257,16 @@ async function renderPlantillaPresentacion(container) {
     b.addEventListener('click', () => irA(x.ok));
     hostSaltos.appendChild(b);
   });
+  // Los mismos saltos, en una barra fija arriba en modo presentación
+  const navTop = document.createElement('div');
+  navTop.id = 'pl-solo-top';
+  saltos.forEach(x => {
+    const b = document.createElement('button');
+    b.textContent = x.label;
+    b.addEventListener('click', () => { irA(x.ok); b.blur(); });
+    navTop.appendChild(b);
+  });
+  lista.appendChild(navTop);
   const aplicarVerObs = v => {
     lista.classList.toggle('pl-sin-obs', !v);
     try { localStorage.setItem('rm-pl-ver-obs', v ? '1' : '0'); } catch {}
