@@ -3826,7 +3826,7 @@ const PL_RESI = {
   'Media pensión':       { lado: 'izq', bg: '#0b2a6b', fg: '#ffffff', txt: 'MEDIA PENSIÓN' },
   'En residencia':       { lado: 'der', bg: '#d4a63a', fg: '#111111', txt: 'RESIDENCIA' },
 };
-let plMapaModo = 'r';   // nota que ordena el mapa de nivel: 'r' rendimiento · 'p' proyección
+let plMapaModo = 'r';   // nota que ordena el mapa de nivel: 'r' rendimiento · 'p' proyección · 'rp' las dos (2 diapositivas)
 function plMapaNivel(tLabel, temporada, items, modo = 'r') {
   const conf = it => PL_RESI[it.j.residencia] || PL_RESI['Residente en Madrid'];
   const campoN = modo === 'p' ? 'pValue' : 'rValue';
@@ -4040,9 +4040,9 @@ async function renderPlantillaPresentacion(container) {
       <div class="flex gap-8 mb-8 btn-print-ficha" style="align-items:center;flex-wrap:wrap;">
         <b>Mapa de nivel</b>
         <label class="text-xs text-muted" for="pl-mapa-modo">Ordenar por la nota de</label>
-        <select class="select" id="pl-mapa-modo" style="max-width:200px;"><option value="r" ${plMapaModo === 'r' ? 'selected' : ''}>Rendimiento</option><option value="p" ${plMapaModo === 'p' ? 'selected' : ''}>Proyección</option></select>
+        <select class="select" id="pl-mapa-modo" style="max-width:200px;"><option value="r" ${plMapaModo === 'r' ? 'selected' : ''}>Rendimiento</option><option value="p" ${plMapaModo === 'p' ? 'selected' : ''}>Proyección</option><option value="rp" ${plMapaModo === 'rp' ? 'selected' : ''}>Las dos (2 diapositivas)</option></select>
       </div>
-      ${plMapaNivel(t?.label || '', temporada, jugs.map(j => ({ j, f1: f1Map[j.id] })), plMapaModo)}`;
+      ${(plMapaModo === 'rp' ? ['r', 'p'] : [plMapaModo]).map(m => plMapaNivel(t?.label || '', temporada, jugs.map(j => ({ j, f1: f1Map[j.id] })), m)).join('')}`;
     mapaHost.querySelector('#pl-mapa-modo').addEventListener('change', e => { plMapaModo = e.target.value; dibujarMapa(); });
     ajustarSlides(lista);
   };
