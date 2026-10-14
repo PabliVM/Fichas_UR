@@ -940,7 +940,7 @@ function buildBBDDResultadosHTML() {
 function buildBBDDPanelHTML() {
   const evOptions = (regEvaluaciones || []).map(ev => `<option value="${ev.id}" ${bbddFiltros.evaluacionId === ev.id ? 'selected' : ''}>${safeText(ev.nombre)} (${safeText(ev.temporada)})</option>`).join('');
   return `
-    <div class="card mb-16">
+    <div class="card mb-16 rm-sticky rm-sticky-2">
       <div class="card-title">Filtros</div>
       <div class="card-body">
         <div class="flex gap-12" style="flex-wrap:wrap;">
@@ -1209,7 +1209,7 @@ function renderPanelRegistro(container) {
   ensureEvaluacionesLoaded(container);
   container.innerHTML = `
     ${firebaseNotice()}
-    <div class="mb-16 flex gap-8">
+    <div class="rm-sticky mb-16 flex gap-8" style="padding:6px 0;">
       <button class="btn ${registroSubTab === 'registro' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="registro">Registro</button>
       <button class="btn ${registroSubTab === 'bbdd' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="bbdd">BBDD</button>
       <button class="btn ${registroSubTab === 'comparativas' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="comparativas">Comparativas</button>
@@ -1702,7 +1702,7 @@ function buildJugadoresFiltrosHTML() {
       <select class="select" id="${id}"><option value="">Todos</option>${opts.map(([v, l]) => `<option value="${safeText(String(v))}" ${String(val) === String(v) ? 'selected' : ''}>${safeText(l)}</option>`).join('')}</select>
     </div>`;
   return `
-    <div class="card mb-16"><div class="card-body">
+    <div class="card mb-16 rm-sticky"><div class="card-body">
       <div class="flex gap-12" style="flex-wrap:wrap;align-items:flex-end;">
         <div class="field-group" style="min-width:220px;"><label class="label">Buscar (nombre o apellidos)</label>
           <input class="input" type="text" id="jug-f-q" value="${safeText(jugFiltros.q)}" placeholder="Ej. Pérez" /></div>
@@ -2559,7 +2559,7 @@ function renderPanelConfig(container) {
 
   container.innerHTML = `
     ${firebaseNotice()}
-    <div class="mb-16" style="border-bottom:1px solid var(--border-default);padding-bottom:8px;">
+    <div class="rm-sticky mb-16" style="border-bottom:1px solid var(--border-default);padding-bottom:8px;">
       ${CONFIG_GROUPS.map(g => `
         <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
           <span class="text-xs text-muted" style="width:112px;flex-shrink:0;font-weight:700;text-transform:uppercase;">${g.label}</span>
@@ -3407,7 +3407,7 @@ function renderPanelPlantillas(container) {
 
   container.innerHTML = `
     ${firebaseNotice()}
-    <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
+    <div class="rm-sticky flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;padding:8px 0;">
       <label class="text-xs text-muted" for="pl-temporada">Temporada</label>
       <select class="select" id="pl-temporada" style="max-width:200px;">${state.seasons.map(t => `<option value="${safeText(t)}" ${t === plantillaTemporada ? 'selected' : ''}>${safeText(t)}</option>`).join('')}</select>
       <label class="btn btn-sm" style="cursor:pointer;" title="Una sola vez para todos los equipos de esta temporada. En cada equipo puedes cambiarla.">📷 Foto de portada (todos los equipos)<input type="file" accept="image/*" id="pl-foto-global" hidden /></label>
