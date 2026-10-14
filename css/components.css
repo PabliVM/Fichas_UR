@@ -414,5 +414,10 @@
   background: var(--bg-app);
 }
 .rm-sticky.card { background: var(--bg-surface); }
-.rm-sticky-2 { top: calc(var(--header-h) + var(--tabs-h) + 44px); z-index: 60; } /* segunda barra, bajo la de subpestañas */
+/* Hueco superior dentro de la barra (no en #rm-main): así su posición natural = posición fija y no hay salto */
+.rm-sticky:not(.card):not(.rm-sticky-2) { border-top: 20px solid var(--bg-app); }
+.rm-sticky.card:not(.rm-sticky-2) { border-top: 20px solid var(--bg-app); background-clip: padding-box; border-radius: 0 0 var(--radius-lg, 10px) var(--radius-lg, 10px); }
+.rm-sticky:has(+ .rm-sticky-2) { margin-bottom: 0; }
+.rm-sticky-2 { top: calc(var(--header-h) + var(--tabs-h) + 64px); }
+.rm-sticky-2 { z-index: 60; }
 @media print { .rm-sticky { position: static; } }
