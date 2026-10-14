@@ -1596,6 +1596,13 @@ function buildJugadorFormHTML(player) {
               <option value="Ambidiestro" ${p.foot === 'Ambidiestro' ? 'selected' : ''}>Ambidiestro</option>
             </select>
           </div>
+          <div class="field-group" style="min-width:190px;">
+            <label class="label">Residencia</label>
+            <select class="select" id="jug-residencia">
+              <option value="">—</option>
+              ${['Residente en Madrid', 'En residencia', 'Media pensión'].map(v => `<option value="${v}" ${p.residencia === v ? 'selected' : ''}>${v}</option>`).join('')}
+            </select>
+          </div>
           <div class="field-group" style="min-width:150px;">
             <label class="label">Edad madurativa</label>
             <input class="input" type="text" id="jug-maturational" value="${safeText(p.maturationalAge ?? '')}" />
@@ -2329,6 +2336,7 @@ function renderPanelJugadores(container) {
       apellidos: container.querySelector('#jug-apellidos').value.trim(),
       birthDate: container.querySelector('#jug-birthdate').value || null,
       foot: container.querySelector('#jug-foot').value,
+      residencia: container.querySelector('#jug-residencia').value,
       maturationalAge: container.querySelector('#jug-maturational').value.trim(),
     };
     const historicoData = {
