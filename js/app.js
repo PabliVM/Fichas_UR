@@ -1676,6 +1676,7 @@ function buildHistoricoHTML(entries) {
 
 // ── Jugadores: filtros + ficha de jugador ──────────
 let jugFiltros = { q: '', teamKey: '', positionKey: '', year: '', foot: '' };
+let jugVolverA = null;             // 'plantillas' si la ficha se abrió desde esa pestaña (botón Volver)
 let jugFichaId = null;             // null = lista; <id> = ficha de ese jugador abierta
 const jugFichaRegs = {};           // { [playerId]: registros[] } — evaluaciones recibidas
 const jugFichaLoading = new Set(); // evita lanzar la misma carga dos veces
@@ -1938,7 +1939,7 @@ function renderFichaJugador(container, p) {
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="flex gap-8 mb-16">
-      <button class="btn btn-ghost" id="jug-ficha-volver">← Volver a la lista</button>
+      <button class="btn btn-ghost" id="jug-ficha-volver">${jugVolverA === 'plantillas' ? '← Volver a Plantillas' : '← Volver a la lista'}</button>
       <button class="btn btn-primary" id="jug-ficha-editar">Editar</button>
     </div>
     <div class="card mb-16"><div class="card-body">
@@ -2035,7 +2036,11 @@ function renderFichaJugador(container, p) {
     jugFichaEvalId = e.target.value;
     preservandoScroll(() => renderPanelJugadores(container));
   });
-  container.querySelector('#jug-ficha-volver')?.addEventListener('click', () => { jugFichaId = null; renderPanelJugadores(container); });
+  container.querySelector('#jug-ficha-volver')?.addEventListener('click', () => {
+    jugFichaId = null;
+    if (jugVolverA === 'plantillas') { jugVolverA = null; switchTab('plantillas'); return; }
+    renderPanelJugadores(container);
+  });
   container.querySelector('#jug-ficha-editar')?.addEventListener('click', async () => {
     await cargarEvaluacionesSilencioso();
     jugadorFormId = id;
@@ -2136,7 +2141,7 @@ function renderPanelJugadores(container) {
       ev.preventDefault();
       await cargarEvaluacionesSilencioso();
       jugFichaId = btn.dataset.jugFicha;
-      jugFichaTab = 'datos';
+      jugFichaTab = 'datos'; jugVolverA = null;
       jugFichaEvalId = null; // por defecto, evaluación final
       renderPanelJugadores(container);
     });
@@ -3491,7 +3496,7 @@ function renderPanelPlantillas(container) {
   container.querySelectorAll('[data-pl-datos]').forEach(btn => btn.addEventListener('click', () => { plVista = { modo: 'datos', teamKey: btn.dataset.plDatos }; renderPanelPlantillas(container); }));
   container.querySelectorAll('[data-pl-ir]').forEach(el => el.addEventListener('click', e => {
     e.preventDefault(); const id = el.dataset.plIr.split('|')[1];
-    jugFichaId = null; jugadorFormId = id; switchTab('jugadores');
+    jugFichaId = id; jugadorFormId = null; jugFichaTab = 'datos'; jugFichaEvalId = null; jugVolverA = 'plantillas'; switchTab('jugadores');
   }));
   container.querySelectorAll('[data-pl-pres]').forEach(btn => btn.addEventListener('click', () => { plVista = { modo: 'pres', teamKey: btn.dataset.plPres }; renderPanelPlantillas(container); }));
   container.querySelectorAll('[data-pl-lista-btn]').forEach(btn => btn.addEventListener('click', () => {
