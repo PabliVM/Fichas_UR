@@ -1970,6 +1970,7 @@ function renderFichaJugador(container, p) {
     const f1 = container.querySelector('#jug-ficha1-wrap .p1-detalle');
     const f2 = container.querySelector('#jug-ficha2-wrap .ficha-detalle');
     if (!f1 || !f2) return;
+    f1.dataset.pie = f2.dataset.pie = pieEvaluacion(evSel?.ev);
     btn.disabled = true; btn.textContent = 'Generando PDF…';
     try {
       const nombre = `${p.nombre || ''} ${p.apellidos || ''}`.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'jugador';
@@ -3566,6 +3567,14 @@ function renderPlantillaDatos(container) {
 
 // ── Plantilla · Presentación: Ficha 1 y 2 de todos los jugadores, seguidas ──
 // Evaluación mostrada por jugador: la más reciente de la temporada de la plantilla (si no hay, la más reciente).
+// Texto del pie de los PDF: fecha de la EVALUACIÓN (no la de impresión).
+const fmtFechaEv = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
+function pieEvaluacion(ev) {
+  if (!ev) return '';
+  const a = fmtFechaEv(ev.fechaInicio), b = fmtFechaEv(ev.fechaFin);
+  const fechas = a && b && a !== b ? `${a} – ${b}` : (b || a);
+  return `Evaluación: ${[ev.temporada, ev.nombre].filter(Boolean).join(' · ')}${fechas ? ' · ' + fechas : ''}`;
+}
 function prepararFichaJugador(p, regs, temporada) {
   const evInfo = eid => (regEvaluaciones || []).find(e => e.id === eid);
   const grupos = {};
@@ -4238,6 +4247,7 @@ async function renderPlantillaPresentacion(container) {
         ${prep.fPos ? '<div class="ficha-wrap mb-16" data-pr-f1></div><div class="ficha-wrap" data-pr-f2></div>' : '<p class="text-xs text-muted">Sin posición ni evaluación: asigna una posición en Datos (no entra en el PDF).</p>'}`;
       lista.appendChild(sec);
       if (!prep.fPos) continue;
+      sec.querySelectorAll('[data-pr-f1],[data-pr-f2]').forEach(w => { w.dataset.pie = pieEvaluacion(prep.evSel?.ev); });
       sec.querySelector('[data-pr-f1]').dataset.plObs = `j1.${j.id}`; sec.querySelector('[data-pr-f2]').dataset.plObs = `j2.${j.id}`;
       obsMontar();
       renderFichaPagina1(sec.querySelector('[data-pr-f1]'), buildFicha1RealData(prep.fPos, prep.fMedia, j, prep.aspectosTxt, prep.evSel?.eid), LOGO_PATH, state.fichaColors);
@@ -4361,6 +4371,9 @@ async function renderPlantillaPresentacion(container) {
   lista.tabIndex = -1;
   pdfBtn.addEventListener('click', async () => {
     const incluirPend = container.querySelector('#pl-inc-pend').checked;
+    const evsEq = [...new Map(preps.filter(x => x.prep.evSel?.ev).map(x => [x.prep.evSel.eid, x.prep.evSel.ev])).values()];
+    const pieEq = evsEq.length === 1 ? pieEvaluacion(evsEq[0]) : (evsEq.length ? `Evaluaciones: ${evsEq.map(e => [e.temporada, e.nombre].filter(Boolean).join(' · ')).join(' / ')}` : '');
+    lista.querySelectorAll('.pl-frame').forEach(f => { f.dataset.pie = pieEq; });
     const els = [...lista.querySelectorAll('.pl-slide, .p1-detalle, .ficha-detalle')].filter(el => incluirPend || !el.closest('.pl-pendiente'));
     if (!els.length) return;
     pdfBtn.disabled = true; pdfBtn.textContent = 'Generando PDF…';
