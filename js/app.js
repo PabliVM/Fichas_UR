@@ -2563,17 +2563,16 @@ function renderPanelConfig(container) {
     fichaTipoPosition = state.positions[0].key;
   }
 
+  const grupoCfg = CONFIG_GROUPS.find(g => g.tabs.some(t => t.key === configSubTab)) || CONFIG_GROUPS[0];
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="rm-sticky mb-16" style="border-bottom:1px solid var(--border-default);padding-bottom:8px;">
-      ${CONFIG_GROUPS.map(g => `
-        <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
-          <span class="text-xs text-muted" style="width:112px;flex-shrink:0;font-weight:700;text-transform:uppercase;">${g.label}</span>
-          ${g.tabs.map(t => `
-            <button class="btn ${t.key === configSubTab ? 'btn-primary' : 'btn-sm'}" data-config-subtab="${t.key}">${t.label}</button>
-          `).join('')}
-        </div>
-      `).join('')}
+      <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
+        ${CONFIG_GROUPS.map(g => `<button class="btn ${g === grupoCfg ? 'btn-primary' : 'btn-sm'}" data-config-group="${g.label}" style="font-weight:700;">${g.label}</button>`).join('')}
+      </div>
+      <div class="flex gap-8" style="align-items:center;flex-wrap:wrap;">
+        ${grupoCfg.tabs.map(t => `<button class="btn ${t.key === configSubTab ? 'btn-secondary' : 'btn-sm'}" ${t.key === configSubTab ? 'style="background:var(--bg-hover);border-color:var(--border-strong,var(--border-default));font-weight:700;"' : ''} data-config-subtab="${t.key}">${t.label}</button>`).join('')}
+      </div>
     </div>
 
     ${configSubTab !== 'posiciones' ? '' : `
@@ -2886,6 +2885,14 @@ function renderPanelConfig(container) {
     `}
   `;
 
+  container.querySelectorAll('[data-config-group]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const g = CONFIG_GROUPS.find(x => x.label === btn.dataset.configGroup); if (!g) return;
+      configSubTab = g.tabs[0].key;
+      localStorage.setItem('rm-config-subtab', configSubTab);
+      renderPanelConfig(container);
+    });
+  });
   container.querySelectorAll('[data-config-subtab]').forEach(btn => {
     btn.addEventListener('click', () => {
       configSubTab = btn.dataset.configSubtab;
