@@ -2,7 +2,7 @@
 // APP.JS — Punto de entrada RM Perfiles
 // ================================================
 
-import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, readCollection, saveDocument } from './firebase-service.js';
+import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, readCollection, saveDocument, readDocument } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { watchAuthState, login, resetPassword } from './auth-service.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
@@ -1268,6 +1268,7 @@ const CONFIG_GROUPS = [
     tabs: [
       { key: 'flujo',   label: 'Flujo de evaluaciones' },
       { key: 'frases',  label: 'Frases modelo' },
+      { key: 'copia-seguridad', label: 'Copia de seguridad' },
     ],
   },
 ];
@@ -2864,6 +2865,16 @@ function renderPanelConfig(container) {
     </div>
     `}
 
+    ${configSubTab !== 'copia-seguridad' ? '' : `
+    <div class="card mb-16">
+      <div class="card-title">Copia de seguridad</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">Descarga un archivo JSON con jugadores (con su histórico), plantillas, evaluaciones, registros y configuración. Solo lee: no modifica nada en Firebase. Contiene datos y fotos de menores: guárdalo fuera de GitHub y no lo envíes por correo.</p>
+        <button class="btn btn-primary" id="copia-seg-btn">⬇ Copia de seguridad (JSON)</button>
+        <span class="text-xs text-muted" id="copia-seg-estado" style="margin-left:12px;"></span>
+      </div>
+    </div>`}
+
     ${configSubTab !== 'frases' ? '' : `
     <div class="card mb-16">
       <div class="card-title">Frases modelo</div>
@@ -2885,6 +2896,34 @@ function renderPanelConfig(container) {
     `}
   `;
 
+  container.querySelector('#copia-seg-btn')?.addEventListener('click', async e => {
+    const btn = e.currentTarget, est = container.querySelector('#copia-seg-estado');
+    if (isFirebaseUnconfigured()) { showError('Firebase sin configurar.'); return; }
+    btn.disabled = true;
+    try {
+      const copia = { version: 1, creada: new Date().toISOString(), colecciones: {} };
+      for (const nombre of ['jugadores', 'plantillas', 'evaluaciones', 'registros']) {
+        est.textContent = `Leyendo ${nombre}…`;
+        copia.colecciones[nombre] = await readCollection(nombre);
+      }
+      est.textContent = 'Leyendo configuración…';
+      copia.config = await readDocument('config', 'general');
+      let i = 0;
+      for (const j of copia.colecciones.jugadores) {
+        est.textContent = `Leyendo histórico ${++i}/${copia.colecciones.jugadores.length}…`;
+        try { j._historico = await readSubCollection('jugadores', j.id, 'historico'); } catch { j._historico = []; }
+      }
+      const blob = new Blob([JSON.stringify(copia)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `rm-perfiles-copia-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      est.textContent = `Listo: ${copia.colecciones.jugadores.length} jugadores, ${copia.colecciones.plantillas.length} plantillas, ${copia.colecciones.evaluaciones.length} evaluaciones, ${copia.colecciones.registros.length} registros.`;
+    } catch (err) {
+      console.error('[Copia]', err); est.textContent = ''; showError('No se pudo crear la copia: ' + (err?.message || err));
+    } finally { btn.disabled = false; }
+  });
   container.querySelectorAll('[data-config-group]').forEach(btn => {
     btn.addEventListener('click', () => {
       const g = CONFIG_GROUPS.find(x => x.label === btn.dataset.configGroup); if (!g) return;
