@@ -20,6 +20,8 @@ import {
   where,
   orderBy,
   serverTimestamp,
+  FieldPath,
+  deleteField,
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import {
   getStorage,
@@ -112,6 +114,24 @@ export async function updateDocument(collectionName, documentId, patch) {
     ...patch,
     updatedAt: serverTimestamp(),
   });
+}
+
+/**
+ * Escribe (o borra, si valor es null/undefined) UNA entrada de un campo-mapa de un documento,
+ * sin tocar el resto del documento ni las demás entradas del mapa. La clave puede contener puntos
+ * (se usa FieldPath, no ruta con puntos). Si el documento no existe, lo crea con solo esa entrada.
+ */
+export async function updateMapEntry(collectionName, documentId, campo, clave, valor) {
+  const db = getDB();
+  const ref = doc(db, collectionName, documentId);
+  const borrar = valor === null || valor === undefined;
+  try {
+    await updateDoc(ref, new FieldPath(campo, clave), borrar ? deleteField() : valor, 'updatedAt', serverTimestamp());
+  } catch (err) {
+    if (err?.code !== 'not-found') throw err;
+    if (borrar) return;
+    await setDoc(ref, { [campo]: { [clave]: valor }, updatedAt: serverTimestamp() }, { merge: true });
+  }
 }
 
 /**
