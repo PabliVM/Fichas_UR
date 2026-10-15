@@ -140,8 +140,16 @@ const CONFIG_DOC_ID = 'general';
 const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'fichaEspejoReglas', 'columnasEncuesta', 'condicionalTolerance', 'fichaGridOrder', 'flujoEvaluaciones', 'frasesModelo'];
 
 let _persistTimer = null;
+// Solo se guarda la configuración si la carga inicial terminó bien: si falló, el estado en memoria son los valores
+// por defecto y guardarlos machacaría la configuración real de Firestore.
+let _configCargada = false;
+let _avisoNoCargada = false;
 function schedulePersist() {
   if (isFirebaseUnconfigured()) return; // sin credenciales: se queda solo en memoria, como hasta ahora
+  if (!_configCargada) {
+    if (!_avisoNoCargada) { _avisoNoCargada = true; showError('La configuración guardada no se cargó: los cambios NO se guardan. Recarga la página (Ctrl+Shift+R).', 9000); }
+    return;
+  }
   clearTimeout(_persistTimer);
   _persistTimer = setTimeout(() => {
     const snapshot = {};
@@ -161,6 +169,7 @@ export async function loadConfigFromFirestore() {
   if (isFirebaseUnconfigured()) return;
   try {
     const doc = await readDocument(CONFIG_COLLECTION, CONFIG_DOC_ID);
+    _configCargada = true; // lectura correcta (aunque el documento aún no exista: primera vez)
     if (!doc) return;
     const patch = {};
     CONFIG_KEYS.forEach(k => { if (doc[k] !== undefined) patch[k] = doc[k]; });
