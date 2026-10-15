@@ -2,7 +2,7 @@
 // APP.JS — Punto de entrada RM Perfiles
 // ================================================
 
-import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, readCollection, saveDocument, readDocument } from './firebase-service.js';
+import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, readCollection, saveDocument, readDocument, updateMapEntry } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { watchAuthState, login, resetPassword } from './auth-service.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
@@ -3393,11 +3393,37 @@ const ordenJugadores = (a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b
 async function guardarPlantilla(temporada, teamKey, patch) {
   await ensurePlantillas();
   const id = plantillaDocId(temporada, teamKey);
-  const prev = plantillasCache.find(d => d.id === id) || {};
-  const { id: _id, updatedAt: _u, ...rest } = prev;
+  const prev = plantillasCache.find(d => d.id === id);
+  if (prev) {
+    // Solo se escriben los campos que cambian: no se pisa lo que otra persona haya guardado en el resto del documento.
+    const data = { ...patch, temporada, teamKey };
+    try {
+      await updateDocument('plantillas', id, data);
+      plantillasCache = plantillasCache.map(d => d.id === id ? { ...d, ...data } : d);
+      return;
+    } catch (err) {
+      if (err?.code !== 'not-found') throw err; // si alguien lo borró, se vuelve a crear abajo
+    }
+  }
+  const { id: _id, updatedAt: _u, ...rest } = prev || {};
   const data = { jugadorIds: [], ...rest, ...patch, temporada, teamKey };
   await saveDocument('plantillas', id, data);
   plantillasCache = [...plantillasCache.filter(d => d.id !== id), { id, ...data }];
+}
+
+// Guarda UNA entrada de un campo-mapa (textos, observaciones) sin reescribir el mapa entero: dos personas
+// editando observaciones distintas ya no se pisan. valor null/'' = borrar esa entrada.
+async function guardarPlantillaEntrada(temporada, teamKey, campo, clave, valor) {
+  await ensurePlantillas();
+  const id = plantillaDocId(temporada, teamKey);
+  if (!plantillasCache.some(d => d.id === id)) await guardarPlantilla(temporada, teamKey, {});
+  const v = valor ? valor : null;
+  await updateMapEntry('plantillas', id, campo, clave, v);
+  plantillasCache = plantillasCache.map(d => {
+    if (d.id !== id) return d;
+    const m = { ...(d[campo] || {}) }; if (v === null) delete m[clave]; else m[clave] = v;
+    return { ...d, [campo]: m };
+  });
 }
 
 // Añade un jugador a la plantilla (temporada+equipo). No quita de otras: puede estar en varias.
@@ -4079,9 +4105,7 @@ async function renderPlantillaPresentacion(container) {
     const next = { ...plTextos }; if (val) next[key] = val; else delete next[key];
     plTextos = next;
     const dest = key.startsWith('portada.') ? '_portada' : plVista.teamKey;
-    const docDest = plantillasCache.find(d => d.id === plantillaDocId(temporada, dest))?.textos || {};
-    const nuevo = { ...docDest }; if (val) nuevo[key] = val; else delete nuevo[key];
-    try { await guardarPlantilla(temporada, dest, { textos: nuevo }); }
+    try { await guardarPlantillaEntrada(temporada, dest, 'textos', key, val); }
     catch (err) { console.error(err); showError('No se pudo guardar el texto.'); }
   });
   let plObs = { ...(docP().observaciones || {}) };
@@ -4111,7 +4135,7 @@ async function renderPlantillaPresentacion(container) {
     if (val === (plObs[key] || '')) return;
     const next = { ...plObs }; if (val) next[key] = val; else delete next[key];
     plObs = next;
-    try { await guardarPlantilla(temporada, plVista.teamKey, { observaciones: next }); }
+    try { await guardarPlantillaEntrada(temporada, plVista.teamKey, 'observaciones', key, val); }
     catch (err) { console.error(err); showError('No se pudieron guardar las observaciones.'); }
   });
   lista.addEventListener('focusin', e => {   // primer clic en un cuadro vacío → fecha de hoy
