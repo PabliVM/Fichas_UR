@@ -184,7 +184,7 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref, ma
   const avgHTML = avg != null ? ` <span class="ficha-q-media" style="color:${avgColor};margin-left:40px;font-weight:800;">${formatNum(avg)}</span>` : '';
   const refHTML = (ref != null && !Number.isNaN(ref)) ? ` <span class="ficha-q-sep">/</span><span class="ficha-q-media ficha-q-ref" style="color:${scoreColor(ref, bands) || '#ffffff'};">${formatNum(ref)}*</span>` : '';
   // Celda de la media de las notas manuales (se rellena sola al escribir en las celdas "M"; ver wireNotasManuales).
-  const manualAvgHTML = ' <span class="ficha-q-manual" title="Media de las notas manuales (M)"><span class="ficha-q-manual-v"></span></span><span class="ficha-q-manual-ref"></span>';
+  const manualAvgHTML = ' <span class="ficha-q-manual" title="Media de las notas manuales (M)"><span class="ficha-q-manual-v"></span><span class="ficha-q-manual-ref"></span></span>';
   // Con muchas items (ej. Táctico portero, 24) la lista lateral no cabe
   // en la altura fija de la ficha si mantiene el tamaño pensado para ~12.
   // A partir de 18 items se reduce letra/gap solo de esta lista, para no
@@ -246,8 +246,7 @@ function buildCondicionalBlock({ title, rp, items, pos }) {
       1- media del jugador<br>
       2- máxima del jugador<br>
       3- media por posición en fútbol profesional<br>
-      4- máxima por posición en fútbol profesional<br>
-      <span class="gps-legend-m"><b>M</b>- valoración propuesta en la reunión de seguimiento de perfiles junto al Departamento de Metodología</span>
+      4- máxima por posición en fútbol profesional
     </p>
   `;
 
@@ -553,6 +552,10 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
       </div>
     </div>
   `;
+
+  // Leyenda de la M en el primer cuadrante (arriba a la izquierda), sea cual sea su bloque.
+  container.querySelector('.ficha-quadrant.pos-tl')?.insertAdjacentHTML('beforeend',
+    '<p class="ficha-m-legend"><b>M</b>- valoración propuesta en la reunión de seguimiento de perfiles junto al Departamento de Metodología</p>');
 
   wireCondicionalInputs(container);
   wireNotasManuales(container, bands, data.onManual);
