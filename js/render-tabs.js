@@ -26,6 +26,7 @@ export function switchTab(tabKey) {
   if (state.activeTab === tabKey) return;
   setState({ activeTab: tabKey });
   history.replaceState(null, '', '#' + tabKey);
+  try { localStorage.setItem('rm-tab', tabKey); } catch (_) { /* ignorar */ }
 
   // Actualizar botones
   document.querySelectorAll('.tab-btn').forEach(btn => {
