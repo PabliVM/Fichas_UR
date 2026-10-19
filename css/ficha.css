@@ -119,6 +119,13 @@
 .q-left  .ficha-q-body { flex-direction: row; }
 
 .ficha-radar { flex: 1; max-width: 1950px; padding: 10px 30px; display: flex; align-items: center; min-width: 0; margin: 0 auto; }
+/* Radares algo más pequeños y desplazados hacia fuera (lejos del círculo central) para que se lean todas las etiquetas. */
+.ficha-radar { position: relative; }
+.ficha-radar svg { width: 92%; margin: 0 auto; }
+.pos-tl .ficha-radar { left:  -80px; top: -130px; }
+.pos-tr .ficha-radar { left:  200px; top: -130px; }
+.pos-bl .ficha-radar { left:  -80px; top:  150px; }
+.pos-br .ficha-radar { left:  200px; top:  150px; }
 .ficha-item-list {
   flex: 0 0 auto;
   width: 460px;
@@ -301,6 +308,7 @@
   margin-right: 30px;
   justify-content: center;
 }
+.gps-legend .gps-legend-m { color: rgba(245,166,35,.95); }
 .gps-legend {
   font-size: 55px;
   font-weight: 400;
