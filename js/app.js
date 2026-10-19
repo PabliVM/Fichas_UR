@@ -3762,7 +3762,7 @@ function injectPlantillaStyles() {
 let plUid = 0;
 // Textos editables de las diapositivas fijas (portadas y separadores). Se guardan en la plantilla: 'portada.*' en la general de la temporada, el resto por equipo.
 let plTextos = {};
-const plNotasPortada = () => { try { return localStorage.getItem('rm-pl-notas-portada') === '1'; } catch { return false; } };
+const plNotasPortada = () => { try { return localStorage.getItem('rm-pl-notas-portada') !== '0'; } catch { return true; } };
 const plVerObs = () => { try { return localStorage.getItem('rm-pl-ver-obs') !== '0'; } catch { return true; } };
 const plT = (key, def) => safeText(plTextos[key] ?? def);
 const plEd = key => `data-pl-ed="${key}" contenteditable="true" spellcheck="false"`;
@@ -4134,7 +4134,7 @@ async function renderPlantillaPresentacion(container) {
         <option value="none" ${plRefModo === 'none' ? 'selected' : ''}>Sin comparar</option>
       </select>
       <label class="text-xs"><input type="checkbox" id="pl-inc-pend" /> Incluir páginas "por definir" en el PDF</label>
-      <label class="text-xs btn-print-ficha" title="Dibuja cada jugador de la portada de posición con sus notas, como en el campograma"><input type="checkbox" id="pl-notas-portada" ${plNotasPortada() ? 'checked' : ''} /> Notas en las portadas</label>
+      <label class="text-xs btn-print-ficha" title="La portada de cada posición lleva las notas del campograma (y se omite la diapositiva de resumen). Desmarcada: portada con fotos + diapositiva de resumen."><input type="checkbox" id="pl-notas-portada" ${plNotasPortada() ? 'checked' : ''} /> Notas en las portadas</label>
       <label class="text-xs btn-print-ficha"><input type="checkbox" id="pl-ver-obs" ${plVerObs() ? 'checked' : ''} /> Ver observaciones</label>
       <button class="btn btn-primary btn-print-ficha" id="pl-pres-pdf" disabled>⬇ PDF del equipo</button>
       <button class="btn btn-print-ficha" id="pl-pres-full" title="Pantalla completa: flechas del teclado para pasar de diapositiva, Esc para salir">▶ Presentar</button>
@@ -4354,7 +4354,7 @@ async function renderPlantillaPresentacion(container) {
     addHTML(plSeparadorPosicion(c, g.titulo, g.items.map(x => x.j), f1Map));
     lista.lastElementChild.dataset.plObs = `sep.${g.titulo}`;
     obsMontar();
-    if (g.items.some(x => f1Map[x.j.id])) { addHTML(plResumenPosicion(g.titulo, temporada, t?.label || '', g.items, f1Map)); lista.lastElementChild.dataset.plObs = `res.${g.titulo}`; obsMontar(); }
+    if (!plNotasPortada() && g.items.some(x => f1Map[x.j.id])) { addHTML(plResumenPosicion(g.titulo, temporada, t?.label || '', g.items, f1Map)); lista.lastElementChild.dataset.plObs = `res.${g.titulo}`; obsMontar(); }
     await aplicarSinFondo(lista);
     ajustarSlides(lista);
     for (const { j, prep } of g.items) {
