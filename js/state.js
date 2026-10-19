@@ -12,7 +12,10 @@ import { showError } from './utils.js';
 
 function initialTab() {
   const hash = window.location.hash.replace('#', '');
-  return TABS.some(t => t.key === hash) ? hash : TABS[0].key;
+  if (TABS.some(t => t.key === hash)) return hash;
+  // Sin hash (p. ej. recarga desde otra URL): última pestaña usada.
+  try { const ult = localStorage.getItem('rm-tab'); if (TABS.some(t => t.key === ult)) return ult; } catch (_) { /* ignorar */ }
+  return TABS[0].key;
 }
 
 // Colores de la ficha (fondo, cabeceras) — editable en Configuración,
