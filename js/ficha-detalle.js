@@ -178,13 +178,13 @@ function centerFichaCircle(root) {
 
 // ── BLOQUE CON RADAR (mental / técnico / táctico) ──
 
-function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref }) {
+function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref, manualVals }) {
   const avg = blockAvg({ rp, items });
   const avgColor = avg != null ? (scoreColor(avg, bands) || '#ffffff') : null;
   const avgHTML = avg != null ? ` <span class="ficha-q-media" style="color:${avgColor};margin-left:40px;font-weight:800;">${formatNum(avg)}</span>` : '';
   const refHTML = (ref != null && !Number.isNaN(ref)) ? ` <span class="ficha-q-sep">/</span><span class="ficha-q-media ficha-q-ref" style="color:${scoreColor(ref, bands) || '#ffffff'};">${formatNum(ref)}*</span>` : '';
   // Celda de la media de las notas manuales (se rellena sola al escribir en las celdas "M"; ver wireNotasManuales).
-  const manualAvgHTML = ' <span class="ficha-q-manual" title="Media de las notas manuales (M)"><span class="ficha-q-manual-v"></span></span>';
+  const manualAvgHTML = ' <span class="ficha-q-manual" title="Media de las notas manuales (M)"><span class="ficha-q-manual-v"></span></span><span class="ficha-q-manual-ref"></span>';
   // Con muchas items (ej. Táctico portero, 24) la lista lateral no cabe
   // en la altura fija de la ficha si mantiene el tamaño pensado para ~12.
   // A partir de 18 items se reduce letra/gap solo de esta lista, para no
@@ -197,8 +197,10 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref }) 
     const color = scoreColor(item.value, bands); // hex de la banda, o null si no hay dato
     const valueText = item.value == null ? '-' : formatNum(item.value);
     const style = `style="color:${color || 'rgba(255,255,255,0.5)'}"`;
-    // Celda vacía junto a la nota automática, para anotar a mano durante la revisión (no se guarda; sí sale en el PDF).
-    const manual = '<input class="gps-input ficha-manual" type="text" aria-label="Nota manual" />';
+    // Celda junto a la nota automática, para anotar a mano durante la revisión. Se guarda por jugador y evaluación (ver wireNotasManuales) y sale en el PDF.
+    const mkey = `${blockKey}|${item.label}`;
+    const mv = manualVals?.[mkey];
+    const manual = `<input class="gps-input ficha-manual" type="text" inputmode="decimal" data-mk="${safeText(mkey)}" value="${mv != null ? formatNum(mv) : ''}" aria-label="Nota manual" />`;
     // Orden visual en las dos listas: [celda manual] [nota automática] [nombre del ítem].
     return side === 'left'
       ? `<li>${manual}<span class="ficha-score" ${style}>${valueText}</span><span class="ficha-item-label">${safeText(item.label)}</span></li>`
@@ -215,7 +217,7 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref }) 
   const radarBlock = `<div class="ficha-radar">${radarSVG}</div>`;
 
   return `
-    <section class="ficha-quadrant q-${blockKey} pos-${pos} ${side === 'left' ? 'q-left' : 'q-right'}">
+    <section class="ficha-quadrant q-${blockKey} pos-${pos} ${side === 'left' ? 'q-left' : 'q-right'}" data-ref="${ref != null && !Number.isNaN(ref) ? ref : ''}">
       <header class="ficha-q-header">
         <span class="ficha-q-title">${safeText(title)}${avgHTML}${refHTML}${manualAvgHTML}</span>
       </header>
@@ -441,23 +443,51 @@ export function wireCondicionalInputs(container) {
 }
 
 /**
- * Media de las notas manuales de cada bloque: al escribir en una celda "M" se recalcula la celda
- * ámbar de la cabecera del bloque (mismo color de banda que las notas automáticas). No se guarda.
+ * Notas manuales (celdas "M"): cada nota se colorea con la misma banda que las automáticas; la celda ámbar de la
+ * cabecera muestra su media y, a su lado, la misma referencia (*) con la que se compara la nota automática.
+ * Al salir de la celda se normaliza el valor y se llama a onManual({ 'bloque|ítem': número }) para guardarlo.
  */
-export function wireNotasManuales(container, bands) {
+export function wireNotasManuales(container, bands, onManual) {
+  const pintar = inp => {
+    const v = parseEsNumber(inp.value);
+    inp.style.color = v != null ? (scoreColor(v, bands) || '') : '';
+  };
   const recalcular = quad => {
     const vals = [...quad.querySelectorAll('.ficha-manual')].map(i => parseEsNumber(i.value)).filter(v => v != null);
     const celda = quad.querySelector('.ficha-q-manual-v');
+    const refEl = quad.querySelector('.ficha-q-manual-ref');
     if (!celda) return;
-    if (!vals.length) { celda.textContent = ''; celda.style.color = ''; return; }
+    if (!vals.length) { celda.textContent = ''; celda.style.color = ''; if (refEl) refEl.innerHTML = ''; return; }
     const media = vals.reduce((a, b) => a + b, 0) / vals.length;
     celda.textContent = formatNum(media);
     celda.style.color = scoreColor(media, bands) || '#ffffff';
+    const ref = parseFloat(quad.dataset.ref);
+    if (refEl) refEl.innerHTML = Number.isNaN(ref) ? '' : ` <span class="ficha-q-sep">/</span><span class="ficha-q-media ficha-q-ref" style="color:${scoreColor(ref, bands) || '#ffffff'};">${formatNum(ref)}*</span>`;
   };
+  container.querySelectorAll('.ficha-manual').forEach(pintar);
+  container.querySelectorAll('.ficha-quadrant').forEach(recalcular);
   container.addEventListener('input', e => {
     const inp = e.target.closest?.('.ficha-manual');
-    const quad = inp?.closest('.ficha-quadrant');
+    if (!inp) return;
+    pintar(inp);
+    const quad = inp.closest('.ficha-quadrant');
     if (quad) recalcular(quad);
+  });
+  container.addEventListener('change', e => {
+    const inp = e.target.closest?.('.ficha-manual');
+    if (!inp) return;
+    const v = parseEsNumber(inp.value);
+    inp.value = v != null ? formatNum(v) : '';
+    pintar(inp);
+    const quad = inp.closest('.ficha-quadrant');
+    if (quad) recalcular(quad);
+    if (typeof onManual !== 'function') return;
+    const mapa = {};
+    container.querySelectorAll('.ficha-manual').forEach(i => {
+      const n = parseEsNumber(i.value);
+      if (n != null && i.dataset.mk) mapa[i.dataset.mk] = n;
+    });
+    onManual(mapa);
   });
 }
 
@@ -504,7 +534,7 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
     if (key === 'condicional') {
       return buildCondicionalBlock({ title: BLOCK_TITLES.condicional, rp: blocks.condicional.rp, items: blocks.condicional.items, pos });
     }
-    return buildRatedBlock({ title: BLOCK_TITLES[key], rp: blocks[key].rp, items: blocks[key].items, side: sideForPos(pos), bands, blockKey: key, pos, ref: data.ref?.[key] });
+    return buildRatedBlock({ title: BLOCK_TITLES[key], rp: blocks[key].rp, items: blocks[key].items, side: sideForPos(pos), bands, blockKey: key, pos, ref: data.ref?.[key], manualVals: data.manual });
   };
 
   container.innerHTML = `
@@ -524,7 +554,7 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
   `;
 
   wireCondicionalInputs(container);
-  wireNotasManuales(container, bands);
+  wireNotasManuales(container, bands, data.onManual);
 
   const fichaRoot = container.querySelector('.ficha-detalle');
   centerFichaCircle(fichaRoot);
