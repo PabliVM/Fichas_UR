@@ -6,7 +6,7 @@
 // ================================================
 
 import { APP_NAME, DEFAULT_SEASON, TEAMS, TABS, PROFILES, SEASONS } from './constants.js';
-import { saveDocument, readDocument, readCollection } from './firebase-service.js';
+import { saveDocument, updateDocument, readDocument, readCollection } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { showError } from './utils.js';
 
@@ -154,15 +154,32 @@ function schedulePersist() {
     return;
   }
   clearTimeout(_persistTimer);
-  _persistTimer = setTimeout(() => {
+  _persistTimer = setTimeout(persistNow, 400); // agrupa cambios rápidos seguidos (ej. arrastrar un color) en un solo guardado
+}
+
+// Solo se escriben las claves que han cambiado: así no se pisan los cambios que otra persona haya hecho en otras claves.
+const _clavesPendientes = new Set();
+function persistNow() {
+  clearTimeout(_persistTimer);
+  _persistTimer = null;
+  if (!_clavesPendientes.size) return;
+  const patch = {};
+  _clavesPendientes.forEach(k => { patch[k] = _state[k]; });
+  _clavesPendientes.clear();
+  updateDocument(CONFIG_COLLECTION, CONFIG_DOC_ID, patch).catch(err => {
+    if (err?.code !== 'not-found') throw err;
+    // Primera vez (el documento aún no existe): se crea con toda la configuración.
     const snapshot = {};
     CONFIG_KEYS.forEach(k => { snapshot[k] = _state[k]; });
-    saveDocument(CONFIG_COLLECTION, CONFIG_DOC_ID, snapshot).catch(err => {
-      console.error('[Firestore] No se pudo guardar la configuración:', err);
-      showError('No se ha guardado en la nube (revisa las reglas de Firestore o la conexión).', 6000);
-    });
-  }, 400); // agrupa cambios rápidos seguidos (ej. arrastrar un color) en un solo guardado
+    return saveDocument(CONFIG_COLLECTION, CONFIG_DOC_ID, snapshot);
+  }).catch(err => {
+    console.error('[Firestore] No se pudo guardar la configuración:', err);
+    Object.keys(patch).forEach(k => _clavesPendientes.add(k)); // se reintenta en el próximo guardado
+    showError('No se ha guardado en la nube (revisa las reglas de Firestore o la conexión).', 6000);
+  });
 }
+// Al ocultar/cerrar la pestaña se guarda ya lo pendiente (no se espera a los 400 ms).
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && _persistTimer) persistNow(); });
 
 /**
  * Carga config/general de Firestore ANTES del primer render (llamar en boot()).
@@ -201,5 +218,8 @@ export async function loadPlayersFromFirestore() {
 
 export function setState(patch) {
   Object.assign(_state, patch);
-  if (Object.keys(patch).some(k => CONFIG_KEYS.includes(k))) schedulePersist();
+  const claves = Object.keys(patch).filter(k => CONFIG_KEYS.includes(k));
+  if (!claves.length) return;
+  if (_configCargada) claves.forEach(k => _clavesPendientes.add(k));
+  schedulePersist();
 }

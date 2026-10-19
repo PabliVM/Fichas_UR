@@ -2,7 +2,7 @@
 // APP.JS — Punto de entrada RM Perfiles
 // ================================================
 
-import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, readCollection, saveDocument, readDocument, updateMapEntry } from './firebase-service.js';
+import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, readCollection, saveDocument, readDocument, updateMapEntry, arrayUnion, arrayRemove } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { watchAuthState, login, resetPassword } from './auth-service.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
@@ -561,6 +561,7 @@ async function procesarImport(container) {
   const colEquipo = colDe('equipo');
   const teamKeyPorLabel = raw => TEAMS.find(t => t.label.toLowerCase().trim() === String(raw || '').toLowerCase().trim())?.key || null;
 
+  const celdasIgnoradas = [];
   const filas = regImport.rows.map(row => {
     const jugadorNombreArchivo = (row[colJugador] || '').trim();
     const evaluador = (row[colEvaluador] || '').trim();
@@ -582,20 +583,18 @@ async function procesarImport(container) {
       const v = parseEsNumber(row[header]);
       if (v != null) rp[target.slice(1)] = v;
     });
-    let invalido = false;
-
     Object.entries(regImport.mapping).forEach(([header, target]) => {
       if (!target || target === 'equipo' || target.startsWith('@')) return;
       const raw = row[header];
       if (raw === '' || raw == null) return;
       const val = parseEsNumber(raw);
-      if (val == null) { invalido = true; return; }
+      // Celda no numérica: se ignora SOLO esa celda (antes se perdía la fila entera) y se avisa.
+      if (val == null) { celdasIgnoradas.push(`${jugadorNombreArchivo} / ${evaluador}: ${header} = "${raw}"`); return; }
       // Condicional con dos columnas: "Item::A" → Item (valor 1), "Item::B" → Item__B (valor 2)
       const key = target.endsWith('::A') ? target.slice(0, -3) : target.endsWith('::B') ? target.slice(0, -3) + '__B' : target;
       puntuaciones[key] = val;
       if (idPorClave[key]) puntuacionesId[idPorClave[key]] = val;
     });
-    if (invalido) return { error: 'Valor no numérico', jugadorNombreArchivo, evaluador };
 
     const teamKey = colEquipo ? teamKeyPorLabel(row[colEquipo]) : null;
     const match = matchJugador(jugadorNombreArchivo, state.players, { teamKey });
@@ -615,9 +614,13 @@ async function procesarImport(container) {
     existentes = await queryRegistros({ evaluacionId: ev.id });
   } catch (err) {
     console.error('[Firestore] No se pudieron leer los registros existentes:', err);
-    showError('No se pudo comprobar duplicados (revisa las reglas/índices de Firestore).');
+    showError('No se pudo comprobar duplicados (revisa las reglas/índices de Firestore). Importación detenida para no duplicar registros.');
+    return;
   }
 
+  if (celdasIgnoradas.length) {
+    showError(`${celdasIgnoradas.length} celda(s) no numéricas ignoradas (el resto de la fila sí se importa): ${celdasIgnoradas.slice(0, 5).join(' · ')}${celdasIgnoradas.length > 5 ? ' …' : ''}`, 12000);
+  }
   regImport.resultado = clasificarFilas(resueltas, existentes);
   regImport.decisiones = {};
   regImport.step = 'resumen';
@@ -787,17 +790,18 @@ function renderRegistroSub(container) {
       if (!player) continue;
       const aliases = [...new Set([...(player.aliases || []), ...nombres])];
       try {
-        if (!isFirebaseUnconfigured()) await updateDocument('jugadores', playerId, { aliases });
+        if (!isFirebaseUnconfigured()) await updateDocument('jugadores', playerId, { aliases: arrayUnion(...nombres) });
         setState({ players: state.players.map(p => p.id === playerId ? { ...p, aliases } : p) });
       } catch (err) {
         console.error('[Firestore] No se pudo guardar el alias:', err);
+        showError(`No se pudo guardar el alias de ${nombreCompleto(player)} (la próxima importación volverá a preguntar).`);
       }
     }
 
-    regImport.pendientes = restantes;
-
     let existentes = [];
-    try { existentes = await queryRegistros({ evaluacionId: regEvalSel }); } catch (err) { console.error('[Firestore]', err); }
+    try { existentes = await queryRegistros({ evaluacionId: regEvalSel }); }
+    catch (err) { console.error('[Firestore]', err); showError('No se pudo comprobar duplicados. Importación detenida para no duplicar registros: vuelve a pulsar.'); return; }
+    regImport.pendientes = restantes;
     const todas = [
       ...resueltos,
       ...regImport.resultado.nuevos,
@@ -815,13 +819,18 @@ function renderRegistroSub(container) {
     const r = regImport.resultado;
     regImport.busy = true;
     renderRegistroSub(container);
+    let creados = 0;
     try {
-      for (const fila of r.nuevos) {
+      for (const fila of [...r.nuevos]) {
         await crearRegistro({
           evaluacionId: ev.id, temporada: ev.temporada, posicionKey: ev.posicionKey, tipo: ev.tipo || null,
           jugadorId: fila.jugadorId, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
           puntuaciones: fila.puntuaciones, puntuacionesId: fila.puntuacionesId || {}, textos: fila.textos || {}, rp: fila.rp || {}, fechaRegistro: fila.fechaRegistro || null, rowKey: fila.rowKey, origen: 'csv',
         });
+        // Ya guardado: si algo falla después y se reintenta, no se vuelve a crear (evita duplicados).
+        r.nuevos = r.nuevos.filter(x => x !== fila);
+        r.sinCambios.push(fila);
+        creados++;
       }
       let sustituidos = 0;
       for (const fila of r.conCambios) {
@@ -834,13 +843,13 @@ function renderRegistroSub(container) {
         }
       }
       const noIdent = [...new Set(regImport.pendientes.map(f => f.jugadorNombreArchivo))];
-      showSuccess(`Importado: ${r.nuevos.length} nuevos, ${sustituidos} sustituidos.` + (noIdent.length ? ` NO importados (sin identificar, comprobad): ${noIdent.join(', ')}.` : ''));
+      showSuccess(`Importado: ${creados} nuevos, ${sustituidos} sustituidos.` + (r.errores.length ? ` ${r.errores.length} fila(s) con error NO importadas.` : '') + (noIdent.length ? ` NO importados (sin identificar, comprobad): ${noIdent.join(', ')}.` : ''));
       regEvalSel = null;
       resetRegImport();
       renderRegistroSub(container);
     } catch (err) {
       console.error('[Firestore] Error importando registros:', err);
-      showError('Error al importar (revisa las reglas de Firestore).');
+      showError(`Error al importar (revisa las reglas de Firestore). Se guardaron ${creados} nuevos antes del fallo; al reintentar no se duplican.`);
       regImport.busy = false;
       renderRegistroSub(container);
     }
@@ -2032,7 +2041,7 @@ function renderFichaJugador(container, p) {
     const fichaTextos = { ...(p.fichaTextos || {}), [textosKey]: nuevo };
     btn.disabled = true; btn.textContent = 'Guardando…';
     try {
-      await updateDocument('jugadores', id, { fichaTextos });
+      await updateMapEntry('jugadores', id, 'fichaTextos', textosKey, nuevo);
       setState({ players: state.players.map(x => x.id === id ? { ...x, fichaTextos } : x) });
       showSuccess('Textos de la ficha guardados.');
     } catch (err) {
@@ -2044,7 +2053,7 @@ function renderFichaJugador(container, p) {
     const fichaTextos = { ...(p.fichaTextos || {}) };
     delete fichaTextos[textosKey];
     try {
-      await updateDocument('jugadores', id, { fichaTextos });
+      await updateMapEntry('jugadores', id, 'fichaTextos', textosKey, null);
       setState({ players: state.players.map(x => x.id === id ? { ...x, fichaTextos } : x) });
       renderPanelJugadores(container);
     } catch (err) { showError('No se pudo restaurar.'); }
@@ -2303,6 +2312,8 @@ function renderPanelJugadores(container) {
   container.querySelectorAll('[data-jug-del]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.jugDel;
+      const pj = state.players.find(x => x.id === id);
+      if (!confirm(`¿Borrar a ${pj ? nombreCompleto(pj) : 'este jugador'}? Se pierden su ficha, textos, notas manuales, datos condicionales y foto. No se puede deshacer.`)) return;
       try {
         if (!isFirebaseUnconfigured()) await deleteDocument('jugadores', id);
         setState({ players: state.players.filter(p => p.id !== id) });
@@ -3387,13 +3398,19 @@ const posAbrev = label => {
 };
 const esPortero = pos => /portero/i.test(String(pos?.label || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
 
+// true si la carga de 'plantillas' falló: la caché vacía NO es la realidad y guardar sobre ella machacaría los documentos.
+let plantillasFallo = false;
+function comprobarPlantillasCargadas() {
+  if (plantillasFallo) throw new Error('Las plantillas no se cargaron: recarga la página antes de guardar.');
+}
+
 async function ensurePlantillas() {
   if (plantillasCache) return plantillasCache;
   if (isFirebaseUnconfigured()) { plantillasCache = []; return plantillasCache; }
   if (!plantillasLoading) {
     plantillasLoading = readCollection('plantillas')
-      .then(r => { plantillasCache = r; })
-      .catch(err => { console.error('[Firestore] Plantillas:', err); showError('No se pudieron cargar las plantillas (revisa las reglas de Firestore para "plantillas").'); plantillasCache = []; })
+      .then(r => { plantillasCache = r; plantillasFallo = false; })
+      .catch(err => { console.error('[Firestore] Plantillas:', err); showError('No se pudieron cargar las plantillas (revisa las reglas de Firestore para "plantillas"). Los cambios en plantillas NO se guardarán: recarga la página.', 9000); plantillasCache = []; plantillasFallo = true; })
       .finally(() => { plantillasLoading = null; });
   }
   await plantillasLoading;
@@ -3416,8 +3433,10 @@ const nombreCompleto = j => `${j.apellidos || ''}, ${j.nombre || ''}`.replace(/^
 const ordenJugadores = (a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es');
 
 // Guarda (fusiona) campos en el doc de la plantilla temporada+equipo sin perder los demás (jugadorIds, fotos…).
-async function guardarPlantilla(temporada, teamKey, patch) {
+// cachePatch: lo que se apunta en la caché local cuando patch lleva arrayUnion/arrayRemove.
+async function guardarPlantilla(temporada, teamKey, patch, cachePatch = patch) {
   await ensurePlantillas();
+  comprobarPlantillasCargadas();
   const id = plantillaDocId(temporada, teamKey);
   const prev = plantillasCache.find(d => d.id === id);
   if (prev) {
@@ -3425,22 +3444,23 @@ async function guardarPlantilla(temporada, teamKey, patch) {
     const data = { ...patch, temporada, teamKey };
     try {
       await updateDocument('plantillas', id, data);
-      plantillasCache = plantillasCache.map(d => d.id === id ? { ...d, ...data } : d);
+      plantillasCache = plantillasCache.map(d => d.id === id ? { ...d, ...cachePatch, temporada, teamKey } : d);
       return;
     } catch (err) {
       if (err?.code !== 'not-found') throw err; // si alguien lo borró, se vuelve a crear abajo
     }
   }
   const { id: _id, updatedAt: _u, ...rest } = prev || {};
-  const data = { jugadorIds: [], ...rest, ...patch, temporada, teamKey };
-  await saveDocument('plantillas', id, data);
-  plantillasCache = [...plantillasCache.filter(d => d.id !== id), { id, ...data }];
+  // merge: si otra persona creó el documento mientras tanto, se fusiona en vez de machacarlo.
+  await saveDocument('plantillas', id, { ...rest, ...patch, temporada, teamKey }, { merge: true });
+  plantillasCache = [...plantillasCache.filter(d => d.id !== id), { id, jugadorIds: [], ...rest, ...cachePatch, temporada, teamKey }];
 }
 
 // Guarda UNA entrada de un campo-mapa (textos, observaciones) sin reescribir el mapa entero: dos personas
 // editando observaciones distintas ya no se pisan. valor null/'' = borrar esa entrada.
 async function guardarPlantillaEntrada(temporada, teamKey, campo, clave, valor) {
   await ensurePlantillas();
+  comprobarPlantillasCargadas();
   const id = plantillaDocId(temporada, teamKey);
   if (!plantillasCache.some(d => d.id === id)) await guardarPlantilla(temporada, teamKey, {});
   const v = valor ? valor : null;
@@ -3458,7 +3478,7 @@ async function añadirAPlantilla(jugadorId, teamKey, temporada) {
   await ensurePlantillas();
   const ids = plantillasCache.find(d => d.id === plantillaDocId(temporada, teamKey))?.jugadorIds || [];
   if (ids.includes(jugadorId)) return;
-  await guardarPlantilla(temporada, teamKey, { jugadorIds: [...ids, jugadorId] });
+  await guardarPlantilla(temporada, teamKey, { jugadorIds: arrayUnion(jugadorId) }, { jugadorIds: [...ids, jugadorId] });
 }
 
 // Guarda un campo de la ficha de datos desde la plantilla (misma fuente que el formulario de Jugadores).
@@ -3567,9 +3587,9 @@ function renderPanelPlantillas(container) {
     d.querySelector('summary')?.addEventListener('click', e => { if (e.target.closest('button')) e.preventDefault(); });
   });
 
-  const guardar = async (teamKey, jugadorIds) => {
+  const guardar = async (teamKey, patch, cachePatch) => {
     try {
-      await guardarPlantilla(plantillaTemporada, teamKey, { jugadorIds });
+      await guardarPlantilla(plantillaTemporada, teamKey, patch, cachePatch);
       preservandoScroll(() => renderPanelPlantillas(container));
     } catch (err) {
       console.error('[Firestore] No se pudo guardar la plantilla:', err);
@@ -3586,11 +3606,11 @@ function renderPanelPlantillas(container) {
     const teamKey = btn.dataset.plAdd;
     const sel = container.querySelector(`[data-pl-sel="${teamKey}"]`);
     if (!sel?.value) return;
-    guardar(teamKey, [...(docDe(teamKey)?.jugadorIds || []), sel.value]);
+    guardar(teamKey, { jugadorIds: arrayUnion(sel.value) }, { jugadorIds: [...new Set([...(docDe(teamKey)?.jugadorIds || []), sel.value])] });
   }));
   container.querySelectorAll('[data-pl-del]').forEach(btn => btn.addEventListener('click', () => {
     const [teamKey, jid] = btn.dataset.plDel.split('|');
-    guardar(teamKey, (docDe(teamKey)?.jugadorIds || []).filter(x => x !== jid));
+    guardar(teamKey, { jugadorIds: arrayRemove(jid) }, { jugadorIds: (docDe(teamKey)?.jugadorIds || []).filter(x => x !== jid) });
   }));
   container.querySelectorAll('[data-pl-datos]').forEach(btn => btn.addEventListener('click', () => { plVista = { modo: 'datos', teamKey: btn.dataset.plDatos }; renderPanelPlantillas(container); }));
   container.querySelectorAll('[data-pl-ir]').forEach(el => el.addEventListener('click', e => {
@@ -4383,7 +4403,7 @@ async function renderPlantillaPresentacion(container) {
         const fichaTextos = { ...(j.fichaTextos || {}), [prep.textosKey]: nuevo };
         btn.disabled = true; btn.textContent = 'Guardando…';
         try {
-          await updateDocument('jugadores', j.id, { fichaTextos });
+          await updateMapEntry('jugadores', j.id, 'fichaTextos', prep.textosKey, nuevo);
           j.fichaTextos = fichaTextos;
           setState({ players: state.players.map(x => x.id === j.id ? { ...x, fichaTextos } : x) });
           showSuccess('Textos guardados.');

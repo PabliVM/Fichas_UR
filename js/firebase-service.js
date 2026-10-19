@@ -22,6 +22,8 @@ import {
   serverTimestamp,
   FieldPath,
   deleteField,
+  arrayUnion,
+  arrayRemove,
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import {
   getStorage,
@@ -31,6 +33,9 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 
 import { firebaseConfig, isFirebaseUnconfigured } from './firebase-config.js';
+
+// Para añadir/quitar elementos de un array sin reescribirlo entero (no se pisan dos personas).
+export { arrayUnion, arrayRemove };
 
 let _app = null;
 let _db  = null;
@@ -82,13 +87,13 @@ export function listenCollection(collectionName, callback, onError) {
 
 /**
  * Guarda (crea o sobreescribe) un documento con ID conocido.
+ * opts.merge = true → fusiona con lo que ya haya en vez de sobreescribir.
  */
-export async function saveDocument(collectionName, documentId, data) {
+export async function saveDocument(collectionName, documentId, data, opts = {}) {
   const db = getDB();
-  await setDoc(doc(db, collectionName, documentId), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
+  const payload = { ...data, updatedAt: serverTimestamp() };
+  if (opts.merge) await setDoc(doc(db, collectionName, documentId), payload, { merge: true });
+  else await setDoc(doc(db, collectionName, documentId), payload);
 }
 
 /**
