@@ -30,8 +30,16 @@ import { renderColumnasEncuesta } from './columnas-encuesta-ui.js';
 // para que el usuario no "suba" solo por cambiar de posición/página.
 function preservandoScroll(fn) {
   const y = window.scrollY;
+  // Fija la altura mientras se repinta (si no, el navegador recorta el scroll y la pantalla "salta"), y restaura el scroll sin esperar al siguiente frame.
+  const b = document.body;
+  const prevMin = b.style.minHeight;
+  b.style.minHeight = `${document.documentElement.scrollHeight}px`;
   fn();
-  requestAnimationFrame(() => window.scrollTo(0, y));
+  window.scrollTo(0, y);
+  requestAnimationFrame(() => {
+    window.scrollTo(0, y);
+    requestAnimationFrame(() => { window.scrollTo(0, y); b.style.minHeight = prevMin; });
+  });
 }
 
 // ── AVISO FIREBASE ────────────────────────────────
@@ -1750,10 +1758,10 @@ async function cargarDatosFicha(container, id) {
 }
 
 let jugFichaTab = 'datos';     // 'datos' | 'fichas' (Ficha 1 y Ficha 2 una debajo de otra)
-const JUG_REF_QUIEN = [['', 'Sin comparar'], ['team', 'Mismo equipo'], ['gen', 'Misma generación'], ['pos', 'Misma posición'], ['jug', 'Un jugador concreto…']];
+const JUG_REF_QUIEN = [['', 'Sin comparar'], ['team', 'Mismo equipo'], ['gen', 'Misma generación'], ['jug', 'Un jugador concreto…']];
 const JUG_REF_LS = 'rm-perfiles.jugRef';
 let jugRef = { who: '', when: 'eval', jugId: '', evalId: '' };   // comparación elegida para las medias de la Ficha 2 (se recuerda entre fichas y recargas)
-try { const g = JSON.parse(localStorage.getItem(JUG_REF_LS) || 'null'); if (g && typeof g === 'object') jugRef = { ...jugRef, ...g }; } catch (_) { /* sin localStorage: no se recuerda */ }
+try { const g = JSON.parse(localStorage.getItem(JUG_REF_LS) || 'null'); if (g && typeof g === 'object') jugRef = { ...jugRef, ...g }; if (jugRef.who === 'pos') jugRef.who = ''; } catch (_) { /* sin localStorage: no se recuerda */ }
 const jugRefCache = {};        // { clave: {mental,tecnico,tactico,label} }
 const jugRefLoading = new Set();
 
