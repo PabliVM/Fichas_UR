@@ -138,6 +138,18 @@ function condicionalItems(positionKey, comp, jugador, evalId) {
   });
 }
 
+// Notas manuales de la Ficha 2: se guardan por jugador y evaluación (jugadores/{id}.fichaNotasManuales[evaluación] = { 'bloque|ítem': nota }).
+async function guardarNotasManuales(j, evKey, mapa) {
+  const hay = Object.keys(mapa).length > 0;
+  const todo = { ...(j.fichaNotasManuales || {}) };
+  if (hay) todo[evKey] = mapa; else delete todo[evKey];
+  j.fichaNotasManuales = todo;
+  const enEstado = state.players.find(x => x.id === j.id);
+  if (enEstado && enEstado !== j) enEstado.fichaNotasManuales = todo;
+  try { await updateMapEntry('jugadores', j.id, 'fichaNotasManuales', evKey, hay ? mapa : null); }
+  catch (err) { console.error(err); showError('No se pudo guardar la nota manual.'); }
+}
+
 function buildFichaRealData(positionKey, media, jugador, evalId, ref) {
   const schema = state.criteriaSchemas[positionKey] || {};
   const comp = media?.porCompetencia || {};
@@ -145,6 +157,8 @@ function buildFichaRealData(positionKey, media, jugador, evalId, ref) {
   const condicional = condicionalItems(positionKey, comp, jugador, evalId);
   return {
     ref: ref || null,
+    manual: jugador?.fichaNotasManuales?.[evalId || 'sin-evaluacion'] || null,
+    onManual: jugador?.id ? (mapa => guardarNotasManuales(jugador, evalId || 'sin-evaluacion', mapa)) : null,
     player: { name: jugador ? `${jugador.nombre} ${jugador.apellidos}`.trim() : 'Jugador', photoUrl: jugador?.fotoUrl || null },
     blocks: {
       mental:      { rp: [null, null], items: rated(state.aspectosComunes.mental) },
