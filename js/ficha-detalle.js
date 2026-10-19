@@ -183,6 +183,8 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref }) 
   const avgColor = avg != null ? (scoreColor(avg, bands) || '#ffffff') : null;
   const avgHTML = avg != null ? ` <span class="ficha-q-media" style="color:${avgColor};margin-left:40px;font-weight:800;">${formatNum(avg)}</span>` : '';
   const refHTML = (ref != null && !Number.isNaN(ref)) ? ` <span class="ficha-q-sep">/</span><span class="ficha-q-media ficha-q-ref" style="color:${scoreColor(ref, bands) || '#ffffff'};">${formatNum(ref)}*</span>` : '';
+  // Celda de la media de las notas manuales (se rellena sola al escribir en las celdas "M"; ver wireNotasManuales).
+  const manualAvgHTML = ' <span class="ficha-q-manual" title="Media de las notas manuales (M)"><span class="ficha-q-manual-v"></span></span>';
   // Con muchas items (ej. Táctico portero, 24) la lista lateral no cabe
   // en la altura fija de la ficha si mantiene el tamaño pensado para ~12.
   // A partir de 18 items se reduce letra/gap solo de esta lista, para no
@@ -195,22 +197,27 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref }) 
     const color = scoreColor(item.value, bands); // hex de la banda, o null si no hay dato
     const valueText = item.value == null ? '-' : formatNum(item.value);
     const style = `style="color:${color || 'rgba(255,255,255,0.5)'}"`;
+    // Celda vacía junto a la nota automática, para anotar a mano durante la revisión (no se guarda; sí sale en el PDF).
+    const manual = '<input class="gps-input ficha-manual" type="text" aria-label="Nota manual" />';
+    // Orden visual en las dos listas: [celda manual] [nota automática] [nombre del ítem].
     return side === 'left'
-      ? `<li><span class="ficha-score" ${style}>${valueText}</span><span class="ficha-item-label">${safeText(item.label)}</span></li>`
-      : `<li><span class="ficha-item-label">${safeText(item.label)}</span><span class="ficha-score" ${style}>${valueText}</span></li>`;
+      ? `<li>${manual}<span class="ficha-score" ${style}>${valueText}</span><span class="ficha-item-label">${safeText(item.label)}</span></li>`
+      : `<li><span class="ficha-item-label">${safeText(item.label)}</span><span class="ficha-score" ${style}>${valueText}</span>${manual}</li>`;
   }).join('');
+  // Cabecera "M" sobre la columna de celdas manuales.
+  const cabeceraManual = '<li class="ficha-manual-head"><span class="ficha-manual-h" title="Columna para nota manual"></span></li>';
 
   const radarSVG = buildRadarSVG(
     items.map(i => ({ label: i.label, value: i.value }))
   );
 
-  const listBlock  = `<ul class="ficha-item-list ${side === 'left' ? 'align-left' : 'align-right'}" style="font-size:${listFontSize}px;gap:${listGap}px;">${listHTML}</ul>`;
+  const listBlock  = `<ul class="ficha-item-list ${side === 'left' ? 'align-left' : 'align-right'}" style="font-size:${listFontSize}px;gap:${listGap}px;">${cabeceraManual}${listHTML}</ul>`;
   const radarBlock = `<div class="ficha-radar">${radarSVG}</div>`;
 
   return `
     <section class="ficha-quadrant q-${blockKey} pos-${pos} ${side === 'left' ? 'q-left' : 'q-right'}">
       <header class="ficha-q-header">
-        <span class="ficha-q-title">${safeText(title)}${avgHTML}${refHTML}</span>
+        <span class="ficha-q-title">${safeText(title)}${avgHTML}${refHTML}${manualAvgHTML}</span>
       </header>
       <div class="ficha-q-body">
         ${side === 'left' ? listBlock + radarBlock : radarBlock + listBlock}
@@ -433,6 +440,27 @@ export function wireCondicionalInputs(container) {
   });
 }
 
+/**
+ * Media de las notas manuales de cada bloque: al escribir en una celda "M" se recalcula la celda
+ * ámbar de la cabecera del bloque (mismo color de banda que las notas automáticas). No se guarda.
+ */
+export function wireNotasManuales(container, bands) {
+  const recalcular = quad => {
+    const vals = [...quad.querySelectorAll('.ficha-manual')].map(i => parseEsNumber(i.value)).filter(v => v != null);
+    const celda = quad.querySelector('.ficha-q-manual-v');
+    if (!celda) return;
+    if (!vals.length) { celda.textContent = ''; celda.style.color = ''; return; }
+    const media = vals.reduce((a, b) => a + b, 0) / vals.length;
+    celda.textContent = formatNum(media);
+    celda.style.color = scoreColor(media, bands) || '#ffffff';
+  };
+  container.addEventListener('input', e => {
+    const inp = e.target.closest?.('.ficha-manual');
+    const quad = inp?.closest('.ficha-quadrant');
+    if (quad) recalcular(quad);
+  });
+}
+
 // ── RENDER PRINCIPAL ──────────────────────────────
 
 /**
@@ -496,6 +524,7 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
   `;
 
   wireCondicionalInputs(container);
+  wireNotasManuales(container, bands);
 
   const fichaRoot = container.querySelector('.ficha-detalle');
   centerFichaCircle(fichaRoot);
