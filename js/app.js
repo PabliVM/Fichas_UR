@@ -1751,7 +1751,9 @@ async function cargarDatosFicha(container, id) {
 
 let jugFichaTab = 'datos';     // 'datos' | 'fichas' (Ficha 1 y Ficha 2 una debajo de otra)
 const JUG_REF_QUIEN = [['', 'Sin comparar'], ['team', 'Mismo equipo'], ['gen', 'Misma generación'], ['pos', 'Misma posición'], ['jug', 'Un jugador concreto…']];
-let jugRef = { who: '', when: 'eval', jugId: '', evalId: '' };   // comparación elegida para las medias de la Ficha 2
+const JUG_REF_LS = 'rm-perfiles.jugRef';
+let jugRef = { who: '', when: 'eval', jugId: '', evalId: '' };   // comparación elegida para las medias de la Ficha 2 (se recuerda entre fichas y recargas)
+try { const g = JSON.parse(localStorage.getItem(JUG_REF_LS) || 'null'); if (g && typeof g === 'object') jugRef = { ...jugRef, ...g }; } catch (_) { /* sin localStorage: no se recuerda */ }
 const jugRefCache = {};        // { clave: {mental,tecnico,tactico,label} }
 const jugRefLoading = new Set();
 
@@ -1772,7 +1774,8 @@ async function cargarReferencia(container, p, evSel) {
       const ev = (regEvaluaciones || []).find(e => e.id === evalId);
       label = `Comparado con: ${`${j.nombre || ''} ${j.apellidos || ''}`.trim()} · ${ev ? `${ev.temporada} ${ev.nombre}` : ''}`;
     } else {
-      const filtros = when === 'eval' ? { evaluacionId: evSel.eid } : { posicionKey: evSel.posKey, ...(when.startsWith('temp:') ? { temporada: when.slice(5) } : {}) };
+      // Siempre misma posición; "esta evaluación" la acota además a la evaluación abierta.
+      const filtros = { posicionKey: evSel.posKey, ...(when === 'eval' ? { evaluacionId: evSel.eid } : when.startsWith('temp:') ? { temporada: when.slice(5) } : {}) };
       const regsAll = await queryRegistros(filtros);
     if (who === 'team') await ensurePlantillas();
     const temporadaRef = evSel.ev?.temporada || '';
@@ -2045,6 +2048,7 @@ function renderFichaJugador(container, p) {
   [['who', '#jug-ref-who'], ['when', '#jug-ref-when'], ['jugId', '#jug-ref-jug'], ['evalId', '#jug-ref-eval']].forEach(([campo, sel]) => {
     container.querySelector(sel)?.addEventListener('change', e => {
       jugRef = { ...jugRef, [campo]: e.target.value };
+      try { localStorage.setItem(JUG_REF_LS, JSON.stringify(jugRef)); } catch (_) { /* ignorar */ }
       preservandoScroll(() => renderPanelJugadores(container));
     });
   });
