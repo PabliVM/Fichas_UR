@@ -3762,6 +3762,7 @@ function injectPlantillaStyles() {
 let plUid = 0;
 // Textos editables de las diapositivas fijas (portadas y separadores). Se guardan en la plantilla: 'portada.*' en la general de la temporada, el resto por equipo.
 let plTextos = {};
+const plNotasPortada = () => { try { return localStorage.getItem('rm-pl-notas-portada') === '1'; } catch { return false; } };
 const plVerObs = () => { try { return localStorage.getItem('rm-pl-ver-obs') !== '0'; } catch { return true; } };
 const plT = (key, def) => safeText(plTextos[key] ?? def);
 const plEd = key => `data-pl-ed="${key}" contenteditable="true" spellcheck="false"`;
@@ -3853,8 +3854,32 @@ async function aplicarSinFondo(root) {
   }));
 }
 
-function plSeparadorPosicion(c, titulo, jugadores) {
+function plSeparadorPosicion(c, titulo, jugadores, f1Map) {
   const n = jugadores.length;
+  // Opción "Notas en las portadas": cada jugador se dibuja como en el campograma (donut, notas R/P y 3 perfiles).
+  if (f1Map && plNotasPortada() && jugadores.some(j => f1Map[j.id])) {
+    const filas = n > 12 ? 3 : n > 4 ? 2 : 1, porFila = Math.ceil(n / filas);
+    const slot = Math.floor(1700 / porFila);
+    const TOP = 310, BOT = PL_H - 190, rowH = (BOT - TOP) / filas;
+    const K = Math.min(1, (slot - 16) / 453, (rowH - 16) / 240);
+    const celdasN = jugadores.map((j, i) => {
+      const fila = Math.floor(i / porFila), col = i % porFila;
+      const enFila = fila === filas - 1 ? n - porFila * (filas - 1) : porFila;
+      const x0 = (PL_W - enFila * slot) / 2 + col * slot;
+      const cx = x0 + (slot - 453 * K) / 2 + 101 * K;
+      const cy = TOP + fila * rowH + rowH / 2 - 12.5 * K;
+      if (f1Map[j.id]) return plCardJugador(j, f1Map[j.id], cx / PL_W * 100, cy / PL_H * 100, K).replace('cursor:grab;', '').replace(/ title="[^"]*"/, '');
+      // Sin ficha: solo nombre (no hay notas que mostrar)
+      return `<div style="position:absolute;left:${x0}px;top:${cy}px;width:${slot}px;"><div class="pl-nombre" style="font-size:34px;">${safeText(`${j.nombre || ''} ${j.apellidos || ''}`.trim())}</div></div>`;
+    }).join('');
+    return plSlide(`
+    ${plCrest('left:40px;top:40px;')}
+    ${plOro('right:140px;top:60px;', 200, 330)}${plOro('right:60px;top:100px;', 200, 330)}
+    <div class="pl-t pl-t-l" style="position:absolute;left:0;right:0;top:170px;text-align:center;"><span class="pl-ed" ${plEd('sep.' + titulo)}>${plT('sep.' + titulo, plPlural(titulo))}</span></div>
+    ${celdasN}
+    ${plPoligono('left:0;bottom:0;', 520, 150, [[0, 0], [94, 0], [100, 100], [0, 100]], PL_ORO_SOLIDO)}
+    ${plPoligono('right:0;bottom:0;', 640, 150, [[6, 0], [100, 0], [100, 100], [0, 100]], PL_ORO_SOLIDO)}`, c.slate);
+  }
   const filas = n > 6 ? 2 : 1;
   const porFila = Math.ceil(n / filas);
   const slot = Math.min(300, Math.floor(1700 / porFila));
@@ -4109,6 +4134,7 @@ async function renderPlantillaPresentacion(container) {
         <option value="none" ${plRefModo === 'none' ? 'selected' : ''}>Sin comparar</option>
       </select>
       <label class="text-xs"><input type="checkbox" id="pl-inc-pend" /> Incluir páginas "por definir" en el PDF</label>
+      <label class="text-xs btn-print-ficha" title="Dibuja cada jugador de la portada de posición con sus notas, como en el campograma"><input type="checkbox" id="pl-notas-portada" ${plNotasPortada() ? 'checked' : ''} /> Notas en las portadas</label>
       <label class="text-xs btn-print-ficha"><input type="checkbox" id="pl-ver-obs" ${plVerObs() ? 'checked' : ''} /> Ver observaciones</label>
       <button class="btn btn-primary btn-print-ficha" id="pl-pres-pdf" disabled>⬇ PDF del equipo</button>
       <button class="btn btn-print-ficha" id="pl-pres-full" title="Pantalla completa: flechas del teclado para pasar de diapositiva, Esc para salir">▶ Presentar</button>
@@ -4118,6 +4144,7 @@ async function renderPlantillaPresentacion(container) {
     <div id="pl-pres-lista"></div>`;
   container.querySelector('#pl-volver').addEventListener('click', () => { plVista = { modo: 'grid', teamKey: null }; renderPanelPlantillas(container); });
   container.querySelector('#pl-ref').addEventListener('change', e => { plRefModo = e.target.value; renderPlantillaPresentacion(container); });
+  container.querySelector('#pl-notas-portada').addEventListener('change', e => { try { localStorage.setItem('rm-pl-notas-portada', e.target.checked ? '1' : '0'); } catch {} renderPlantillaPresentacion(container); });
   const lista = container.querySelector('#pl-pres-lista');
   const estado = container.querySelector('#pl-pres-estado');
   const pdfBtn = container.querySelector('#pl-pres-pdf');
@@ -4324,7 +4351,7 @@ async function renderPlantillaPresentacion(container) {
 
   let hechas = 0;
   for (const g of grupos.filter(g => g.items.length)) {
-    addHTML(plSeparadorPosicion(c, g.titulo, g.items.map(x => x.j)));
+    addHTML(plSeparadorPosicion(c, g.titulo, g.items.map(x => x.j), f1Map));
     lista.lastElementChild.dataset.plObs = `sep.${g.titulo}`;
     obsMontar();
     if (g.items.some(x => f1Map[x.j.id])) { addHTML(plResumenPosicion(g.titulo, temporada, t?.label || '', g.items, f1Map)); lista.lastElementChild.dataset.plObs = `res.${g.titulo}`; obsMontar(); }
