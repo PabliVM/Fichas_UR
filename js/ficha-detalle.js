@@ -246,7 +246,8 @@ function buildCondicionalBlock({ title, rp, items, pos }) {
       1- media del jugador<br>
       2- máxima del jugador<br>
       3- media por posición en fútbol profesional<br>
-      4- máxima por posición en fútbol profesional
+      4- máxima por posición en fútbol profesional<br>
+      <span class="gps-legend-m"><b>M</b>- valoración propuesta en la reunión de seguimiento de perfiles junto al Departamento de Metodología</span>
     </p>
   `;
 
