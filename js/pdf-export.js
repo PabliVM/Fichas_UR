@@ -44,6 +44,7 @@ function swapInputsForStaticText(fichaEl) {
     const span = document.createElement('span');
     span.className = input.className.replace('gps-input', 'gps-input gps-input-static');
     span.textContent = input.value ?? '';
+    if (input.style.color) span.style.color = input.style.color;
     input.insertAdjacentElement('afterend', span);
     input.style.display = 'none';
     return { input, span };
