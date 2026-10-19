@@ -4604,6 +4604,31 @@ function hideLogin() {
   if (app) app.style.display = '';
 }
 
+// ── RECORDAR DÓNDE ESTABAS AL RECARGAR ───────────
+// Además de la pestaña (hash), se recuerda la ficha de jugador abierta y la vista de Plantillas.
+const NAV_LS = 'rm-nav';
+(function navRestaurar() {
+  try {
+    const n = JSON.parse(localStorage.getItem(NAV_LS) || 'null');
+    if (!n || typeof n !== 'object') return;
+    if (typeof n.jugFichaId === 'string' && n.jugFichaId) {
+      jugFichaId = n.jugFichaId;
+      jugFichaTab = n.jugFichaTab === 'fichas' ? 'fichas' : 'datos';
+      jugFichaEvalId = typeof n.jugFichaEvalId === 'string' ? n.jugFichaEvalId : null;
+      jugVolverA = n.jugVolverA === 'plantillas' ? 'plantillas' : null;
+    }
+    if (typeof n.plantillaTemporada === 'string' && n.plantillaTemporada) plantillaTemporada = n.plantillaTemporada;
+    if (n.plVista && ['grid', 'datos', 'pres'].includes(n.plVista.modo)) plVista = { modo: n.plVista.modo, teamKey: n.plVista.teamKey || null };
+  } catch (_) { /* ignorar */ }
+})();
+function navGuardar() {
+  try {
+    localStorage.setItem(NAV_LS, JSON.stringify({ jugFichaId, jugFichaTab, jugFichaEvalId, jugVolverA, plantillaTemporada, plVista }));
+  } catch (_) { /* ignorar */ }
+}
+window.addEventListener('pagehide', navGuardar);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') navGuardar(); });
+
 let _appBooted = false;
 
 async function boot() {
