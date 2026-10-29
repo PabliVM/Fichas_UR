@@ -1,0 +1,47 @@
+rules_version = '2';
+// Reglas de Firestore para RM Perfiles — pegar en Firebase Console › Firestore › Reglas.
+// Perfil de cada usuario en usuarios/{email en minúsculas}: { activo, tabs: { registro|jugadores|plantillas|sucesion|config: 'oculta'|'ver'|'editar' } }
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function email() { return request.auth.token.email.lower(); }
+    function esSuper() { return request.auth != null && email() == 'pablo.vegamartin@gmail.com'; }
+    function perfilPath() { return /databases/$(database)/documents/usuarios/$(email()); }
+    function tienePerfil() { return request.auth != null && request.auth.token.email != null && exists(perfilPath()); }
+    function perfil() { return get(perfilPath()).data; }
+    function activo() { return esSuper() || (tienePerfil() && perfil().get('activo', true) == true); }
+    function edita(tab) { return esSuper() || (activo() && perfil().get('tabs', {}).get(tab, 'oculta') == 'editar'); }
+
+    // Gestión de usuarios: solo el super admin. Cada uno puede leer su propio perfil.
+    match /usuarios/{id} {
+      allow read: if esSuper() || (request.auth != null && request.auth.token.email != null && id == email());
+      allow write: if esSuper();
+    }
+
+    match /config/{id} {
+      allow read: if activo();
+      allow write: if edita('config');
+    }
+    match /evaluaciones/{id} {
+      allow read: if activo();
+      allow write: if edita('registro');
+    }
+    match /registros/{id} {
+      allow read: if activo();
+      allow write: if edita('registro');
+    }
+    // Jugadores y plantillas se modifican desde Registro (importar), Jugadores y Plantillas.
+    match /jugadores/{id} {
+      allow read: if activo();
+      allow write: if edita('registro') || edita('jugadores') || edita('plantillas');
+      match /historico/{h} {
+        allow read: if activo();
+        allow write: if edita('registro') || edita('jugadores') || edita('plantillas');
+      }
+    }
+    match /plantillas/{id} {
+      allow read: if activo();
+      allow write: if edita('registro') || edita('jugadores') || edita('plantillas');
+    }
+  }
+}

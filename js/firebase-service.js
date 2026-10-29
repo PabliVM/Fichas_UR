@@ -67,6 +67,12 @@ export function getFirebaseApp() {
   return _app;
 }
 
+// ── PERMISO DE ESCRITURA ─────────────────────────
+// app.js registra aquí la comprobación de "Solo lectura"; toda escritura pasa por ella.
+let _writeGuard = null;
+export function setWriteGuard(fn) { _writeGuard = fn; }
+function checkWrite() { if (_writeGuard) _writeGuard(); }
+
 // ── CRUD BASE ────────────────────────────────────
 
 /**
@@ -90,6 +96,7 @@ export function listenCollection(collectionName, callback, onError) {
  * opts.merge = true → fusiona con lo que ya haya en vez de sobreescribir.
  */
 export async function saveDocument(collectionName, documentId, data, opts = {}) {
+  checkWrite();
   const db = getDB();
   const payload = { ...data, updatedAt: serverTimestamp() };
   if (opts.merge) await setDoc(doc(db, collectionName, documentId), payload, { merge: true });
@@ -101,6 +108,7 @@ export async function saveDocument(collectionName, documentId, data, opts = {}) 
  * @returns {string} ID del documento creado
  */
 export async function addDocument(collectionName, data) {
+  checkWrite();
   const db  = getDB();
   const ref = await addDoc(collection(db, collectionName), {
     ...data,
@@ -114,6 +122,7 @@ export async function addDocument(collectionName, data) {
  * Actualiza campos concretos de un documento existente.
  */
 export async function updateDocument(collectionName, documentId, patch) {
+  checkWrite();
   const db = getDB();
   await updateDoc(doc(db, collectionName, documentId), {
     ...patch,
@@ -127,6 +136,7 @@ export async function updateDocument(collectionName, documentId, patch) {
  * (se usa FieldPath, no ruta con puntos). Si el documento no existe, lo crea con solo esa entrada.
  */
 export async function updateMapEntry(collectionName, documentId, campo, clave, valor) {
+  checkWrite();
   const db = getDB();
   const ref = doc(db, collectionName, documentId);
   const borrar = valor === null || valor === undefined;
@@ -143,6 +153,7 @@ export async function updateMapEntry(collectionName, documentId, campo, clave, v
  * Elimina un documento.
  */
 export async function deleteDocument(collectionName, documentId) {
+  checkWrite();
   const db = getDB();
   await deleteDoc(doc(db, collectionName, documentId));
 }
@@ -176,6 +187,7 @@ export async function readCollection(collectionName) {
  * @returns {string} ID del documento creado
  */
 export async function addSubDocument(parentCollection, parentId, subCollection, data) {
+  checkWrite();
   const db  = getDB();
   const ref = await addDoc(collection(db, parentCollection, parentId, subCollection), {
     ...data,
@@ -212,6 +224,7 @@ function getStorageInstance() {
  * @returns {string} URL de descarga
  */
 export async function uploadPlayerPhoto(playerId, file) {
+  checkWrite();
   const storage = getStorageInstance();
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
   const path = `jugadores/${playerId}/foto.${ext}`;

@@ -85,6 +85,12 @@ body {
 /* TAB PANELS */
 .tab-panel          { display: block; }
 .tab-panel.hidden   { display: none !important; }
+.tab-panel.solo-lectura::before {
+  content: '👁 Solo lectura — no se guardarán cambios en esta pantalla';
+  display: block; margin-bottom: 12px; padding: 6px 12px;
+  border-radius: var(--radius-md); background: rgba(245,158,11,0.12);
+  color: #f59e0b; font-size: 12px; font-weight: 600;
+}
 
 /* TOAST */
 .toast {

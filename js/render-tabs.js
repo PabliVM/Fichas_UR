@@ -3,13 +3,13 @@
 // ================================================
 
 import { state, setState } from './state.js';
-import { TABS }            from './constants.js';
+import { tabsVisibles }    from './permisos-service.js';
 
 export function renderTabs() {
   const nav = document.getElementById('rm-tabs');
   if (!nav) return;
 
-  nav.innerHTML = TABS.map(tab => `
+  nav.innerHTML = tabsVisibles().map(tab => `
     <button
       class="tab-btn ${state.activeTab === tab.key ? 'active' : ''}"
       data-tab="${tab.key}">

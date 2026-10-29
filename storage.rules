@@ -1,0 +1,15 @@
+rules_version = '2';
+// Reglas de Storage — pegar en Firebase Console › Storage › Reglas.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function email() { return request.auth.token.email.lower(); }
+    function esSuper() { return request.auth != null && email() == 'pablo.vegamartin@gmail.com'; }
+    function perfil() { return firestore.get(/databases/(default)/documents/usuarios/$(email())).data; }
+    function edita(tab) { return esSuper() || (request.auth != null && perfil().get('activo', true) == true && perfil().get('tabs', {}).get(tab, 'oculta') == 'editar'); }
+
+    match /jugadores/{id}/{file} {
+      allow read: if request.auth != null;
+      allow write: if edita('registro') || edita('jugadores') || edita('plantillas');
+    }
+  }
+}

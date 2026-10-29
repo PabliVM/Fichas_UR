@@ -2,9 +2,11 @@
 // APP.JS — Punto de entrada RM Perfiles
 // ================================================
 
-import { initFirebase, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, readCollection, saveDocument, readDocument, updateMapEntry, arrayUnion, arrayRemove } from './firebase-service.js';
+import { initFirebase, setWriteGuard, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, readCollection, saveDocument, readDocument, updateMapEntry, arrayUnion, arrayRemove } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
-import { watchAuthState, login, resetPassword } from './auth-service.js';
+import { watchAuthState, login, logout, resetPassword } from './auth-service.js';
+import { cargarPerfil, tabsVisibles, nivel, puedeVer, puedeEditar, esSuperadmin } from './permisos-service.js';
+import { renderPanelAdmin } from './admin-panel.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
 import { matchJugador } from './import-matching.js';
 import { calcularMediasPorJugador, calcularMediaGrupo, buildAspectoPorCompetencia } from './medias.js';
@@ -4535,6 +4537,7 @@ const RENDERERS = {
   sucesion:   renderPanelSucesion,
   fichas:     renderPanelFichas,
   config:     renderPanelConfig,
+  admin:      renderPanelAdmin,
 };
 
 // ── RENDERIZAR MAIN ───────────────────────────────
@@ -4543,9 +4546,9 @@ function renderMain() {
   const main = document.getElementById('rm-main');
   main.innerHTML = '';
 
-  TABS.forEach(tab => {
+  tabsVisibles().forEach(tab => {
     const panel = document.createElement('div');
-    panel.className = 'tab-panel' + (tab.key !== state.activeTab ? ' hidden' : '');
+    panel.className = 'tab-panel' + (tab.key !== state.activeTab ? ' hidden' : '') + (nivel(tab.key) === 'ver' ? ' solo-lectura' : '');
     panel.dataset.tab = tab.key;
     main.appendChild(panel);
 
@@ -4644,6 +4647,23 @@ function showLogin() {
   });
 }
 
+// Usuario autenticado pero sin ninguna pantalla asignada (o desactivado).
+function showSinPermisos(email) {
+  const app = document.getElementById('app');
+  if (app) app.style.display = 'none';
+  const overlay = ensureLoginOverlay();
+  overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:linear-gradient(160deg, var(--blue-600), var(--blue-400));font-family:var(--font-sans);padding:16px;';
+  overlay.innerHTML = `
+    <div style="background:var(--bg-surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:40px 36px;width:100%;max-width:380px;text-align:center;">
+      <img src="${LOGO_PATH}" alt="" style="width:80px;height:80px;object-fit:contain;margin:0 auto 16px;display:block;" />
+      <div style="font-size:18px;font-weight:800;color:var(--text-primary);margin-bottom:8px;">Sin permisos</div>
+      <p class="text-sm text-muted mb-16">${safeText(email || '')} aún no tiene pantallas asignadas. Pide acceso al administrador.</p>
+      <button class="btn btn-primary" id="sinperm-salir" style="width:100%;">Salir</button>
+    </div>
+  `;
+  overlay.querySelector('#sinperm-salir').addEventListener('click', () => logout().catch(err => console.error('[Auth] No se pudo cerrar sesión:', err)));
+}
+
 function hideLogin() {
   const overlay = document.getElementById('rm-login-overlay');
   if (overlay) overlay.style.display = 'none';
@@ -4681,10 +4701,24 @@ let _appBooted = false;
 async function boot() {
   initFirebase();
   watchAuthState(async user => {
-    if (!user) { showLogin(); return; }
+    if (!user) {
+      if (_appBooted) { location.reload(); return; } // al salir se descarta lo pintado con los permisos del usuario anterior
+      showLogin(); return;
+    }
+    if (_appBooted) { hideLogin(); return; } // ya está montado — no se repite en cada evento de auth
+
+    await cargarPerfil(user);
+    const visibles = tabsVisibles();
+    if (!visibles.length) { showSinPermisos(user.email); return; }
     hideLogin();
-    if (_appBooted) return; // ya está montado — no se repite en cada evento de auth
     _appBooted = true;
+    const hash = window.location.hash.replace('#', '');
+    if (hash === 'admin' && esSuperadmin()) setState({ activeTab: 'admin' });
+    else if (!puedeVer(state.activeTab)) setState({ activeTab: visibles[0].key });
+    // "Ver" = solo lectura: se bloquea cualquier guardado hecho desde esa pantalla (las reglas de Firestore lo impiden también).
+    setWriteGuard(() => {
+      if (!puedeEditar(state.activeTab)) throw Object.assign(new Error('Solo lectura: no tienes permiso para guardar en esta pantalla.'), { code: 'permission-denied' });
+    });
 
     await loadConfigFromFirestore(); // trae Configuración guardada antes de pintar
     await loadPlayersFromFirestore(); // trae la lista de jugadores
