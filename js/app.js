@@ -7,6 +7,7 @@ import { isFirebaseUnconfigured } from './firebase-config.js';
 import { watchAuthState, login, logout, resetPassword } from './auth-service.js';
 import { cargarPerfil, tabsVisibles, nivel, puedeVer, puedeEditar, esSuperadmin } from './permisos-service.js';
 import { renderPanelAdmin } from './admin-panel.js';
+import { leerTablaJugadores, CAMPO_LABEL } from './importar-jugadores.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
 import { matchJugador } from './import-matching.js';
 import { calcularMediasPorJugador, calcularMediaGrupo, buildAspectoPorCompetencia } from './medias.js';
@@ -1264,6 +1265,7 @@ function renderPanelRegistro(container) {
 }
 
 let jugadorFormId = null; // null=formulario cerrado, 'new'=alta, <id>=editando ese jugador
+let jugImport = null; // alta masiva desde Excel/CSV: { columnas, filas:[{data, avisos, estado, crear}] } mientras se revisa
 let configCriteriaPosition = null;      // qué posición se está editando en "Items a evaluar"
 let fichaTipoPosition = null;           // qué posición se está viendo en Configuración → Fichas tipo → Individual
 let configSubTab = localStorage.getItem('rm-config-subtab') || 'posiciones'; // pestaña interna activa dentro de Configuración — persiste al refrescar
@@ -2090,6 +2092,52 @@ function renderFichaJugador(container, p) {
 let jugadorHistoricoOpenId = null; // qué jugador tiene el histórico desplegado
 let jugadorHistoricoCache  = {};   // { [playerId]: entries[] } — evita releer si ya se abrió
 
+// Vista previa del alta masiva: qué columnas se han reconocido y qué jugadores se van a crear.
+function buildJugImportHTML() {
+  const { columnas, filas } = jugImport;
+  const reconocidas = columnas.filter(c => c.campo).map(c => `${safeText(c.titulo)} → ${CAMPO_LABEL[c.campo]}`).join(' · ');
+  const ignoradas = columnas.filter(c => !c.campo && c.titulo).map(c => safeText(c.titulo)).join(', ');
+  const n = filas.filter(f => f.crear).length;
+  const ESTADO = {
+    nuevo:    '<span class="badge badge-green">Nuevo</span>',
+    existe:   '<span class="badge badge-gray">Ya existe</span>',
+    dudoso:   '<span class="badge badge-gold">¿Ya existe?</span>',
+    repetido: '<span class="badge badge-gray">Repetido en el archivo</span>',
+  };
+  return `
+    <div class="card mb-16">
+      <div class="card-title">Importar jugadores (${filas.length} en el archivo)</div>
+      <div class="card-body">
+        <p class="text-xs text-muted mb-8"><strong>Columnas reconocidas:</strong> ${reconocidas}${ignoradas ? `<br><strong>Ignoradas:</strong> ${ignoradas}` : ''}</p>
+        <p class="text-xs text-muted mb-8">Se crean los marcados. Los datos que falten (o no se reconozcan) quedan vacíos y se pueden completar después con Editar. Las fotos se suben una a una desde Editar.</p>
+        <div style="overflow-x:auto;max-height:420px;overflow-y:auto;">
+          <table class="table table-compact">
+            <thead><tr><th><input type="checkbox" id="jimp-all" ${n === filas.length ? 'checked' : ''} /></th><th>Nombre</th><th>Apellidos</th><th>Nacimiento</th><th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th>Estado</th><th>Avisos</th></tr></thead>
+            <tbody>${filas.map((f, i) => `
+              <tr>
+                <td><input type="checkbox" data-jimp-i="${i}" ${f.crear ? 'checked' : ''} /></td>
+                <td>${safeText(f.data.nombre)}</td>
+                <td>${safeText(f.data.apellidos)}</td>
+                <td>${f.data.birthDate ? f.data.birthDate.split('-').reverse().join('/') : '-'}</td>
+                <td>${safeText(TEAMS.find(t => t.key === f.data.teamKey)?.label || '-')}</td>
+                <td>${safeText(state.positions.find(p => p.key === f.data.positionKey)?.label || '-')}</td>
+                <td>${f.data.weight ?? '-'}</td>
+                <td>${f.data.height ?? '-'}</td>
+                <td>${ESTADO[f.estado]}${f.parecido ? `<div class="text-xs text-muted">${safeText(f.parecido)}</div>` : ''}</td>
+                <td class="text-xs" style="color:#f59e0b;">${f.avisos.map(safeText).join('<br>')}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="flex gap-8 mt-16">
+          <button class="btn btn-primary" id="jimp-crear" ${n ? '' : 'disabled'}>Crear ${n} jugador${n === 1 ? '' : 'es'}</button>
+          <button class="btn btn-ghost" id="jimp-cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderPanelJugadores(container) {
   const editingPlayer = (jugadorFormId && jugadorFormId !== 'new')
     ? state.players.find(p => p.id === jugadorFormId)
@@ -2139,11 +2187,16 @@ function renderPanelJugadores(container) {
   container.innerHTML = `
     ${firebaseNotice()}
     ${jugadorFormId ? buildJugadorFormHTML(editingPlayer) : ''}
+    ${jugImport && !jugadorFormId ? buildJugImportHTML() : ''}
     ${soloForm ? '' : buildJugadoresFiltrosHTML()}
     <div class="card" ${soloForm ? 'style="display:none;"' : ''}>
       <div class="card-title">Jugadores (${jugadoresFiltrados.length}${jugadoresFiltrados.length !== state.players.length ? ` de ${state.players.length}` : ''})</div>
       <div class="card-body">
-        ${jugadorFormId ? '' : '<button class="btn btn-primary mb-16" id="jug-add">+ Añadir jugador</button>'}
+        ${jugadorFormId ? '' : `<div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
+          <button class="btn btn-primary" id="jug-add">+ Añadir jugador</button>
+          <button class="btn" id="jug-import" title="Excel o CSV con una fila de títulos: Nombre, Apellidos, Fecha de nacimiento, Lateralidad, Residencia, Edad madurativa, Equipo, Posición, Peso, Altura, Complexión">⬆ Importar desde Excel / CSV</button>
+          <input type="file" id="jug-import-file" accept=".xlsx,.xls,.csv" style="display:none;" />
+        </div>`}
         <div style="overflow-x:auto;">
           <table class="table">
             <thead>
@@ -2276,6 +2329,72 @@ function renderPanelJugadores(container) {
     jugadorFormId = 'new';
     renderPanelJugadores(container);
   });
+  // Alta masiva desde Excel/CSV
+  container.querySelector('#jug-import')?.addEventListener('click', () => container.querySelector('#jug-import-file').click());
+  container.querySelector('#jug-import-file')?.addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const { columnas, filas } = await leerTablaJugadores(file, state.positions);
+      if (!filas.length) { showError('No hay jugadores con nombre en el archivo.'); return; }
+      const vistos = new Set();
+      filas.forEach(f => {
+        const nombre = `${f.data.nombre} ${f.data.apellidos}`.trim();
+        const clave = nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const m = matchJugador(nombre, state.players, { teamKey: f.data.teamKey });
+        if (vistos.has(clave)) f.estado = 'repetido';
+        else if (m.status === 'auto') f.estado = 'existe';
+        else if (m.status === 'dudoso') f.estado = 'dudoso';
+        else f.estado = 'nuevo';
+        if (m.candidates.length && f.estado !== 'nuevo') f.parecido = m.candidates.map(nombreCompleto).join(' / ');
+        f.crear = f.estado === 'nuevo';
+        vistos.add(clave);
+      });
+      jugImport = { columnas, filas };
+      renderPanelJugadores(container);
+    } catch (err) {
+      console.error('[Importar jugadores]', err);
+      showError('No se pudo leer el archivo: ' + (err.message || err), 9000);
+    }
+  });
+  container.querySelectorAll('[data-jimp-i]').forEach(cb => cb.addEventListener('change', () => {
+    jugImport.filas[+cb.dataset.jimpI].crear = cb.checked;
+    renderPanelJugadores(container);
+  }));
+  container.querySelector('#jimp-all')?.addEventListener('change', e => {
+    jugImport.filas.forEach(f => { f.crear = e.target.checked; });
+    renderPanelJugadores(container);
+  });
+  container.querySelector('#jimp-cancel')?.addEventListener('click', () => { jugImport = null; renderPanelJugadores(container); });
+  container.querySelector('#jimp-crear')?.addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    const aCrear = jugImport.filas.filter(f => f.crear);
+    if (!aCrear.length) return;
+    btn.disabled = true;
+    let ok = 0;
+    const fallos = [];
+    for (const f of aCrear) {
+      btn.textContent = `Creando ${ok + fallos.length + 1} de ${aCrear.length}…`;
+      const data = f.data;
+      try {
+        const id = isFirebaseUnconfigured() ? crypto.randomUUID() : await addDocument('jugadores', data);
+        setState({ players: [...state.players, { id, ...data }] });
+        if (!isFirebaseUnconfigured() && HISTORICO_FIELDS.some(k => data[k] !== null)) {
+          await addSubDocument('jugadores', id, 'historico', Object.fromEntries(HISTORICO_FIELDS.map(k => [k, data[k]])));
+        }
+        if (data.teamKey) await añadirAPlantilla(id, data.teamKey, state.season);
+        ok++;
+      } catch (err) {
+        console.error('[Importar jugadores] Fallo con', data.nombre, data.apellidos, err);
+        fallos.push(`${data.nombre} ${data.apellidos}`.trim());
+      }
+    }
+    jugImport = null;
+    renderPanelJugadores(container);
+    if (ok) showSuccess(`${ok} jugador${ok === 1 ? '' : 'es'} creado${ok === 1 ? '' : 's'}.`);
+    if (fallos.length) showError(`Fallaron ${fallos.length}: ${fallos.join(', ')}. Revisa permisos o conexión.`, 12000);
+  });
+
   container.querySelector('#jug-cancel')?.addEventListener('click', () => {
     jugadorFormId = null;
     renderPanelJugadores(container);
