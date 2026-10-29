@@ -77,10 +77,11 @@ export async function renderPanelAdmin(container) {
       const data = { email, nombre, activo: true, tabs: Object.fromEntries(TABS.map(t => [t.key, 'oculta'])) };
       await saveDocument('usuarios', email, data);
       usuariosCache.push({ id: email, ...data });
+      renderPanelAdmin(container);
       const nueva = await crearCuenta(email);
       if (nueva) await resetPassword(email);
-      showSuccess(nueva ? 'Usuario creado. Se le ha enviado un email para poner su contraseña.' : 'Usuario añadido (ya tenía cuenta).');
-      renderPanelAdmin(container);
+      if (nueva === null) showSuccess('Usuario añadido. Falta crear su cuenta de login: Firebase Console › Authentication › Añadir usuario (con este email y una contraseña cualquiera); luego pulsa ✉ en su fila para que ponga la suya.', 15000);
+      else showSuccess(nueva ? 'Usuario creado. Se le ha enviado un email para poner su contraseña.' : 'Usuario añadido (ya tenía cuenta).');
     } catch (err) {
       console.error('[Admin] Alta:', err);
       showError('No se pudo añadir el usuario: ' + (err.message || err));

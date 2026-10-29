@@ -40,7 +40,8 @@ export function resetPassword(email) {
  * Crea la cuenta de login de otra persona (panel Super admin) con una contraseña
  * aleatoria; luego se le envía el email de restablecer. Usa una segunda instancia
  * de Firebase para no cerrar la sesión del admin.
- * @returns {boolean} true si se creó; false si ya existía
+ * @returns {boolean|null} true si se creó; false si ya existía; null si el proyecto no deja crear
+ *   cuentas desde la web (Authentication › Ajustes › Acciones de usuario: registro desactivado)
  */
 export async function crearCuenta(email) {
   const app2 = getApps().find(a => a.name === 'rm-alta') || initializeApp(firebaseConfig, 'rm-alta');
@@ -51,6 +52,7 @@ export async function crearCuenta(email) {
     return true;
   } catch (err) {
     if (err?.code === 'auth/email-already-in-use') return false;
+    if (err?.code === 'auth/admin-restricted-operation') return null;
     throw err;
   }
 }
