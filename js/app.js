@@ -5,7 +5,7 @@
 import { initFirebase, setWriteGuard, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, readCollection, saveDocument, readDocument, updateMapEntry, arrayUnion, arrayRemove } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { watchAuthState, login, logout, resetPassword } from './auth-service.js';
-import { cargarPerfil, tabsVisibles, nivel, puedeVer, puedeEditar, esSuperadmin } from './permisos-service.js';
+import { cargarPerfil, tabsVisibles, nivel, puedeVer, puedeEditar, esSuperadmin, SUBPANTALLAS } from './permisos-service.js';
 import { renderPanelAdmin } from './admin-panel.js';
 import { leerTablaJugadores, CAMPO_LABEL } from './importar-jugadores.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
@@ -93,6 +93,26 @@ function renderPanelSucesion(container) {
 }
 
 let registroSubTab = localStorage.getItem('rm-registro-subtab') || 'registro'; // 'registro' | 'bbdd'
+
+// ── PERMISOS POR SUBPANTALLA ─────────────────────
+// La subpantalla actual si el usuario puede verla; si no, la primera que sí.
+const subVisible = (tab, actual) => puedeVer(`${tab}.${actual}`) ? actual
+  : (SUBPANTALLAS[tab].find(x => puedeVer(`${tab}.${x.key}`))?.key ?? actual);
+// Clave de permiso de lo que se está viendo ahora ('config.items', 'jugadores.lista', 'sucesion'…).
+function pantallaActual() {
+  const t = state.activeTab;
+  if (t === 'registro') return `registro.${registroSubTab}`;
+  if (t === 'config') return `config.${configSubTab}`;
+  if (t === 'plantillas') return `plantillas.${plVista.modo}`;
+  if (t === 'jugadores') return jugFichaId ? `jugadores.${jugFichaTab}` : 'jugadores.lista';
+  return t;
+}
+// Aviso "Solo lectura" en la pestaña activa según la subpantalla que se ve.
+function actualizarSoloLectura() {
+  document.querySelectorAll('.tab-panel').forEach(p => {
+    p.classList.toggle('solo-lectura', p.dataset.tab === state.activeTab && nivel(pantallaActual()) === 'ver');
+  });
+}
 
 // ── REGISTRO DE DATOS: contexto de evaluación, import CSV y BBDD ──
 // Colecciones nuevas 'evaluaciones' y 'registros' (evaluaciones-service.js).
@@ -1240,13 +1260,14 @@ function renderComparativasSub(container) {
 }
 
 function renderPanelRegistro(container) {
+  registroSubTab = subVisible('registro', registroSubTab);
   ensureEvaluacionesLoaded(container);
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="rm-sticky mb-16 flex gap-8" style="padding:6px 0;">
-      <button class="btn ${registroSubTab === 'registro' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="registro">Registro</button>
-      <button class="btn ${registroSubTab === 'bbdd' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="bbdd">BBDD</button>
-      <button class="btn ${registroSubTab === 'comparativas' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="comparativas">Comparativas</button>
+      ${puedeVer('registro.registro') ? `<button class="btn ${registroSubTab === 'registro' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="registro">Registro</button>` : ''}
+      ${puedeVer('registro.bbdd') ? `<button class="btn ${registroSubTab === 'bbdd' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="bbdd">BBDD</button>` : ''}
+      ${puedeVer('registro.comparativas') ? `<button class="btn ${registroSubTab === 'comparativas' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="comparativas">Comparativas</button>` : ''}
     </div>
     <div id="registro-sub-content"></div>
   `;
@@ -1929,6 +1950,7 @@ function renderFichaJugador(container, p) {
   };
 
   if (jugFichaTab === 'ficha1' || jugFichaTab === 'ficha2') jugFichaTab = 'fichas';
+  jugFichaTab = subVisible('jugadores', jugFichaTab);
   const refKey = jugRefKey(evSel, id);
   const refLista = jugRef.who && (jugRef.who !== 'jug' || (jugRef.jugId && jugRef.evalId));
   const refData = (refLista && refKey) ? (jugRefCache[refKey] || null) : null;
@@ -1991,8 +2013,8 @@ function renderFichaJugador(container, p) {
       </div>
     </div></div>
     <div class="flex gap-8 mb-16">
-      <button class="btn ${jugFichaTab === 'datos' ? 'btn-primary' : 'btn-sm'}" data-jug-tab="datos">Datos personales</button>
-      <button class="btn ${jugFichaTab === 'fichas' ? 'btn-primary' : 'btn-sm'}" data-jug-tab="fichas">Ficha 1 y Ficha 2</button>
+      ${puedeVer('jugadores.datos') ? `<button class="btn ${jugFichaTab === 'datos' ? 'btn-primary' : 'btn-sm'}" data-jug-tab="datos">Datos personales</button>` : ''}
+      ${puedeVer('jugadores.fichas') ? `<button class="btn ${jugFichaTab === 'fichas' ? 'btn-primary' : 'btn-sm'}" data-jug-tab="fichas">Ficha 1 y Ficha 2</button>` : ''}
     </div>
     ${jugFichaTab === 'datos' ? datosHTML : fichaTabHTML}
   `;
@@ -2145,6 +2167,7 @@ function renderPanelJugadores(container) {
   if (jugadorFormId && jugadorFormId !== 'new' && !editingPlayer) jugadorFormId = null; // se borró, cierra el form
 
   // Ficha de jugador abierta (y sin formulario de edición encima) → vista de ficha
+  if (jugFichaId && !jugadorFormId && !puedeVer('jugadores.datos') && !puedeVer('jugadores.fichas')) jugFichaId = null; // sin permiso para fichas
   if (jugFichaId && !jugadorFormId) {
     const fichaPlayer = state.players.find(pl => pl.id === jugFichaId);
     if (fichaPlayer) { renderFichaJugador(container, fichaPlayer); return; }
@@ -2722,12 +2745,14 @@ function renderPanelConfig(container) {
     fichaTipoPosition = state.positions[0].key;
   }
 
-  const grupoCfg = CONFIG_GROUPS.find(g => g.tabs.some(t => t.key === configSubTab)) || CONFIG_GROUPS[0];
+  configSubTab = subVisible('config', configSubTab);
+  const gruposVis = CONFIG_GROUPS.map(g => ({ ...g, tabs: g.tabs.filter(t => puedeVer(`config.${t.key}`)) })).filter(g => g.tabs.length);
+  const grupoCfg = gruposVis.find(g => g.tabs.some(t => t.key === configSubTab)) || gruposVis[0] || CONFIG_GROUPS[0];
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="rm-sticky mb-16" style="border-bottom:1px solid var(--border-default);padding-bottom:8px;">
       <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
-        ${CONFIG_GROUPS.map(g => `<button class="btn ${g === grupoCfg ? 'btn-primary' : 'btn-sm'}" data-config-group="${g.label}" style="font-weight:700;">${g.label}</button>`).join('')}
+        ${gruposVis.map(g => `<button class="btn ${g === grupoCfg ? 'btn-primary' : 'btn-sm'}" data-config-group="${g.label}" style="font-weight:700;">${g.label}</button>`).join('')}
       </div>
       <div class="flex gap-8" style="align-items:center;flex-wrap:wrap;">
         ${grupoCfg.tabs.map(t => `<button class="btn ${t.key === configSubTab ? 'btn-secondary' : 'btn-sm'}" ${t.key === configSubTab ? 'style="background:var(--bg-hover);border-color:var(--border-strong,var(--border-default));font-weight:700;"' : ''} data-config-subtab="${t.key}">${t.label}</button>`).join('')}
@@ -3085,7 +3110,7 @@ function renderPanelConfig(container) {
   container.querySelectorAll('[data-config-group]').forEach(btn => {
     btn.addEventListener('click', () => {
       const g = CONFIG_GROUPS.find(x => x.label === btn.dataset.configGroup); if (!g) return;
-      configSubTab = g.tabs[0].key;
+      configSubTab = (g.tabs.find(t => puedeVer(`config.${t.key}`)) || g.tabs[0]).key;
       localStorage.setItem('rm-config-subtab', configSubTab);
       renderPanelConfig(container);
     });
@@ -3652,6 +3677,7 @@ function renderPanelPlantillas(container) {
     return;
   }
   if (!plantillaTemporada || !state.seasons.includes(plantillaTemporada)) plantillaTemporada = state.season || state.seasons[0] || '';
+  if (plVista.modo !== 'grid' && !puedeVer(`plantillas.${plVista.modo}`)) plVista = { modo: 'grid', teamKey: null };
   if (plVista.modo === 'datos') return renderPlantillaDatos(container);
   if (plVista.modo === 'pres') return renderPlantillaPresentacion(container);
   const docDe = teamKey => plantillasCache.find(d => d.id === plantillaDocId(plantillaTemporada, teamKey));
@@ -3680,8 +3706,8 @@ function renderPanelPlantillas(container) {
             <div style="width:190px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;">
               <div><b>${safeText(t.label)}</b><div class="text-xs text-muted" title="Jugadores de campo + porteros">${campo}+${porteros} <span style="opacity:.7;">campo+porteros</span></div></div>
               <div class="flex gap-8" style="flex-wrap:wrap;">
-                <button class="btn btn-sm" data-pl-datos="${t.key}" ${ids.length ? '' : 'disabled'}>Datos</button>
-                <button class="btn btn-sm btn-primary" data-pl-pres="${t.key}" ${ids.length ? '' : 'disabled'}>Presentación de fichas</button>
+                ${puedeVer('plantillas.datos') ? `<button class="btn btn-sm" data-pl-datos="${t.key}" ${ids.length ? '' : 'disabled'}>Datos</button>` : ''}
+                ${puedeVer('plantillas.pres') ? `<button class="btn btn-sm btn-primary" data-pl-pres="${t.key}" ${ids.length ? '' : 'disabled'}>Presentación de fichas</button>` : ''}
                 <button class="btn btn-sm" data-pl-lista-btn="${t.key}">+ Lista</button>
               </div>
             </div>
@@ -4667,7 +4693,7 @@ function renderMain() {
 
   tabsVisibles().forEach(tab => {
     const panel = document.createElement('div');
-    panel.className = 'tab-panel' + (tab.key !== state.activeTab ? ' hidden' : '') + (nivel(tab.key) === 'ver' ? ' solo-lectura' : '');
+    panel.className = 'tab-panel' + (tab.key !== state.activeTab ? ' hidden' : '');
     panel.dataset.tab = tab.key;
     main.appendChild(panel);
 
@@ -4836,7 +4862,7 @@ async function boot() {
     else if (!puedeVer(state.activeTab)) setState({ activeTab: visibles[0].key });
     // "Ver" = solo lectura: se bloquea cualquier guardado hecho desde esa pantalla (las reglas de Firestore lo impiden también).
     setWriteGuard(() => {
-      if (!puedeEditar(state.activeTab)) throw Object.assign(new Error('Solo lectura: no tienes permiso para guardar en esta pantalla.'), { code: 'permission-denied' });
+      if (!puedeEditar(pantallaActual())) throw Object.assign(new Error('Solo lectura: no tienes permiso para guardar en esta pantalla.'), { code: 'permission-denied' });
     });
 
     await loadConfigFromFirestore(); // trae Configuración guardada antes de pintar
@@ -4847,6 +4873,10 @@ async function boot() {
     renderTabs();
     renderMain();
     setupEvents();
+    actualizarSoloLectura();
+    // Cada clic puede cambiar de subpantalla: se recalcula el aviso después de que actúe el botón.
+    document.addEventListener('click', () => setTimeout(actualizarSoloLectura, 0), true);
+    document.addEventListener('rm:tab-changed', () => setTimeout(actualizarSoloLectura, 0));
   });
 }
 
