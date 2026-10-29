@@ -8,7 +8,7 @@ import { TABS } from './constants.js';
 import { readCollection, saveDocument, deleteDocument } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { crearCuenta, resetPassword } from './auth-service.js';
-import { NIVELES, SUPERADMIN_EMAIL, emailKey } from './permisos-service.js';
+import { NIVELES, SUPERADMIN_EMAILS, emailKey } from './permisos-service.js';
 import { showError, showSuccess, safeText } from './utils.js';
 
 const NIVEL_LABEL = { oculta: 'Oculta', ver: 'Ver', editar: 'Editar' };
@@ -45,7 +45,7 @@ export async function renderPanelAdmin(container) {
     <div class="card">
       <div class="card-title">Usuarios y permisos</div>
       <div class="card-body" style="overflow-x:auto;">
-        <p class="text-xs text-muted mb-16">Super admin: ${safeText(SUPERADMIN_EMAIL)} (acceso total, no aparece aquí).</p>
+        <p class="text-xs text-muted mb-16">Super admin: ${safeText(SUPERADMIN_EMAILS.join(', '))} (acceso total, no aparece aquí).</p>
         ${usuarios.length ? `
         <table class="table">
           <thead><tr><th>Usuario</th><th>Activo</th>${TABS.map(t => `<th>${safeText(t.label)}</th>`).join('')}<th></th></tr></thead>
@@ -71,7 +71,7 @@ export async function renderPanelAdmin(container) {
     const email = emailKey(container.querySelector('#adm-email').value);
     const nombre = container.querySelector('#adm-nombre').value.trim();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { showError('Email no válido.'); return; }
-    if (email === SUPERADMIN_EMAIL) { showError('Ese es el super admin.'); return; }
+    if (SUPERADMIN_EMAILS.includes(email)) { showError('Ese es el super admin.'); return; }
     if (usuariosCache.some(u => u.id === email)) { showError('Ese usuario ya está en la lista.'); return; }
     try {
       const data = { email, nombre, activo: true, tabs: Object.fromEntries(TABS.map(t => [t.key, 'oculta'])) };

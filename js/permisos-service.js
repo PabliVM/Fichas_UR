@@ -2,7 +2,7 @@
 // PERMISOS-SERVICE.JS — Acceso por pantalla
 // Perfil en usuarios/{email en minúsculas}:
 //   { email, nombre, activo, tabs: { registro: 'oculta'|'ver'|'editar', ... } }
-// El super admin (SUPERADMIN_EMAIL) ve y edita todo y tiene la pestaña
+// Los super admin (SUPERADMIN_EMAILS) ve y edita todo y tiene la pestaña
 // "Super admin". Sin perfil (o activo:false) = sin acceso.
 // Esto solo filtra la interfaz: la protección real son firestore.rules.
 // ================================================
@@ -11,7 +11,7 @@ import { TABS } from './constants.js';
 import { readDocument } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 
-export const SUPERADMIN_EMAIL = 'pablo.vegamartin@gmail.com';
+export const SUPERADMIN_EMAILS = ['pablo.vegamartin@gmail.com', 'pvega@realmadrid.es'];
 export const ADMIN_TAB = { key: 'admin', label: 'Super admin' };
 export const NIVELES = ['oculta', 'ver', 'editar'];
 
@@ -21,7 +21,7 @@ let _super  = false;
 export const emailKey = email => String(email || '').trim().toLowerCase();
 
 export async function cargarPerfil(user) {
-  _super = isFirebaseUnconfigured() || emailKey(user?.email) === SUPERADMIN_EMAIL;
+  _super = isFirebaseUnconfigured() || SUPERADMIN_EMAILS.includes(emailKey(user?.email));
   _perfil = null;
   if (_super) return;
   try { _perfil = await readDocument('usuarios', emailKey(user.email)); }

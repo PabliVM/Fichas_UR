@@ -3,7 +3,7 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     function email() { return request.auth.token.email.lower(); }
-    function esSuper() { return request.auth != null && email() == 'pablo.vegamartin@gmail.com'; }
+    function esSuper() { return request.auth != null && email() in ['pablo.vegamartin@gmail.com', 'pvega@realmadrid.es']; }
     function perfil() { return firestore.get(/databases/(default)/documents/usuarios/$(email())).data; }
     function edita(tab) { return esSuper() || (request.auth != null && perfil().get('activo', true) == true && perfil().get('tabs', {}).get(tab, 'oculta') == 'editar'); }
 

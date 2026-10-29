@@ -5,7 +5,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function email() { return request.auth.token.email.lower(); }
-    function esSuper() { return request.auth != null && email() == 'pablo.vegamartin@gmail.com'; }
+    function esSuper() { return request.auth != null && email() in ['pablo.vegamartin@gmail.com', 'pvega@realmadrid.es']; }
     function perfilPath() { return /databases/$(database)/documents/usuarios/$(email()); }
     function tienePerfil() { return request.auth != null && request.auth.token.email != null && exists(perfilPath()); }
     function perfil() { return get(perfilPath()).data; }
