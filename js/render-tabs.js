@@ -3,7 +3,7 @@
 // ================================================
 
 import { state, setState } from './state.js';
-import { tabsVisibles }    from './permisos-service.js';
+import { tabsVisibles, puedeVer } from './permisos-service.js';
 
 export function renderTabs() {
   const nav = document.getElementById('rm-tabs');
@@ -24,6 +24,7 @@ export function renderTabs() {
 
 export function switchTab(tabKey) {
   if (state.activeTab === tabKey) return;
+  if (!puedeVer(tabKey)) return; // pestaña sin permiso (p. ej. enlace desde otra)
   setState({ activeTab: tabKey });
   history.replaceState(null, '', '#' + tabKey);
   try { localStorage.setItem('rm-tab', tabKey); } catch (_) { /* ignorar */ }
