@@ -1597,10 +1597,38 @@ function calcAgeAndYear(birthDateStr) {
 
 // Datos VARIABLES del jugador — llevan histórico (subcolección
 // jugadores/{id}/historico): cada cambio se AÑADE, nunca se sobreescribe.
+// Solo se registra un CAMBIO real (había un valor y pasa a otro distinto);
+// rellenar un dato vacío no genera entrada. Entrada: { cambios:[{campo, antes, despues}], …foto actual }.
 // El propio doc del jugador guarda el último valor (teamKey/positionKey/
 // weight/height/complexion) como "espejo" para listar rápido, tal como
 // ya se hacía con weight/height — solo se amplía el mismo patrón.
 const HISTORICO_FIELDS = ['teamKey', 'positionKey', 'weight', 'height', 'complexion'];
+const esVacio = v => v === null || v === undefined || v === '';
+
+// Cambios reales entre el jugador guardado (prev) y lo nuevo, incluidos los datos condicionales.
+function cambiosHistorico(prev, nuevo) {
+  const cambios = [];
+  HISTORICO_FIELDS.forEach(f => {
+    if (f in nuevo && !esVacio(prev[f]) && prev[f] !== (nuevo[f] ?? null)) cambios.push({ campo: f, antes: prev[f], despues: nuevo[f] ?? null });
+  });
+  [['condicionalPorEval', 'media'], ['condicionalMaxPorEval', 'max']].forEach(([k, tipo]) => {
+    if (!nuevo[k]) return;
+    Object.entries(prev[k] || {}).forEach(([evalId, items]) => Object.entries(items || {}).forEach(([item, antes]) => {
+      const despues = nuevo[k][evalId]?.[item] ?? null;
+      if (!esVacio(antes) && antes !== despues) cambios.push({ campo: 'condicional', tipo, evalId, item, antes, despues });
+    }));
+  });
+  return cambios;
+}
+
+async function registrarCambios(id, prev, nuevo) {
+  const cambios = cambiosHistorico(prev, nuevo);
+  if (!cambios.length || isFirebaseUnconfigured()) return;
+  const h = { cambios };
+  HISTORICO_FIELDS.forEach(f => { h[f] = (f in nuevo ? nuevo[f] : prev[f]) ?? null; });
+  await addSubDocument('jugadores', id, 'historico', h);
+  delete jugadorHistoricoCache[id]; // se recarga la próxima vez que se abra
+}
 
 async function cargarEvaluacionesSilencioso() {
   if (regEvaluaciones !== null) return;
@@ -1712,21 +1740,42 @@ function buildJugadorFormHTML(player) {
   `;
 }
 
+function textoCambio(c) {
+  const num = v => String(v).replace('.', ',');
+  const val = v => {
+    if (esVacio(v)) return '—';
+    if (c.campo === 'teamKey') return safeText(TEAMS.find(t => t.key === v)?.label || v);
+    if (c.campo === 'positionKey') return safeText(state.positions.find(p => p.key === v)?.label || v);
+    if (c.campo === 'weight') return num(v) + ' kg';
+    if (c.campo === 'height') return num(v) + ' m';
+    if (c.campo === 'condicional') return num(v);
+    return safeText(v);
+  };
+  let etiqueta = { teamKey: 'Equipo', positionKey: 'Posición', weight: 'Peso', height: 'Altura', complexion: 'Complexión' }[c.campo];
+  if (c.campo === 'condicional') {
+    const item = (state.aspectosComunes.condicional || []).find(x => slugify(x) === c.item) || c.item;
+    const ev = (regEvaluaciones || []).find(e => e.id === c.evalId);
+    etiqueta = `Condicional · ${safeText(item)}${c.tipo === 'max' ? ' (máx.)' : ''}${ev ? ` · ${safeText([ev.temporada, ev.nombre].filter(Boolean).join(' '))}` : ''}`;
+  }
+  return `${etiqueta}: ${val(c.antes)} → <strong>${val(c.despues)}</strong>`;
+}
+
 function buildHistoricoHTML(entries) {
-  if (!entries.length) return '<p class="text-xs text-muted">Sin histórico todavía.</p>';
-  const sorted = [...entries].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-  const rows = sorted.map(e => {
+  // Entradas antiguas (solo foto de los datos): se comparan con la anterior y se muestran solo los cambios reales.
+  const asc = [...entries].sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+  const filas = [];
+  let anterior = null;
+  asc.forEach(e => {
+    const cambios = e.cambios || (anterior
+      ? HISTORICO_FIELDS.filter(f => !esVacio(anterior[f]) && anterior[f] !== (e[f] ?? null)).map(f => ({ campo: f, antes: anterior[f], despues: e[f] ?? null }))
+      : []);
+    anterior = e;
+    if (cambios.length) filas.push({ e, cambios });
+  });
+  if (!filas.length) return '<p class="text-xs text-muted">Sin cambios registrados todavía.</p>';
+  const rows = filas.reverse().map(({ e, cambios }) => {
     const fecha = e.createdAt?.seconds ? new Date(e.createdAt.seconds * 1000).toLocaleDateString('es-ES') : '-';
-    const cambios = HISTORICO_FIELDS.filter(f => e[f] !== undefined && e[f] !== null && e[f] !== '')
-      .map(f => {
-        if (f === 'teamKey') return 'Equipo: ' + safeText(TEAMS.find(t => t.key === e.teamKey)?.label || e.teamKey);
-        if (f === 'positionKey') return 'Posición: ' + safeText(state.positions.find(p => p.key === e.positionKey)?.label || e.positionKey);
-        if (f === 'weight') return 'Peso: ' + e.weight + ' kg';
-        if (f === 'height') return 'Altura: ' + e.height + ' m';
-        if (f === 'complexion') return 'Complexión: ' + safeText(e.complexion);
-        return '';
-      }).join(' · ');
-    return `<tr><td>${fecha}</td><td>${cambios}</td></tr>`;
+    return `<tr><td style="white-space:nowrap;">${fecha}</td><td>${cambios.map(textoCambio).join('<br>')}</td></tr>`;
   }).join('');
   return `<table class="table table-compact"><tbody>${rows}</tbody></table>`;
 }
@@ -2402,9 +2451,6 @@ function renderPanelJugadores(container) {
       try {
         const id = isFirebaseUnconfigured() ? crypto.randomUUID() : await addDocument('jugadores', data);
         setState({ players: [...state.players, { id, ...data }] });
-        if (!isFirebaseUnconfigured() && HISTORICO_FIELDS.some(k => data[k] !== null)) {
-          await addSubDocument('jugadores', id, 'historico', Object.fromEntries(HISTORICO_FIELDS.map(k => [k, data[k]])));
-        }
         if (data.teamKey) await añadirAPlantilla(id, data.teamKey, state.season);
         ok++;
       } catch (err) {
@@ -2543,14 +2589,8 @@ function renderPanelJugadores(container) {
     saveBtn.textContent = 'Guardando…';
     if (fotoFile && crop) fotoFile = (await exportarCrop()) || fotoFile; // sube el recorte, no el original
 
-    // ¿Cambió algún dato con histórico respecto al valor actual? Solo se
-    // añade una entrada de histórico si de verdad hay un cambio — evita
-    // entradas vacías o repetidas cada vez que se guarda el formulario.
     const isNew = jugadorFormId === 'new';
     const prev = isNew ? {} : (editingPlayer || {});
-    const changedHistorico = isNew
-      ? HISTORICO_FIELDS.some(f => historicoData[f] !== null)
-      : HISTORICO_FIELDS.some(f => historicoData[f] !== (prev[f] ?? null));
 
     try {
       let id;
@@ -2570,10 +2610,7 @@ function renderPanelJugadores(container) {
         catch (err) { console.error('[Firestore] No se pudo añadir a la plantilla:', err); showError('Jugador guardado, pero no se pudo añadir a la plantilla.'); }
       }
 
-      if (changedHistorico && !isFirebaseUnconfigured()) {
-        await addSubDocument('jugadores', id, 'historico', historicoData);
-        delete jugadorHistoricoCache[id]; // se recarga la próxima vez que se abra
-      }
+      if (!isNew) await registrarCambios(id, prev, { ...baseData, ...historicoData }); // solo cambios reales, no datos nuevos
 
       if (fotoFile && !isFirebaseUnconfigured()) {
         try {
@@ -3635,11 +3672,7 @@ async function guardarCampoJugador(id, campo, valor) {
   await updateDocument('jugadores', id, patch);
   const nuevo = { ...p, ...patch };
   setState({ players: state.players.map(x => x.id === id ? nuevo : x) });
-  if (HISTORICO_FIELDS.includes(campo)) {
-    const h = {}; HISTORICO_FIELDS.forEach(f => { h[f] = nuevo[f] ?? null; });
-    await addSubDocument('jugadores', id, 'historico', h);
-    delete jugadorHistoricoCache[id];
-  }
+  await registrarCambios(id, p, patch);
 }
 
 // "Apellidos, Nombre" (con coma) o "Nombre Apellidos" (1ª palabra = nombre, resto = apellidos).
@@ -3663,7 +3696,6 @@ async function crearPlantillaDesdeLista(texto, teamKey, temporada) {
     const data = { nombre: pj.nombre, apellidos: pj.apellidos, birthDate: null, foot: '', maturationalAge: '', teamKey, positionKey: null, weight: null, height: null, complexion: null };
     const id = await addDocument('jugadores', data);
     setState({ players: [...state.players, { id, ...data }] });
-    await addSubDocument('jugadores', id, 'historico', { teamKey, positionKey: null, weight: null, height: null, complexion: null });
     await añadirAPlantilla(id, teamKey, temporada);
     res.creados.push(linea.trim());
   }
