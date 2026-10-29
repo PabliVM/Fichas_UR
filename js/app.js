@@ -1595,6 +1595,15 @@ function calcAgeAndYear(birthDateStr) {
   return { age, year };
 }
 
+// Años en el club: se guarda el número que se metió y la temporada en que se metió
+// (aniosClub, aniosClubTemporada); cada temporada posterior suma uno sola.
+const inicioTemporada = t => parseInt(String(t || '').slice(0, 4), 10);
+function aniosEnClub(p) {
+  if (p?.aniosClub == null) return null;
+  const dif = inicioTemporada(state.season) - inicioTemporada(p.aniosClubTemporada || state.season);
+  return Math.max(0, p.aniosClub + (Number.isNaN(dif) ? 0 : dif));
+}
+
 // Datos VARIABLES del jugador — llevan histórico (subcolección
 // jugadores/{id}/historico): cada cambio se AÑADE, nunca se sobreescribe.
 // Solo se registra un CAMBIO real (había un valor y pasa a otro distinto);
@@ -1691,6 +1700,10 @@ function buildJugadorFormHTML(player) {
           <div class="field-group" style="min-width:150px;">
             <label class="label">Edad madurativa</label>
             <input class="input" type="text" id="jug-maturational" value="${safeText(p.maturationalAge ?? '')}" />
+          </div>
+          <div class="field-group" style="min-width:150px;">
+            <label class="label">Años en el club</label>
+            <input class="input" type="number" min="0" step="1" id="jug-anios-club" value="${aniosEnClub(p) ?? ''}" title="Temporada ${safeText(state.season)}: cada temporada siguiente suma uno sola" />
           </div>
         </div>
         <div class="text-xs text-muted mt-16 mb-8" style="font-weight:700;text-transform:uppercase;">Datos con histórico (cada cambio se guarda, no se pierde el anterior)</div>
@@ -1972,7 +1985,7 @@ function renderFichaJugador(container, p) {
       <div class="flex gap-24" style="flex-wrap:wrap;">
         ${dato('Nombre', p.nombre)}${dato('Apellidos', p.apellidos)}${dato('Equipo', teamLabel)}${dato('Posición', posLabel)}
         ${dato('Fecha de nacimiento', p.birthDate)}${dato('Año', year)}${dato('Edad', age != null ? age + ' años' : null)}
-        ${dato('Lateralidad', p.foot)}${dato('Edad madurativa', p.maturationalAge)}
+        ${dato('Lateralidad', p.foot)}${dato('Edad madurativa', p.maturationalAge)}${dato('Años en el club', aniosEnClub(p))}
         ${dato('Peso', p.weight != null ? p.weight + ' kg' : null)}${dato('Altura', p.height != null ? p.height + ' m' : null)}${dato('Complexión', p.complexion)}
       </div>
     </div></div>
@@ -2230,7 +2243,7 @@ function renderPanelJugadores(container) {
     const teamLabel = TEAMS.find(t => t.key === p.teamKey)?.label || '-';
     const posLabel  = state.positions.find(pos => pos.key === p.positionKey)?.label || '-';
     const historicoRow = jugadorHistoricoOpenId === p.id ? `
-      <tr><td colspan="10" style="background:var(--bg-hover);">
+      <tr><td colspan="11" style="background:var(--bg-hover);">
         ${jugadorHistoricoCache[p.id] ? buildHistoricoHTML(jugadorHistoricoCache[p.id]) : '<p class="text-xs text-muted">Cargando…</p>'}
       </td></tr>
     ` : '';
@@ -2241,6 +2254,7 @@ function renderPanelJugadores(container) {
         <td><a href="#" data-jug-ficha="${p.id}" style="font-weight:600;color:inherit;text-decoration:underline;cursor:pointer;">${safeText(p.apellidos || '')}</a></td>
         <td>${year ?? '-'}</td>
         <td>${age ?? '-'}</td>
+        <td>${aniosEnClub(p) ?? '-'}</td>
         <td>${safeText(teamLabel)}</td>
         <td>${safeText(posLabel)}</td>
         <td>${p.weight != null ? p.weight + ' kg' : '-'}</td>
@@ -2273,11 +2287,11 @@ function renderPanelJugadores(container) {
           <table class="table">
             <thead>
               <tr>
-                <th></th><th>Nombre</th><th>Apellidos</th><th>Año</th><th>Edad</th>
+                <th></th><th>Nombre</th><th>Apellidos</th><th>Año</th><th>Edad</th><th>Años club</th>
                 <th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th></th>
               </tr>
             </thead>
-            <tbody>${rows || `<tr><td colspan="10" class="text-muted">${state.players.length ? 'Ningún jugador coincide con los filtros.' : 'Sin jugadores todavía.'}</td></tr>`}</tbody>
+            <tbody>${rows || `<tr><td colspan="11" class="text-muted">${state.players.length ? 'Ningún jugador coincide con los filtros.' : 'Sin jugadores todavía.'}</td></tr>`}</tbody>
           </table>
         </div>
       </div>
@@ -2573,6 +2587,14 @@ function renderPanelJugadores(container) {
       residencia: container.querySelector('#jug-residencia').value,
       maturationalAge: container.querySelector('#jug-maturational').value.trim(),
     };
+    // Años en el club: si no se toca, se conserva la referencia; si cambia, se apunta en la temporada actual.
+    const aniosTxt = container.querySelector('#jug-anios-club').value.trim();
+    const aniosNum = aniosTxt === '' ? null : parseInt(aniosTxt, 10);
+    if (aniosTxt !== '' && (Number.isNaN(aniosNum) || aniosNum < 0)) { showError('Años en el club debe ser un número entero.'); return; }
+    if (aniosNum !== aniosEnClub(jugadorFormId === 'new' ? null : editingPlayer)) {
+      baseData.aniosClub = aniosNum;
+      baseData.aniosClubTemporada = aniosNum == null ? null : state.season;
+    }
     const historicoData = {
       teamKey: container.querySelector('#jug-team').value || null,
       positionKey: container.querySelector('#jug-position').value || null,
