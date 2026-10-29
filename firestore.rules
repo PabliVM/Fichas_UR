@@ -1,5 +1,6 @@
 rules_version = '2';
 // Reglas de Firestore para RM Perfiles — pegar en Firebase Console › Firestore › Reglas.
+// Si cambian los emails de super admin (js/permisos-service.js), cambiarlos también aquí y volver a Publicar.
 // Perfil de cada usuario en usuarios/{email en minúsculas}: { activo, tabs: { registro|jugadores|plantillas|sucesion|config: 'oculta'|'ver'|'editar' } }
 service cloud.firestore {
   match /databases/{database}/documents {
