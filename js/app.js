@@ -7,7 +7,7 @@ import { isFirebaseUnconfigured } from './firebase-config.js';
 import { watchAuthState, login, logout, resetPassword } from './auth-service.js';
 import { cargarPerfil, tabsVisibles, nivel, puedeVer, puedeEditar, esSuperadmin, SUBPANTALLAS } from './permisos-service.js';
 import { renderPanelAdmin } from './admin-panel.js';
-import { leerTablaJugadores, CAMPO_LABEL } from './importar-jugadores.js';
+import { leerTablaJugadores, CAMPO_LABEL, descargarPlantilla } from './importar-jugadores.js';
 import { leerFilas, filasDesdeTexto, leerTablaCondicional } from './importar-condicional.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
 import { matchJugador } from './import-matching.js';
@@ -2179,7 +2179,59 @@ let jugadorHistoricoOpenId = null; // qué jugador tiene el histórico desplegad
 let jugadorHistoricoCache  = {};   // { [playerId]: entries[] } — evita releer si ya se abrió
 
 // Vista previa del alta masiva: qué columnas se han reconocido y qué jugadores se van a crear.
+// Formato que espera una importación: vista tipo Excel (letra de columna, fila 1 = títulos, fila 2 = ejemplo)
+// y, debajo, qué va en cada columna. cols: [{ titulo, ejemplo, nota }]
+function formatoImportHTML(cols, intro) {
+  const letra = i => (i >= 26 ? String.fromCharCode(64 + Math.floor(i / 26)) : '') + String.fromCharCode(65 + (i % 26));
+  const celda = 'border:1px solid var(--border-default);padding:4px 8px;white-space:nowrap;';
+  const cab = `${celda}background:var(--bg-hover);color:var(--text-muted);text-align:center;font-weight:600;`;
+  return `
+    <div class="mb-16">
+      <p class="text-sm mb-8"><strong>Así tiene que ser el archivo:</strong> ${intro}</p>
+      <div style="overflow-x:auto;">
+        <table style="border-collapse:collapse;font-size:12px;">
+          <tr><td style="${cab}"></td>${cols.map((_, i) => `<td style="${cab}">${letra(i)}</td>`).join('')}</tr>
+          <tr><td style="${cab}">1</td>${cols.map(c => `<td style="${celda}font-weight:700;">${safeText(c.titulo)}</td>`).join('')}</tr>
+          <tr><td style="${cab}">2</td>${cols.map(c => `<td style="${celda}color:var(--text-muted);">${safeText(c.ejemplo ?? '')}</td>`).join('')}</tr>
+        </table>
+      </div>
+      <ul class="text-xs text-muted" style="margin:8px 0 0 18px;">
+        ${cols.map((c, i) => `<li><strong>${letra(i)} · ${safeText(c.titulo)}</strong>${c.nota ? ` — ${c.nota}` : ''}</li>`).join('')}
+      </ul>
+    </div>`;
+}
+
+function columnasPlantillaJugadores() {
+  return [
+    { titulo: 'Nombre', ejemplo: 'Alfredo', nota: '<strong>obligatoria</strong>.' },
+    { titulo: 'Apellidos', ejemplo: 'Sotres García' },
+    { titulo: 'Fecha de nacimiento', ejemplo: '15/03/2004', nota: 'dd/mm/aaaa (o fecha de Excel).' },
+    { titulo: 'Lateralidad', ejemplo: 'Diestro', nota: 'Diestro, Zurdo o Ambidiestro.' },
+    { titulo: 'Residencia', ejemplo: 'En residencia', nota: 'Residente en Madrid, En residencia o Media pensión.' },
+    { titulo: 'Edad madurativa', ejemplo: '' },
+    { titulo: 'Equipo', ejemplo: TEAMS[1]?.label || '', nota: 'uno de: ' + TEAMS.map(t => safeText(t.label)).join(', ') + '.' },
+    { titulo: 'Posición', ejemplo: state.positions[0]?.label || '', nota: 'una de: ' + state.positions.map(p => safeText(p.label)).join(', ') + '.' },
+    { titulo: 'Peso', ejemplo: '78,5', nota: 'en kg.' },
+    { titulo: 'Altura', ejemplo: '1,85', nota: 'en metros (1,85) o centímetros (185).' },
+    { titulo: 'Complexión', ejemplo: '' },
+  ];
+}
+
 function buildJugImportHTML() {
+  if (!jugImport.filas) {
+    return `
+    <div class="card mb-16">
+      <div class="card-title">Importar jugadores desde Excel / CSV</div>
+      <div class="card-body">
+        ${formatoImportHTML(columnasPlantillaJugadores(), 'una fila por jugador; la fila 1 con estos títulos (el orden da igual y puedes quitar las columnas que no tengas). Lo que falte queda vacío y se completa luego con Editar. Las fotos se suben desde Editar.')}
+        <div class="flex gap-8" style="flex-wrap:wrap;align-items:center;">
+          <button class="btn" id="jimp-plantilla">⬇ Descargar plantilla Excel</button>
+          <input class="input" type="file" id="jug-import-file" accept=".xlsx,.xls,.csv" />
+          <button class="btn btn-ghost" id="jimp-cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>`;
+  }
   const { columnas, filas } = jugImport;
   const reconocidas = columnas.filter(c => c.campo).map(c => `${safeText(c.titulo)} → ${CAMPO_LABEL[c.campo]}`).join(' · ');
   const ignoradas = columnas.filter(c => !c.campo && c.titulo).map(c => safeText(c.titulo)).join(', ');
@@ -2224,6 +2276,15 @@ function buildJugImportHTML() {
   `;
 }
 
+function columnasPlantillaCondicional() {
+  const items = state.aspectosComunes.condicional || [];
+  return [
+    { titulo: 'Jugador', ejemplo: 'Sotres García, Alfredo', nota: '<strong>obligatoria</strong>: "Apellidos, Nombre" o "Nombre Apellidos" (o dos columnas Nombre y Apellidos).' },
+    ...items.map(i => ({ titulo: i, ejemplo: '', nota: 'media.' })),
+    ...items.map(i => ({ titulo: `${i} máx`, ejemplo: '', nota: 'máxima.' })),
+  ];
+}
+
 // Carga de datos condicionales (media/máxima de una evaluación) desde Excel/CSV o lista pegada.
 function buildCondImportHTML() {
   const evs = regEvaluaciones || [];
@@ -2236,9 +2297,9 @@ function buildCondImportHTML() {
       <div class="card-body">
         ${!evs.length ? '<p class="text-sm text-muted">Crea primero una evaluación en Registro de datos.</p>' : !items.length ? '<p class="text-sm text-muted">No hay ítems condicionales en Configuración › Aspectos.</p>' : `
         <div class="field-group mb-8"><label class="label">Evaluación</label>${evSelect}</div>
-        <p class="text-xs text-muted mb-8">Primera fila = títulos: una columna con el jugador (Jugador, o Nombre y Apellidos) y una por ítem, con el mismo nombre que en Configuración: ${items.map(safeText).join(' · ')}.
-          Para la máxima, añade "máx" al título (p. ej. "${safeText(items[0])} máx"). Celdas vacías = no se tocan.</p>
+        ${formatoImportHTML(columnasPlantillaCondicional(), 'una fila por jugador; la fila 1 con estos títulos (el orden da igual y puedes quitar los ítems que no midas). Las celdas vacías no borran nada. Decimales con coma o punto.')}
         <div class="flex gap-8 mb-8" style="flex-wrap:wrap;align-items:center;">
+          <button class="btn" id="cimp-plantilla">⬇ Descargar plantilla Excel</button>
           <input class="input" type="file" id="cimp-file" accept=".xlsx,.xls,.csv" />
         </div>
         <textarea class="input" id="cimp-texto" rows="6" style="width:100%;font-family:monospace;font-size:12px;" placeholder="…o pega aquí la tabla copiada de Excel (con la fila de títulos)"></textarea>
@@ -2346,7 +2407,6 @@ function renderPanelJugadores(container) {
         ${jugadorFormId ? '' : `<div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
           <button class="btn btn-primary" id="jug-add">+ Añadir jugador</button>
           <button class="btn" id="jug-import" title="Excel o CSV con una fila de títulos: Nombre, Apellidos, Fecha de nacimiento, Lateralidad, Residencia, Edad madurativa, Equipo, Posición, Peso, Altura, Complexión">⬆ Importar desde Excel / CSV</button>
-          <input type="file" id="jug-import-file" accept=".xlsx,.xls,.csv" style="display:none;" />
           <button class="btn" id="jug-cond-import" title="Media y máxima de cada ítem condicional, para una evaluación">⬆ Datos condicionales (Excel / lista)</button>
         </div>`}
         <div style="overflow-x:auto;">
@@ -2482,7 +2542,11 @@ function renderPanelJugadores(container) {
     renderPanelJugadores(container);
   });
   // Alta masiva desde Excel/CSV
-  container.querySelector('#jug-import')?.addEventListener('click', () => container.querySelector('#jug-import-file').click());
+  container.querySelector('#jug-import')?.addEventListener('click', () => { condImport = null; jugImport = {}; renderPanelJugadores(container); });
+  container.querySelector('#jimp-plantilla')?.addEventListener('click', () => {
+    const cols = columnasPlantillaJugadores();
+    descargarPlantilla('plantilla-jugadores.xlsx', [cols.map(c => c.titulo)]); // solo títulos: una fila de ejemplo se importaría como jugador
+  });
   container.querySelector('#jug-import-file')?.addEventListener('change', async e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -2547,11 +2611,16 @@ function renderPanelJugadores(container) {
   // Carga de datos condicionales
   container.querySelector('#jug-cond-import')?.addEventListener('click', async () => {
     await cargarEvaluacionesSilencioso();
+    jugImport = null;
     condImport = { evalId: regEvaluaciones?.[0]?.id || null };
     renderPanelJugadores(container);
   });
   container.querySelector('#cimp-eval')?.addEventListener('change', e => { condImport.evalId = e.target.value; });
   container.querySelector('#cimp-cancel')?.addEventListener('click', () => { condImport = null; renderPanelJugadores(container); });
+  container.querySelector('#cimp-plantilla')?.addEventListener('click', () => {
+    const cols = columnasPlantillaCondicional();
+    descargarPlantilla('plantilla-datos-condicionales.xlsx', [cols.map(c => c.titulo)]);
+  });
   container.querySelector('#cimp-leer')?.addEventListener('click', async () => {
     try {
       const file = container.querySelector('#cimp-file').files[0];

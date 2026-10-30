@@ -169,3 +169,10 @@ export async function leerTablaJugadores(file, positions) {
 
   return { columnas, filas };
 }
+
+/** Descarga un Excel vacío con la fila de títulos, para rellenar e importar. */
+export function descargarPlantilla(nombreArchivo, filas2D) {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(filas2D), 'Datos');
+  XLSX.writeFile(wb, nombreArchivo);
+}
