@@ -16,9 +16,9 @@ import { parseCSV, parseXLSXBuffer, parseEsNumber, buildRowKey, clasificarFilas 
 import { renderHeader }  from './render-header.js';
 import { renderTabs, switchTab } from './render-tabs.js';
 import { renderFooter }  from './render-footer.js';
-import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS, PROFILES } from './constants.js';
+import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS, PROFILES, CONDICIONAL_BASE, esEquipoBase } from './constants.js';
 import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore, loadPlayersFromFirestore } from './state.js';
-import { renderFichaDetalle, setGpsTolerance, condicionalScore, fitFichaToFrame } from './ficha-detalle.js';
+import { renderFichaDetalle, setGpsTolerance, condicionalScore, condicionalBaseScore, fitFichaToFrame } from './ficha-detalle.js';
 import { renderFichaPagina1 } from './ficha-pagina1.js';
 import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
 import { exportFichaAsPDF, exportFichasAsPDF } from './pdf-export.js';
@@ -170,6 +170,25 @@ function condicionalItems(positionKey, comp, jugador, evalId) {
   });
 }
 
+// Alevines e infantiles: el bloque Condicional son capacidades con símbolo puesto a mano, por evaluación
+// (jugadores/{id}.condicionalBasePorEval[evaluación] = { slug: 'ok' | 'dash' | 'fail' }).
+const SIMBOLO_TXT = { ok: '✔', dash: '▬', fail: '✘' };
+function condicionalBaseItems(jugador, evKey) {
+  const m = jugador?.condicionalBasePorEval?.[evKey] || {};
+  return CONDICIONAL_BASE.map(label => ({ label, key: slugify(label), simbolo: m[slugify(label)] || '' }));
+}
+async function guardarCondicionalBase(j, evKey, mapa) {
+  const prev = { condicionalBasePorEval: JSON.parse(JSON.stringify(j.condicionalBasePorEval || {})) };
+  const todo = { ...(j.condicionalBasePorEval || {}), [evKey]: mapa };
+  j.condicionalBasePorEval = todo;
+  const enEstado = state.players.find(x => x.id === j.id);
+  if (enEstado && enEstado !== j) enEstado.condicionalBasePorEval = todo;
+  try {
+    await updateMapEntry('jugadores', j.id, 'condicionalBasePorEval', evKey, mapa);
+    await registrarCambios(j.id, prev, { condicionalBasePorEval: todo });
+  } catch (err) { console.error(err); showError('No se pudo guardar el dato condicional.'); }
+}
+
 // Notas manuales de la Ficha 2: se guardan por jugador y evaluación (jugadores/{id}.fichaNotasManuales[evaluación] = { 'bloque|ítem': nota }).
 async function guardarNotasManuales(j, evKey, mapa) {
   const hay = Object.keys(mapa).length > 0;
@@ -186,9 +205,12 @@ function buildFichaRealData(positionKey, media, jugador, evalId, ref) {
   const schema = state.criteriaSchemas[positionKey] || {};
   const comp = media?.porCompetencia || {};
   const rated = list => (list || []).map(label => ({ label, value: comp[label] ?? null }));
-  const condicional = condicionalItems(positionKey, comp, jugador, evalId);
+  const base = esEquipoBase(jugador?.teamKey);
+  const evKey = evalId || 'sin-evaluacion';
+  const condicional = base ? condicionalBaseItems(jugador, evKey) : condicionalItems(positionKey, comp, jugador, evalId);
   return {
     ref: ref || null,
+    onBase: base && jugador?.id ? (mapa => guardarCondicionalBase(jugador, evKey, mapa)) : null,
     manual: jugador?.fichaNotasManuales?.[evalId || 'sin-evaluacion'] || null,
     onManual: jugador?.id ? (mapa => guardarNotasManuales(jugador, evalId || 'sin-evaluacion', mapa)) : null,
     player: { name: jugador ? `${jugador.nombre} ${jugador.apellidos}`.trim() : 'Jugador', photoUrl: jugador?.fotoUrl || null },
@@ -196,7 +218,7 @@ function buildFichaRealData(positionKey, media, jugador, evalId, ref) {
       mental:      { rp: [null, null], items: rated(state.aspectosComunes.mental) },
       tecnico:     { rp: [null, null], items: rated(schema.tecnico ?? state.aspectosComunes.tecnico) },
       tactico:     { rp: [null, null], items: rated(schema.tactico) },
-      condicional: { rp: null,         items: condicional },
+      condicional: { rp: null,         items: condicional, base },
     },
     plan: {
       tecnico: ['', '', '', '', '', '', ''], tactico: ['', '', '', '', '', '', ''],
@@ -245,7 +267,9 @@ function buildFicha1RealData(positionKey, media, jugador, aspectos, evalId) {
     mental: hexMedia(mediaBloque(state.aspectosComunes.mental)),
     tecnico: hexMedia(mediaBloque(schema.tecnico ?? state.aspectosComunes.tecnico)),
     tactico: hexMedia(mediaBloque(schema.tactico)),
-    condicional: hexMedia(condicionalScore(condicionalItems(positionKey, comp, jugador, evalId), state.condicionalTolerance)),
+    condicional: hexMedia(esEquipoBase(jugador?.teamKey)
+      ? condicionalBaseScore(condicionalBaseItems(jugador, evalId || 'sin-evaluacion'))
+      : condicionalScore(condicionalItems(positionKey, comp, jugador, evalId), state.condicionalTolerance)),
   };
 
   return {
@@ -1622,7 +1646,7 @@ function cambiosHistorico(prev, nuevo) {
   HISTORICO_FIELDS.forEach(f => {
     if (f in nuevo && !esVacio(prev[f]) && prev[f] !== (nuevo[f] ?? null)) cambios.push({ campo: f, antes: prev[f], despues: nuevo[f] ?? null });
   });
-  [['condicionalPorEval', 'media'], ['condicionalMaxPorEval', 'max']].forEach(([k, tipo]) => {
+  [['condicionalPorEval', 'media'], ['condicionalMaxPorEval', 'max'], ['condicionalBasePorEval', 'base']].forEach(([k, tipo]) => {
     if (!nuevo[k]) return;
     Object.entries(prev[k] || {}).forEach(([evalId, items]) => Object.entries(items || {}).forEach(([item, antes]) => {
       const despues = nuevo[k][evalId]?.[item] ?? null;
@@ -1731,7 +1755,23 @@ function buildJugadorFormHTML(player) {
             <input class="input" type="text" id="jug-complexion" value="${safeText(p.complexion ?? '')}" />
           </div>
         </div>
-        ${(state.aspectosComunes.condicional || []).length ? `
+        ${esEquipoBase(p.teamKey) ? `
+        <div class="text-xs text-muted mt-16 mb-8" style="font-weight:700;text-transform:uppercase;">Condicional (alevines e infantiles → Ficha 2 con símbolos)</div>
+        ${(regEvaluaciones || []).length ? `
+        <div class="field-group mb-8" style="min-width:260px;max-width:360px;">
+          <label class="label">Evaluación</label>
+          <select class="select" id="jug-cond-eval">${regEvaluaciones.map((e, i) => `<option value="${e.id}" ${i === 0 ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>
+        </div>
+        <div style="overflow-x:auto;"><table class="table table-compact" style="max-width:520px;">
+          <thead><tr><th>Capacidad</th><th>Valoración</th></tr></thead>
+          <tbody>${CONDICIONAL_BASE.map(item => `
+            <tr><td>${safeText(item)}</td>
+              <td><select class="select" data-jug-cbase="${safeText(slugify(item))}" style="width:130px;">
+                <option value="">—</option><option value="ok">✔ Bien</option><option value="dash">▬ Regular</option><option value="fail">✘ Mal</option>
+              </select></td>
+            </tr>`).join('')}</tbody>
+        </table></div>` : '<p class="text-xs text-muted">Crea primero una evaluación (Registro de datos) para poder guardar datos condicionales.</p>'}`
+        : (state.aspectosComunes.condicional || []).length ? `
         <div class="text-xs text-muted mt-16 mb-8" style="font-weight:700;text-transform:uppercase;">Datos condicionales del jugador (media y máxima por evaluación → Ficha 2, columnas 1 y 2)</div>
         ${(regEvaluaciones || []).length ? `
         <div class="field-group mb-8" style="min-width:260px;max-width:360px;">
@@ -1763,12 +1803,12 @@ function textoCambio(c) {
     if (c.campo === 'positionKey') return safeText(state.positions.find(p => p.key === v)?.label || v);
     if (c.campo === 'weight') return num(v) + ' kg';
     if (c.campo === 'height') return num(v) + ' m';
-    if (c.campo === 'condicional') return num(v);
+    if (c.campo === 'condicional') return c.tipo === 'base' ? (SIMBOLO_TXT[v] || v) : num(v);
     return safeText(v);
   };
   let etiqueta = { teamKey: 'Equipo', positionKey: 'Posición', weight: 'Peso', height: 'Altura', complexion: 'Complexión' }[c.campo];
   if (c.campo === 'condicional') {
-    const item = (state.aspectosComunes.condicional || []).find(x => slugify(x) === c.item) || c.item;
+    const item = [...(state.aspectosComunes.condicional || []), ...CONDICIONAL_BASE].find(x => slugify(x) === c.item) || c.item;
     const ev = (regEvaluaciones || []).find(e => e.id === c.evalId);
     etiqueta = `Condicional · ${safeText(item)}${c.tipo === 'max' ? ' (máx.)' : ''}${ev ? ` · ${safeText([ev.temporada, ev.nombre].filter(Boolean).join(' '))}` : ''}`;
   }
@@ -1962,7 +2002,14 @@ function renderFichaJugador(container, p) {
   const porEval = p.condicionalPorEval || {};
   const porEvalMax = p.condicionalMaxPorEval || {};
   const evCond = [...new Set([...Object.keys(porEval), ...Object.keys(porEvalMax)])].filter(eid => Object.keys(porEval[eid] || {}).length || Object.keys(porEvalMax[eid] || {}).length);
-  const condHTML = evCond.length ? `
+  const porEvalBase = p.condicionalBasePorEval || {};
+  const evBase = Object.keys(porEvalBase).filter(eid => Object.keys(porEvalBase[eid] || {}).length);
+  const condHTML = esEquipoBase(p.teamKey) ? (evBase.length ? `
+    <div style="overflow-x:auto;"><table class="table table-compact">
+      <thead><tr><th>Evaluación</th>${CONDICIONAL_BASE.map(i => `<th>${safeText(i)}</th>`).join('')}</tr></thead>
+      <tbody>${evBase.map(eid => `<tr><td>${safeText(evLabel(eid))}</td>${CONDICIONAL_BASE.map(i => `<td style="text-align:center;font-weight:700;">${SIMBOLO_TXT[porEvalBase[eid]?.[slugify(i)]] || '—'}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table></div>` : '<p class="text-xs text-muted">Sin datos condicionales. Se ponen en Editar o pulsando los símbolos de la Ficha 2.</p>')
+  : evCond.length ? `
     <div style="overflow-x:auto;"><table class="table table-compact">
       <thead><tr><th>Evaluación (media / máx)</th>${items.map(i => `<th>${safeText(i)}</th>`).join('')}</tr></thead>
       <tbody>${evCond.map(eid => `<tr><td>${safeText(evLabel(eid))}</td>${items.map(i => `<td>${safeText(porEval[eid]?.[slugify(i)] ?? '—')} / ${safeText(porEvalMax[eid]?.[slugify(i)] ?? '—')}</td>`).join('')}</tr>`).join('')}</tbody>
@@ -2739,9 +2786,15 @@ function renderPanelJugadores(container) {
   const condMaxInputs = [...container.querySelectorAll('[data-jug-condmax]')];
   const condDraft = JSON.parse(JSON.stringify((jugadorFormId !== 'new' && editingPlayer?.condicionalPorEval) || {}));
   const condMaxDraft = JSON.parse(JSON.stringify((jugadorFormId !== 'new' && editingPlayer?.condicionalMaxPorEval) || {}));
+  const cbSelects = [...container.querySelectorAll('[data-jug-cbase]')]; // alevines/infantiles: símbolos
+  const cbDraft = JSON.parse(JSON.stringify((jugadorFormId !== 'new' && editingPlayer?.condicionalBasePorEval) || {}));
   let condEvalActual = condSel?.value || null;
   const condVolcar = () => { // inputs → borrador de la evaluación actual
     if (!condEvalActual) return;
+    if (cbSelects.length) {
+      cbDraft[condEvalActual] = {};
+      cbSelects.forEach(sel => { if (sel.value) cbDraft[condEvalActual][sel.dataset.jugCbase] = sel.value; });
+    }
     condDraft[condEvalActual] = condDraft[condEvalActual] || {};
     condInputs.forEach(inp => {
       const raw = inp.value.trim();
@@ -2756,6 +2809,7 @@ function renderPanelJugadores(container) {
     });
   };
   const condCargar = () => { // borrador → inputs
+    cbSelects.forEach(sel => { sel.value = cbDraft[condEvalActual]?.[sel.dataset.jugCbase] || ''; });
     condInputs.forEach(inp => { inp.value = condDraft[condEvalActual]?.[inp.dataset.jugCond] ?? ''; });
     condMaxInputs.forEach(inp => { inp.value = condMaxDraft[condEvalActual]?.[inp.dataset.jugCondmax] ?? ''; });
   };
@@ -2806,7 +2860,8 @@ function renderPanelJugadores(container) {
       height: container.querySelector('#jug-height').value === '' ? null : parseFloat(container.querySelector('#jug-height').value),
       complexion: container.querySelector('#jug-complexion').value.trim() || null,
     };
-    if (condicionalPorEval) baseData.condicionalPorEval = condicionalPorEval;
+    if (cbSelects.length) baseData.condicionalBasePorEval = Object.fromEntries(Object.entries(cbDraft).filter(([, m]) => Object.keys(m).length));
+    if (condicionalPorEval && !cbSelects.length) baseData.condicionalPorEval = condicionalPorEval;
     if (condicionalMaxPorEval) baseData.condicionalMaxPorEval = condicionalMaxPorEval;
     let fotoFile = container.querySelector('#jug-foto').files[0] || null;
     if (!baseData.nombre) { showError('El nombre es obligatorio.'); return; }

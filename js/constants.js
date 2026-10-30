@@ -9,6 +9,13 @@ export const FOOTER_TEXT    = 'Cantera del Real Madrid CF — RM Perfiles';
 
 export const SEASONS = ['2026/2027', '2025/2026'];
 
+// Bloque CONDICIONAL de la Ficha 2 para alevines e infantiles: capacidades con símbolo (✔ / ▬ / ✘) en vez de datos GPS.
+export const CONDICIONAL_BASE = [
+  'Coordinación', 'Agilidad', 'Velocidad', 'Aceleración', 'Cambios de ritmo (potencia)',
+  'Cambios de dirección', 'C. de repetir esfuerzos', 'Desarrollo físico (fuerza)', 'Edad madurativa',
+];
+export const esEquipoBase = teamKey => /^(alevin|infantil)/.test(teamKey || '');
+
 // Dimensiones "oficiales" de la Ficha 2 (documentación de referencia,
 // no editable desde la UI — son valores fijos en css/ficha.css y
 // js/ficha-detalle.js). Sirven para: 1) consulta rápida, 2) base de
