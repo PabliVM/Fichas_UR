@@ -40,16 +40,27 @@ export function condicionalScore(items, tolerance) {
     const diff = Math.round((v - r) * 100) / 100;
     if (diff > tol) ok++; else if (diff < -tol) fail++; else dash++;
   });
+  return notaDeSimbolos(ok, dash, fail);
+}
+
+// Proporción de puntos (✔ = 1, ▬ = 0,5, ✘ = 0) → nota 0-5 con tramos: ≥70% = 4+ (verde), 40-69% = 3-3,99 (amarillo), <40% = <3 (rojo).
+function notaDeSimbolos(ok, dash, fail) {
   const n = ok + dash + fail;
   if (!n) return null;
-  // Proporción de puntos → nota 0-5 con tramos: ≥70% = 4+ (verde), 40-69% = 3-3,99 (amarillo), <40% = <3 (rojo).
   const r = (ok + 0.5 * dash) / n;
   return r >= 0.7 ? 4 + (r - 0.7) / 0.3 : r >= 0.4 ? 3 + (r - 0.4) / 0.3 : (3 * r) / 0.4;
+}
+
+/** Nota del bloque CONDICIONAL de alevines/infantiles: símbolos puestos a mano ('ok' | 'dash' | 'fail'). */
+export function condicionalBaseScore(items) {
+  const c = st => (items || []).filter(i => i.simbolo === st).length;
+  return notaDeSimbolos(c('ok'), c('dash'), c('fail'));
 }
 
 function blockAvg(block) {
   if (block?.rp && block.rp[0] != null) return block.rp[0];
   if ((block?.items || []).some(i => 'refA' in i)) return condicionalScore(block.items);
+  if (block?.base) return condicionalBaseScore(block.items);
   const vals = (block?.items || []).map(i => i.value).filter(v => typeof v === 'number' && !Number.isNaN(v));
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 }
@@ -280,6 +291,43 @@ function buildCondicionalBlock({ title, rp, items, pos }) {
       </div>
     </section>
   `;
+}
+
+// ── BLOQUE CONDICIONAL de alevines/infantiles: lista de capacidades con un símbolo
+// puesto a mano (clic: vacío → ✔ → ▬ → ✘ → vacío). Sin valores GPS ni referencias.
+const SIMBOLOS_BASE = ['', 'ok', 'dash', 'fail'];
+const simboloBaseHTML = st => st === 'ok' ? '✔' : st === 'fail' ? '✘' : st === 'dash' ? '<span class="cb-box"></span>' : '';
+
+function buildCondicionalBaseBlock({ title, items, pos }) {
+  const rows = items.map(item => `
+    <li class="cb-row">
+      <span class="cb-label">• ${safeText(item.label)}</span>
+      <span class="cb-sim gps-${item.simbolo || 'none'}" data-cb="${safeText(item.key)}" data-st="${item.simbolo || ''}" role="button" title="Clic: ✔ / ▬ / ✘ / vacío">${simboloBaseHTML(item.simbolo)}</span>
+    </li>`).join('');
+  return `
+    <section class="ficha-quadrant q-condicional pos-${pos} q-left ficha-condicional">
+      <header class="ficha-q-header">
+        <span class="ficha-q-title">${safeText(title)}</span>
+      </header>
+      <div class="ficha-condicional-body">
+        <ul class="cb-list">${rows}</ul>
+      </div>
+    </section>
+  `;
+}
+
+/** Clic en un símbolo: pasa al siguiente y llama a onBase({ clave: 'ok'|'dash'|'fail' }) con todos los puestos. */
+function wireCondicionalBase(container, onBase) {
+  container.querySelectorAll('.cb-sim').forEach(el => el.addEventListener('click', () => {
+    const st = SIMBOLOS_BASE[(SIMBOLOS_BASE.indexOf(el.dataset.st || '') + 1) % SIMBOLOS_BASE.length];
+    el.dataset.st = st;
+    el.className = `cb-sim gps-${st || 'none'}`;
+    el.innerHTML = simboloBaseHTML(st);
+    if (typeof onBase !== 'function') return;
+    const mapa = {};
+    container.querySelectorAll('.cb-sim').forEach(x => { if (x.dataset.st) mapa[x.dataset.cb] = x.dataset.st; });
+    onBase(mapa);
+  }));
 }
 
 // ── PLAN DE ACCIÓN ────────────────────────────────
@@ -531,6 +579,9 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
   const sideForPos = pos => (pos === 'tl' || pos === 'bl') ? 'left' : 'right';
   const buildBlockAt = pos => {
     const key = order[pos];
+    if (key === 'condicional' && blocks.condicional.base) {
+      return buildCondicionalBaseBlock({ title: BLOCK_TITLES.condicional, items: blocks.condicional.items, pos });
+    }
     if (key === 'condicional') {
       return buildCondicionalBlock({ title: BLOCK_TITLES.condicional, rp: blocks.condicional.rp, items: blocks.condicional.items, pos });
     }
@@ -558,6 +609,7 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
     '<p class="ficha-m-legend"><b>M</b>- valoración propuesta en la reunión de seguimiento de perfiles junto al Departamento de Metodología</p>');
 
   wireCondicionalInputs(container);
+  wireCondicionalBase(container, data.onBase);
   wireNotasManuales(container, bands, data.onManual);
 
   const fichaRoot = container.querySelector('.ficha-detalle');

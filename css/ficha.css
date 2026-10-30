@@ -270,6 +270,14 @@
 .gps-ok   { color: var(--score-green); }
 .gps-fail { color: var(--score-red); }
 .gps-dash { color: var(--score-yellow); } /* dentro de ±0,2 respecto a la columna 3 */
+
+/* CONDICIONAL de alevines/infantiles: capacidades + símbolo puesto a mano (ver buildCondicionalBaseBlock). */
+.cb-list { list-style: none; margin: 0; padding: 60px 10px 60px 90px; display: flex; flex-direction: column; row-gap: 14px; font-size: 55px; }
+.cb-row { display: flex; align-items: center; column-gap: 80px; }
+.cb-label { color: #ffffff; white-space: nowrap; flex: 0 0 1250px; }
+.cb-sim { flex: 0 0 auto; width: 110px; height: 80px; display: flex; align-items: center; justify-content: center; font-size: 80px; font-weight: 800; line-height: 1; cursor: pointer; border: 1px dashed rgba(255,255,255,0.25); border-radius: 6px; }
+.cb-sim:not(.gps-none) { border-color: transparent; }
+.cb-box { display: inline-block; width: 70px; height: 42px; background: var(--score-yellow); border-radius: 3px; }
 .gps-label { color: #ffffff; white-space: nowrap; } /* nunca 2 líneas — ver equalizeGpsLabelWidth en ficha-detalle.js */
 
 /* Columnas 3/4: valores fijos de Configuración → Datos condicionales.
