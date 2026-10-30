@@ -11,7 +11,7 @@ import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.18.7/package/xlsx.mjs';
 import { parseCSV, parseEsNumber } from './importar-csv.js';
 import { TEAMS } from './constants.js';
 
-const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+export const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 // Títulos de columna aceptados (ya normalizados) por campo.
 const CAMPOS = {
@@ -35,7 +35,7 @@ export const CAMPO_LABEL = {
 };
 const RESIDENCIAS = ['Residente en Madrid', 'En residencia', 'Media pensión'];
 
-function campoDeCabecera(h) {
+export function campoDeCabecera(h) {
   const n = norm(h);
   if (!n) return null;
   const exacto = Object.keys(CAMPOS).find(c => CAMPOS[c].includes(n));
@@ -48,7 +48,7 @@ function campoDeCabecera(h) {
   return mejor;
 }
 
-async function leerFilas(file) {
+export async function leerFilas(file) {
   if (/\.csv$/i.test(file.name)) {
     const { headers, rows } = parseCSV(await file.text());
     return rows.map(r => headers.map(h => r[h]));

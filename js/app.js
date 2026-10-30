@@ -8,6 +8,7 @@ import { watchAuthState, login, logout, resetPassword } from './auth-service.js'
 import { cargarPerfil, tabsVisibles, nivel, puedeVer, puedeEditar, esSuperadmin, SUBPANTALLAS } from './permisos-service.js';
 import { renderPanelAdmin } from './admin-panel.js';
 import { leerTablaJugadores, CAMPO_LABEL } from './importar-jugadores.js';
+import { leerFilas, filasDesdeTexto, leerTablaCondicional } from './importar-condicional.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
 import { matchJugador } from './import-matching.js';
 import { calcularMediasPorJugador, calcularMediaGrupo, buildAspectoPorCompetencia } from './medias.js';
@@ -1287,6 +1288,7 @@ function renderPanelRegistro(container) {
 
 let jugadorFormId = null; // null=formulario cerrado, 'new'=alta, <id>=editando ese jugador
 let jugImport = null; // alta masiva desde Excel/CSV: { columnas, filas:[{data, avisos, estado, crear}] } mientras se revisa
+let condImport = null; // carga de datos condicionales: { evalId, columnas?, filas?:[{nombre, media, max, avisos, playerId}] }
 let configCriteriaPosition = null;      // qué posición se está editando en "Items a evaluar"
 let fichaTipoPosition = null;           // qué posición se está viendo en Configuración → Fichas tipo → Individual
 let configSubTab = localStorage.getItem('rm-config-subtab') || 'posiciones'; // pestaña interna activa dentro de Configuración — persiste al refrescar
@@ -2222,6 +2224,68 @@ function buildJugImportHTML() {
   `;
 }
 
+// Carga de datos condicionales (media/máxima de una evaluación) desde Excel/CSV o lista pegada.
+function buildCondImportHTML() {
+  const evs = regEvaluaciones || [];
+  const items = state.aspectosComunes.condicional || [];
+  const evSelect = `<select class="select" id="cimp-eval" style="max-width:360px;">${evs.map(e => `<option value="${e.id}" ${e.id === condImport.evalId ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>`;
+  if (!condImport.filas) {
+    return `
+    <div class="card mb-16">
+      <div class="card-title">Cargar datos condicionales</div>
+      <div class="card-body">
+        ${!evs.length ? '<p class="text-sm text-muted">Crea primero una evaluación en Registro de datos.</p>' : !items.length ? '<p class="text-sm text-muted">No hay ítems condicionales en Configuración › Aspectos.</p>' : `
+        <div class="field-group mb-8"><label class="label">Evaluación</label>${evSelect}</div>
+        <p class="text-xs text-muted mb-8">Primera fila = títulos: una columna con el jugador (Jugador, o Nombre y Apellidos) y una por ítem, con el mismo nombre que en Configuración: ${items.map(safeText).join(' · ')}.
+          Para la máxima, añade "máx" al título (p. ej. "${safeText(items[0])} máx"). Celdas vacías = no se tocan.</p>
+        <div class="flex gap-8 mb-8" style="flex-wrap:wrap;align-items:center;">
+          <input class="input" type="file" id="cimp-file" accept=".xlsx,.xls,.csv" />
+        </div>
+        <textarea class="input" id="cimp-texto" rows="6" style="width:100%;font-family:monospace;font-size:12px;" placeholder="…o pega aquí la tabla copiada de Excel (con la fila de títulos)"></textarea>
+        <div class="flex gap-8 mt-16">
+          <button class="btn btn-primary" id="cimp-leer">Leer</button>
+          <button class="btn btn-ghost" id="cimp-cancel">Cancelar</button>
+        </div>`}
+        ${!evs.length || !items.length ? '<button class="btn btn-ghost mt-16" id="cimp-cancel">Cerrar</button>' : ''}
+      </div>
+    </div>`;
+  }
+  const cols = condImport.columnas.filter(c => c.item);
+  const ignoradas = condImport.columnas.filter(c => !c.tipo && c.titulo).map(c => safeText(c.titulo)).join(', ');
+  const ev = evs.find(e => e.id === condImport.evalId);
+  const todos = [...state.players].sort(ordenJugadores);
+  const n = condImport.filas.filter(f => f.playerId).length;
+  return `
+    <div class="card mb-16">
+      <div class="card-title">Datos condicionales · ${safeText(ev ? `${ev.temporada} · ${ev.nombre}` : '')} (${condImport.filas.length} filas)</div>
+      <div class="card-body">
+        <p class="text-xs text-muted mb-8"><strong>Columnas:</strong> ${cols.map(c => `${safeText(c.titulo)} → ${safeText(c.item)}${c.tipo === 'max' ? ' (máx.)' : ''}`).join(' · ')}${ignoradas ? `<br><strong>Ignoradas:</strong> ${ignoradas}` : ''}</p>
+        <p class="text-xs text-muted mb-8">Revisa el jugador de cada fila (los dudosos o no encontrados quedan sin asignar). Si un dato ya tenía otro valor, el cambio queda en el histórico.</p>
+        <div style="overflow:auto;max-height:420px;">
+          <table class="table table-compact">
+            <thead><tr><th>En el archivo</th><th>Jugador</th>${cols.map(c => `<th>${safeText(c.titulo)}</th>`).join('')}<th>Avisos</th></tr></thead>
+            <tbody>${condImport.filas.map((f, i) => `
+              <tr>
+                <td>${safeText(f.nombre)}</td>
+                <td><select class="select" data-cimp-i="${i}" style="min-width:200px;${f.playerId ? '' : 'border-color:#f59e0b;'}">
+                  <option value="">— no guardar —</option>
+                  ${f.candidatos.length ? `<optgroup label="Parecidos">${f.candidatos.map(j => `<option value="${j.id}" ${j.id === f.playerId ? 'selected' : ''}>${safeText(nombreCompleto(j))}</option>`).join('')}</optgroup>` : ''}
+                  <optgroup label="Todos">${todos.map(j => `<option value="${j.id}" ${j.id === f.playerId && !f.candidatos.some(c => c.id === j.id) ? 'selected' : ''}>${safeText(nombreCompleto(j))}</option>`).join('')}</optgroup>
+                </select></td>
+                ${cols.map(c => { const v = (c.tipo === 'max' ? f.max : f.media)[slugify(c.item)]; return `<td>${v == null ? '' : String(v).replace('.', ',')}</td>`; }).join('')}
+                <td class="text-xs" style="color:#f59e0b;">${f.avisos.map(safeText).join('<br>')}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="flex gap-8 mt-16">
+          <button class="btn btn-primary" id="cimp-guardar" ${n ? '' : 'disabled'}>Guardar datos de ${n} jugador${n === 1 ? '' : 'es'}</button>
+          <button class="btn btn-ghost" id="cimp-cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderPanelJugadores(container) {
   const editingPlayer = (jugadorFormId && jugadorFormId !== 'new')
     ? state.players.find(p => p.id === jugadorFormId)
@@ -2274,6 +2338,7 @@ function renderPanelJugadores(container) {
     ${firebaseNotice()}
     ${jugadorFormId ? buildJugadorFormHTML(editingPlayer) : ''}
     ${jugImport && !jugadorFormId ? buildJugImportHTML() : ''}
+    ${condImport && !jugadorFormId ? buildCondImportHTML() : ''}
     ${soloForm ? '' : buildJugadoresFiltrosHTML()}
     <div class="card" ${soloForm ? 'style="display:none;"' : ''}>
       <div class="card-title">Jugadores (${jugadoresFiltrados.length}${jugadoresFiltrados.length !== state.players.length ? ` de ${state.players.length}` : ''})</div>
@@ -2282,6 +2347,7 @@ function renderPanelJugadores(container) {
           <button class="btn btn-primary" id="jug-add">+ Añadir jugador</button>
           <button class="btn" id="jug-import" title="Excel o CSV con una fila de títulos: Nombre, Apellidos, Fecha de nacimiento, Lateralidad, Residencia, Edad madurativa, Equipo, Posición, Peso, Altura, Complexión">⬆ Importar desde Excel / CSV</button>
           <input type="file" id="jug-import-file" accept=".xlsx,.xls,.csv" style="display:none;" />
+          <button class="btn" id="jug-cond-import" title="Media y máxima de cada ítem condicional, para una evaluación">⬆ Datos condicionales (Excel / lista)</button>
         </div>`}
         <div style="overflow-x:auto;">
           <table class="table">
@@ -2475,6 +2541,75 @@ function renderPanelJugadores(container) {
     jugImport = null;
     renderPanelJugadores(container);
     if (ok) showSuccess(`${ok} jugador${ok === 1 ? '' : 'es'} creado${ok === 1 ? '' : 's'}.`);
+    if (fallos.length) showError(`Fallaron ${fallos.length}: ${fallos.join(', ')}. Revisa permisos o conexión.`, 12000);
+  });
+
+  // Carga de datos condicionales
+  container.querySelector('#jug-cond-import')?.addEventListener('click', async () => {
+    await cargarEvaluacionesSilencioso();
+    condImport = { evalId: regEvaluaciones?.[0]?.id || null };
+    renderPanelJugadores(container);
+  });
+  container.querySelector('#cimp-eval')?.addEventListener('change', e => { condImport.evalId = e.target.value; });
+  container.querySelector('#cimp-cancel')?.addEventListener('click', () => { condImport = null; renderPanelJugadores(container); });
+  container.querySelector('#cimp-leer')?.addEventListener('click', async () => {
+    try {
+      const file = container.querySelector('#cimp-file').files[0];
+      const texto = container.querySelector('#cimp-texto').value;
+      if (!file && !texto.trim()) { showError('Elige un archivo o pega la tabla.'); return; }
+      const filas2D = file ? await leerFilas(file) : filasDesdeTexto(texto);
+      const { columnas, filas } = leerTablaCondicional(filas2D, state.aspectosComunes.condicional || []);
+      if (!filas.length) { showError('No hay filas con jugador.'); return; }
+      filas.forEach(f => {
+        const m = matchJugador(f.nombre, state.players);
+        f.playerId = m.status === 'auto' ? m.playerId : '';
+        f.candidatos = m.candidates || [];
+      });
+      condImport = { evalId: condImport.evalId, columnas, filas };
+      renderPanelJugadores(container);
+    } catch (err) {
+      console.error('[Condicional] Leer:', err);
+      showError('No se pudo leer: ' + (err.message || err), 9000);
+    }
+  });
+  container.querySelectorAll('[data-cimp-i]').forEach(sel => sel.addEventListener('change', () => {
+    condImport.filas[+sel.dataset.cimpI].playerId = sel.value;
+    renderPanelJugadores(container);
+  }));
+  container.querySelector('#cimp-guardar')?.addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    const evalId = condImport.evalId;
+    const porJugador = new Map(); // varias filas del mismo jugador: se juntan (la última manda)
+    condImport.filas.filter(f => f.playerId).forEach(f => {
+      const acc = porJugador.get(f.playerId) || { media: {}, max: {} };
+      Object.assign(acc.media, f.media); Object.assign(acc.max, f.max);
+      porJugador.set(f.playerId, acc);
+    });
+    btn.disabled = true;
+    let ok = 0;
+    const fallos = [];
+    for (const [id, vals] of porJugador) {
+      btn.textContent = `Guardando ${ok + fallos.length + 1} de ${porJugador.size}…`;
+      const prev = state.players.find(p => p.id === id);
+      if (!prev) continue;
+      const condicionalPorEval = JSON.parse(JSON.stringify(prev.condicionalPorEval || {}));
+      const condicionalMaxPorEval = JSON.parse(JSON.stringify(prev.condicionalMaxPorEval || {}));
+      condicionalPorEval[evalId] = { ...(condicionalPorEval[evalId] || {}), ...vals.media };
+      condicionalMaxPorEval[evalId] = { ...(condicionalMaxPorEval[evalId] || {}), ...vals.max };
+      const patch = { condicionalPorEval, condicionalMaxPorEval };
+      try {
+        if (!isFirebaseUnconfigured()) await updateDocument('jugadores', id, patch);
+        setState({ players: state.players.map(p => p.id === id ? { ...p, ...patch } : p) });
+        await registrarCambios(id, prev, patch);
+        ok++;
+      } catch (err) {
+        console.error('[Condicional] Guardar', id, err);
+        fallos.push(nombreCompleto(prev));
+      }
+    }
+    condImport = null;
+    renderPanelJugadores(container);
+    if (ok) showSuccess(`Datos condicionales guardados en ${ok} jugador${ok === 1 ? '' : 'es'}.`);
     if (fallos.length) showError(`Fallaron ${fallos.length}: ${fallos.join(', ')}. Revisa permisos o conexión.`, 12000);
   });
 
