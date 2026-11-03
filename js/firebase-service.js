@@ -19,6 +19,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   serverTimestamp,
   FieldPath,
   deleteField,
@@ -73,6 +74,25 @@ let _writeGuard = null;
 export function setWriteGuard(fn) { _writeGuard = fn; }
 function checkWrite() { if (_writeGuard) _writeGuard(); }
 
+// ── AUDITORÍA ────────────────────────────────────
+// app.js registra aquí qué hacer tras cada escritura correcta (op: 'crear'|'modificar'|'borrar', ruta 'coleccion/id').
+let _afterWrite = null;
+export function setAfterWrite(fn) { _afterWrite = fn; }
+function afterWrite(op, ruta) { try { _afterWrite?.(op, ruta); } catch (_) { /* la auditoría nunca rompe un guardado */ } }
+
+/** Apunta una entrada en 'auditoria' sin pasar por el bloqueo de solo lectura (cualquiera deja rastro). */
+export async function addAuditEntry(data) {
+  const db = getDB();
+  await addDoc(collection(db, 'auditoria'), { ...data, fecha: serverTimestamp() });
+}
+
+/** Los n documentos más recientes de una colección según un campo de fecha. */
+export async function readRecent(collectionName, campoFecha, n) {
+  const db = getDB();
+  const snap = await getDocs(query(collection(db, collectionName), orderBy(campoFecha, 'desc'), limit(n)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 // ── CRUD BASE ────────────────────────────────────
 
 /**
@@ -101,6 +121,7 @@ export async function saveDocument(collectionName, documentId, data, opts = {}) 
   const payload = { ...data, updatedAt: serverTimestamp() };
   if (opts.merge) await setDoc(doc(db, collectionName, documentId), payload, { merge: true });
   else await setDoc(doc(db, collectionName, documentId), payload);
+  afterWrite('modificar', `${collectionName}/${documentId}`);
 }
 
 /**
@@ -115,6 +136,7 @@ export async function addDocument(collectionName, data) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  afterWrite('crear', `${collectionName}/${ref.id}`);
   return ref.id;
 }
 
@@ -128,6 +150,7 @@ export async function updateDocument(collectionName, documentId, patch) {
     ...patch,
     updatedAt: serverTimestamp(),
   });
+  afterWrite('modificar', `${collectionName}/${documentId}`);
 }
 
 /**
@@ -147,6 +170,7 @@ export async function updateMapEntry(collectionName, documentId, campo, clave, v
     if (borrar) return;
     await setDoc(ref, { [campo]: { [clave]: valor }, updatedAt: serverTimestamp() }, { merge: true });
   }
+  afterWrite('modificar', `${collectionName}/${documentId} (${campo})`);
 }
 
 /**
@@ -156,6 +180,7 @@ export async function deleteDocument(collectionName, documentId) {
   checkWrite();
   const db = getDB();
   await deleteDoc(doc(db, collectionName, documentId));
+  afterWrite('borrar', `${collectionName}/${documentId}`);
 }
 
 /**
@@ -193,7 +218,17 @@ export async function addSubDocument(parentCollection, parentId, subCollection, 
     ...data,
     createdAt: serverTimestamp(),
   });
+  afterWrite('crear', `${parentCollection}/${parentId}/${subCollection}/${ref.id}`);
   return ref.id;
+}
+
+/** Borra todos los documentos de una subcolección (Firestore no los borra al borrar el padre). */
+export async function deleteSubCollection(parentCollection, parentId, subCollection) {
+  checkWrite();
+  const db = getDB();
+  const snap = await getDocs(collection(db, parentCollection, parentId, subCollection));
+  for (const d of snap.docs) await deleteDoc(d.ref);
+  if (snap.size) afterWrite('borrar', `${parentCollection}/${parentId}/${subCollection} (${snap.size})`);
 }
 
 /**

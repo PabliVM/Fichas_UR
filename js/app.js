@@ -2,11 +2,13 @@
 // APP.JS — Punto de entrada RM Perfiles
 // ================================================
 
-import { initFirebase, setWriteGuard, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, readCollection, saveDocument, readDocument, updateMapEntry, arrayUnion, arrayRemove } from './firebase-service.js';
+import { initFirebase, setWriteGuard, setAfterWrite, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, readCollection, saveDocument, readDocument, updateMapEntry, arrayUnion, arrayRemove } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { watchAuthState, login, logout, resetPassword } from './auth-service.js';
 import { cargarPerfil, tabsVisibles, nivel, puedeVer, puedeEditar, esSuperadmin, SUBPANTALLAS } from './permisos-service.js';
 import { renderPanelAdmin } from './admin-panel.js';
+import { exportarJugador, borrarJugadorCompleto } from './rgpd.js';
+import { iniciarAuditoria, auditar, exigirDobleFactor, pedirCodigoLogin, exigirPrivacidad, iniciarInactividad, mensajeCierre } from './seguridad.js';
 import { leerTablaJugadores, CAMPO_LABEL, descargarPlantilla } from './importar-jugadores.js';
 import { leerFilas, filasDesdeTexto, leerTablaCondicional } from './importar-condicional.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
@@ -2030,7 +2032,7 @@ function renderFichaJugador(container, p) {
   }
 
   const datosHTML = `
-    <div class="card mb-16"><div class="card-title">Datos personales</div><div class="card-body">
+    <div class="card mb-16"><div class="card-title">Datos personales${esSuperadmin() && !isFirebaseUnconfigured() ? ' <button class="btn btn-sm" id="jug-rgpd-export" style="float:right;" title="Todos los datos guardados de este jugador (derecho de acceso RGPD)">⬇ Exportar sus datos</button>' : ''}</div><div class="card-body">
       <div class="flex gap-24" style="flex-wrap:wrap;">
         ${dato('Nombre', p.nombre)}${dato('Apellidos', p.apellidos)}${dato('Equipo', teamLabel)}${dato('Posición', posLabel)}
         ${dato('Fecha de nacimiento', p.birthDate)}${dato('Año', year)}${dato('Edad', age != null ? age + ' años' : null)}
@@ -2194,6 +2196,10 @@ function renderFichaJugador(container, p) {
       setState({ players: state.players.map(x => x.id === id ? { ...x, fichaTextos } : x) });
       renderPanelJugadores(container);
     } catch (err) { showError('No se pudo restaurar.'); }
+  });
+  container.querySelector('#jug-rgpd-export')?.addEventListener('click', async () => {
+    try { await exportarJugador(p); auditar('exportar', `datos de ${nombreCompleto(p)}`); }
+    catch (err) { console.error('[RGPD] Exportar:', err); showError('No se pudo exportar.'); }
   });
   container.querySelectorAll('[data-jug-tab]').forEach(btn => btn.addEventListener('click', () => {
     jugFichaTab = btn.dataset.jugTab;
@@ -2768,12 +2774,14 @@ function renderPanelJugadores(container) {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.jugDel;
       const pj = state.players.find(x => x.id === id);
-      if (!confirm(`¿Borrar a ${pj ? nombreCompleto(pj) : 'este jugador'}? Se pierden su ficha, textos, notas manuales, datos condicionales y foto. No se puede deshacer.`)) return;
+      if (!confirm(`¿Borrar a ${pj ? nombreCompleto(pj) : 'este jugador'}? Se borran TODOS sus datos (RGPD): ficha, textos, notas, datos condicionales, foto, histórico, registros de evaluaciones y su sitio en las plantillas. No se puede deshacer.`)) return;
       try {
-        if (!isFirebaseUnconfigured()) await deleteDocument('jugadores', id);
+        const avisos = isFirebaseUnconfigured() ? [] : await borrarJugadorCompleto(id);
         setState({ players: state.players.filter(p => p.id !== id) });
+        plantillasCache = null; // se quitó de las plantillas: se releen
         renderPanelJugadores(container);
         showSuccess('Jugador borrado.');
+        if (avisos.length) showError(`No se pudo borrar: ${avisos.join(', ')}.`, 12000);
       } catch (err) {
         console.error('[Firestore] No se pudo borrar el jugador:', err);
         showError('No se pudo borrar el jugador (revisa las reglas de Firestore).');
@@ -5075,6 +5083,8 @@ function showLogin() {
       </div>
     </div>
   `;
+  const avisoCierre = mensajeCierre();
+  if (avisoCierre) { const e = overlay.querySelector('#login-error'); e.textContent = avisoCierre; e.style.display = 'block'; }
   const doLogin = async () => {
     const email = overlay.querySelector('#login-email').value.trim();
     const password = overlay.querySelector('#login-password').value;
@@ -5084,6 +5094,7 @@ function showLogin() {
     try {
       await login(email, password);
     } catch (err) {
+      if (err?.code === 'auth/multi-factor-auth-required') { pedirCodigoLogin(err); return; }
       console.error('[Auth] Login fallido:', err);
       errEl.textContent = 'Email o contraseña incorrectos.';
       errEl.style.display = 'block';
@@ -5155,6 +5166,7 @@ window.addEventListener('pagehide', navGuardar);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') navGuardar(); });
 
 let _appBooted = false;
+let _booting = false; // evita arrancar dos veces si Firebase avisa de nuevo mientras se piden doble factor/privacidad
 
 async function boot() {
   initFirebase();
@@ -5164,33 +5176,65 @@ async function boot() {
       showLogin(); return;
     }
     if (_appBooted) { hideLogin(); return; } // ya está montado — no se repite en cada evento de auth
-
-    await cargarPerfil(user);
-    const visibles = tabsVisibles();
-    if (!visibles.length) { showSinPermisos(user.email); return; }
-    hideLogin();
-    _appBooted = true;
-    const hash = window.location.hash.replace('#', '');
-    if (hash === 'admin' && esSuperadmin()) setState({ activeTab: 'admin' });
-    else if (!puedeVer(state.activeTab)) setState({ activeTab: visibles[0].key });
-    // "Ver" = solo lectura: se bloquea cualquier guardado hecho desde esa pantalla (las reglas de Firestore lo impiden también).
-    setWriteGuard(() => {
-      if (!puedeEditar(pantallaActual())) throw Object.assign(new Error('Solo lectura: no tienes permiso para guardar en esta pantalla.'), { code: 'permission-denied' });
-    });
-
-    await loadConfigFromFirestore(); // trae Configuración guardada antes de pintar
-    await loadPlayersFromFirestore(); // trae la lista de jugadores
-
-    renderFooter();
-    renderHeader();
-    renderTabs();
-    renderMain();
-    setupEvents();
-    actualizarSoloLectura();
-    // Cada clic puede cambiar de subpantalla: se recalcula el aviso después de que actúe el botón.
-    document.addEventListener('click', () => setTimeout(actualizarSoloLectura, 0), true);
-    document.addEventListener('rm:tab-changed', () => setTimeout(actualizarSoloLectura, 0));
+    if (_booting) return;
+    _booting = true;
+    try {
+      const conFirebase = !isFirebaseUnconfigured();
+      if (conFirebase) {
+        iniciarAuditoria(user);
+        if (!(await exigirDobleFactor(user))) return; // se queda en la pantalla de alta del autenticador
+      }
+      await cargarPerfil(user);
+      const visibles = tabsVisibles();
+      if (!visibles.length) { showSinPermisos(user.email); return; }
+      if (conFirebase) await exigirPrivacidad(user);
+      await arrancarApp(user, visibles);
+    } finally { _booting = false; }
   });
+}
+
+async function arrancarApp(user, visibles) {
+  hideLogin();
+  _appBooted = true;
+  if (!isFirebaseUnconfigured()) {
+    auditar('entrada');
+    iniciarInactividad();
+    setAfterWrite((op, ruta) => auditar(op, ruta)); // cada guardado/borrado queda registrado
+  }
+  const hash = window.location.hash.replace('#', '');
+  if (hash === 'admin' && esSuperadmin()) setState({ activeTab: 'admin' });
+  else if (!puedeVer(state.activeTab)) setState({ activeTab: visibles[0].key });
+  // "Ver" = solo lectura: se bloquea cualquier guardado hecho desde esa pantalla (las reglas de Firestore lo impiden también).
+  setWriteGuard(() => {
+    if (!puedeEditar(pantallaActual())) throw Object.assign(new Error('Solo lectura: no tienes permiso para guardar en esta pantalla.'), { code: 'permission-denied' });
+  });
+
+  await loadConfigFromFirestore(); // trae Configuración guardada antes de pintar
+  await loadPlayersFromFirestore(); // trae la lista de jugadores
+
+  renderFooter();
+  renderHeader();
+  renderTabs();
+  renderMain();
+  setupEvents();
+  actualizarSoloLectura();
+  // Cada clic puede cambiar de subpantalla: se recalcula el aviso después de que actúe el botón.
+  document.addEventListener('click', () => setTimeout(() => { actualizarSoloLectura(); registrarVista(); }, 0), true);
+  document.addEventListener('rm:tab-changed', () => setTimeout(() => { actualizarSoloLectura(); registrarVista(); }, 0));
+  registrarVista();
+}
+
+// Registro de actividad: qué pantalla (y qué jugador) se abre.
+let ultimaVista = '';
+function registrarVista() {
+  let v = pantallaActual();
+  if (state.activeTab === 'jugadores' && jugFichaId) {
+    const j = state.players.find(x => x.id === jugFichaId);
+    v += ` · ${j ? nombreCompleto(j) : jugFichaId}`;
+  }
+  if (v === ultimaVista) return;
+  ultimaVista = v;
+  auditar('ver', v);
 }
 
 document.addEventListener('DOMContentLoaded', boot);

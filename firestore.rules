@@ -6,17 +6,32 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function email() { return request.auth.token.email.lower(); }
-    function esSuper() { return request.auth != null && email() in ['pablo.vegamartin@gmail.com', 'pvega@realmadrid.es']; }
+    // Sesión iniciada con contraseña + código de la app autenticadora (doble verificación). Ver SEGURIDAD.md.
+    function dobleFactor() { return request.auth != null && request.auth.token.firebase.get('sign_in_second_factor', null) != null; }
+    function esSuper() { return dobleFactor() && email() in ['pablo.vegamartin@gmail.com', 'pvega@realmadrid.es']; }
     function perfilPath() { return /databases/$(database)/documents/usuarios/$(email()); }
-    function tienePerfil() { return request.auth != null && request.auth.token.email != null && exists(perfilPath()); }
+    function tienePerfil() { return dobleFactor() && request.auth.token.email != null && exists(perfilPath()); }
     function perfil() { return get(perfilPath()).data; }
     function activo() { return esSuper() || (tienePerfil() && perfil().get('activo', true) == true); }
     function edita(tab) { return esSuper() || (activo() && perfil().get('tabs', {}).get(tab, 'oculta') == 'editar'); }
 
-    // Gestión de usuarios: solo el super admin. Cada uno puede leer su propio perfil.
+    // Gestión de usuarios: solo el super admin. Cada uno puede leer su propio perfil
+    // y apuntar en él que ha aceptado el aviso de privacidad (nada más).
     match /usuarios/{id} {
-      allow read: if esSuper() || (request.auth != null && request.auth.token.email != null && id == email());
+      allow read: if esSuper() || (dobleFactor() && request.auth.token.email != null && id == email());
       allow write: if esSuper();
+      allow update: if dobleFactor() && request.auth.token.email != null && id == email()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['privacidadAceptada', 'updatedAt']);
+    }
+
+    // Registro de actividad: cada uno solo puede AÑADIR entradas a su nombre; solo el super admin las lee;
+    // nadie puede modificarlas ni borrarlas.
+    match /auditoria/{id} {
+      allow create: if request.auth != null && request.auth.token.email != null
+        && request.resource.data.email == email()
+        && request.resource.data.keys().hasOnly(['email', 'accion', 'detalle', 'fecha']);
+      allow read: if esSuper();
+      allow update, delete: if false;
     }
 
     match /config/{id} {
