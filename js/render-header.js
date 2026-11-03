@@ -6,6 +6,7 @@ import { state, setState }   from './state.js';
 import { LOGO_PATH } from './constants.js';
 import { safeText }          from './utils.js';
 import { logout } from './auth-service.js';
+import { auditar } from './seguridad.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 
 export function renderHeader() {
@@ -34,6 +35,7 @@ export function renderHeader() {
   document.getElementById('btn-theme').addEventListener('click', toggleTheme);
 
   document.getElementById('btn-logout')?.addEventListener('click', async () => {
+    auditar('salida');
     try { await logout(); } catch (err) { console.error('[Auth] No se pudo cerrar sesión:', err); }
   });
 
