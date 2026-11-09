@@ -389,7 +389,7 @@ async function renderRedes(container) {
         <p class="text-sm mb-8">Los usuarios con <b>Solo red del club</b> solo pueden entrar conectados a una de estas redes (WiFi o cable del club). Para añadir una, conéctate a ella y pulsa el botón.
           Si la red cambia de IP habrá que registrarla otra vez.</p>
         ${aqui.error === 'no-configurado'
-          ? '<p class="text-sm" style="color:#ef4444;">El servidor no está configurado todavía (falta FIREBASE_SERVICE_ACCOUNT en Vercel, ver SEGURIDAD.md).</p>'
+          ? '<p class="text-sm" style="color:#ef4444;">El servidor no está configurado todavía (falta SERVIDOR_PASSWORD en Vercel, ver SEGURIDAD.md).</p>'
           : aqui.error ? `<p class="text-sm" style="color:#ef4444;">No se pudo consultar el servidor (${safeText(aqui.error)}).</p>`
           : `<p class="text-sm mb-8">Ahora estás conectado desde <code>${safeText(aqui.ip)}</code> ${aqui.ok ? '— <b style="color:#22c55e;">red registrada</b>' : '— no registrada'}</p>
              ${aqui.ok ? '' : `<div class="flex gap-8 mb-16" style="flex-wrap:wrap;"><input class="input" id="red-nombre" placeholder="Nombre (p. ej. WiFi Valdebebas)" /><button class="btn btn-primary" id="red-add">Registrar la red desde la que estoy</button></div>`}`}

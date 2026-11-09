@@ -4,30 +4,32 @@
 
 Es obligatoria para todos. La primera vez que alguien entra, la app le enseña un QR para darse de alta en Google Authenticator o Microsoft Authenticator. A partir de ahí, cada vez que inicie sesión le pide la contraseña y el código de 6 dígitos.
 
-No usa Identity Platform ni el plan de pago de Firebase: el código lo comprueba la función gratuita de Vercel `api/mfa.js`.
-- La clave secreta de cada usuario se guarda en la colección `mfa`, que nadie puede leer desde el navegador.
+No usa Identity Platform, ni el plan de pago de Firebase, ni claves de cuenta de servicio (las políticas de Google Cloud pueden prohibirlas). El código lo comprueba la función gratuita de Vercel `api/mfa.js`.
+- El servidor entra en Firebase con una cuenta normal, `servidor@fichasur-f9d61.firebaseapp.com`. Las reglas solo le dejan tocar las colecciones `mfa`, `sesiones` y `redes`.
+- La clave secreta de cada usuario se guarda en `mfa`, que nadie puede leer desde el navegador.
 - Al acertar el código, la sesión queda marcada. Esa marca solo vale para esa sesión: un login nuevo, aunque alguien sepa la contraseña, vuelve a pedir código.
 - Cada código sirve una sola vez.
 - Tras 5 fallos seguidos, bloquea 15 minutos.
 
 ### Ponerla en marcha (una vez)
 
-1. Firebase Console → ⚙️ **Configuración del proyecto** → **Cuentas de servicio** → **Generar nueva clave privada**. Se descarga un `.json`.
-   > Esa clave da acceso total al proyecto: no la subas a GitHub ni la envíes por correo.
-2. Vercel → tu proyecto → **Settings → Environment Variables** → añade `FIREBASE_SERVICE_ACCOUNT`, con todo el contenido del `.json` como valor, en el entorno **Production**.
+1. Firebase Console → **Authentication** → **Usuarios** → **Agregar usuario**.
+   - Correo: `servidor@fichasur-f9d61.firebaseapp.com`
+   - Contraseña: una larga y difícil. Apúntala; solo se usa en el paso 2.
+2. Vercel → tu proyecto → **Settings → Environment Variables** → añade `SERVIDOR_PASSWORD`, con esa contraseña como valor, en el entorno **Production**.
 3. **Deployments → ⋯ → Redeploy**.
 4. Entra en la app: te pedirá escanear el QR. Hazlo y escribe el código.
 5. **Después**, publica `firestore.rules` (Firestore → Reglas → Publicar). Esas reglas exigen la doble verificación para leer o escribir datos.
 
 > Mientras falte el paso 2, la app deja entrar con "Continuar sin verificación (temporal)". Queda anotado en el registro de actividad.
 
-La misma clave sirve también para "Redes del club" (apartado 2b).
+La misma cuenta servidor sirve también para "Redes del club" (apartado 2b).
 
 ### Si alguien pierde el móvil
 
 En **Super admin → Usuarios y permisos**, pulsa 🔑 en su columna. Al entrar escaneará un QR nuevo.
 
-Si el que lo pierde es el super admin: Firebase Console → Firestore → colección `mfa` → borra el documento cuyo campo `email` es el tuyo.
+Si el que lo pierde es el super admin: Firebase Console → Firestore → colección `mfa` → borra el documento con tu email.
 
 ## 2. Registro de actividad y cierre por inactividad
 
@@ -48,7 +50,7 @@ En **Super admin → Usuarios y permisos**, la columna de cada usuario tiene dos
 
 El navegador no puede saber a qué WiFi estás conectado. Por eso se comprueba en un servidor (`api/red.js`, una función de Vercel): ve la IP pública desde la que llega la conexión, y esa IP no se puede falsear.
 
-1–3. Igual que en el apartado 1: la clave `FIREBASE_SERVICE_ACCOUNT` en Vercel y Redeploy (si ya lo hiciste, no hace falta repetirlo).
+1–3. Igual que en el apartado 1: la cuenta servidor y `SERVIDOR_PASSWORD` en Vercel (si ya lo hiciste, no hace falta repetirlo).
 4. Conéctate a la WiFi del club, entra en la app → **Super admin → Redes del club** → **Registrar la red desde la que estoy**. Repítelo con cada red (otra sede, red por cable…).
 5. Marca **Solo red del club** a los usuarios que quieras y pulsa **Guardar cambios**.
 6. Publica el `firestore.rules` nuevo.
