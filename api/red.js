@@ -1,14 +1,13 @@
 // ================================================
 // API/RED.JS — Función de Vercel: comprueba desde qué red se conecta un usuario.
 // La IP la pone Vercel (el navegador no puede falsearla). Si está en la colección
-// 'redes', marca la sesión con redHasta (1 hora) para que las reglas de Firestore
+// 'redes', apunta sesiones/{email}.redHasta (1 hora) para que las reglas de Firestore
 // dejen leer/escribir a los usuarios con "Solo red del club".
 // accion 'registrar' (solo super admin): añade la red actual a 'redes'.
-// Necesita la variable de entorno FIREBASE_SERVICE_ACCOUNT (JSON de la cuenta de servicio). Ver SEGURIDAD.md.
+// Necesita SERVIDOR_PASSWORD en Vercel. Ver SEGURIDAD.md.
 // ================================================
 
-import admin from 'firebase-admin';
-import { SUPERADMIN_EMAILS, configurado, firebase, usuarioDe, fijarClaims } from './_firebase.js';
+import { SUPERADMIN_EMAILS, configurado, usuarioDe, emailKey, leer, guardar, serverTimestamp } from './_firebase.js';
 
 const DURACION_MS = 60 * 60 * 1000;
 
@@ -22,22 +21,21 @@ export default async function handler(req, res) {
   const red = redDe(ipDe(req));
   if (!configurado()) return res.status(503).json({ error: 'no-configurado', ip: red });
   const usuario = await usuarioDe(req);
-  if (!usuario) return res.status(401).json({ error: 'sesión no válida', ip: red });
-  const db = firebase().firestore();
-  const accion = req.body?.accion;
+  if (!usuario?.email) return res.status(401).json({ error: 'sesión no válida', ip: red });
+  const yo = emailKey(usuario.email);
 
-  if (accion === 'registrar') {
-    if (!SUPERADMIN_EMAILS.includes(String(usuario.email || '').toLowerCase())) return res.status(403).json({ error: 'solo super admin', ip: red });
-    await db.collection('redes').doc(idDe(red)).set({
-      clave: red,
-      nombre: String(req.body?.nombre || '').slice(0, 80),
-      por: usuario.email,
-      fecha: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    return res.status(200).json({ ok: true, ip: red });
+  try {
+    if (req.body?.accion === 'registrar') {
+      const verificada = (await leer('sesiones', yo))?.authTime === usuario.auth_time; // con la doble verificación hecha
+      if (!SUPERADMIN_EMAILS.includes(yo) || !verificada) return res.status(403).json({ error: 'solo super admin', ip: red });
+      await guardar('redes', idDe(red), { clave: red, nombre: String(req.body?.nombre || '').slice(0, 80), por: yo, fecha: serverTimestamp() }, false);
+      return res.status(200).json({ ok: true, ip: red });
+    }
+    const ok = !!(await leer('redes', idDe(red)));
+    if (ok) await guardar('sesiones', yo, { redHasta: Date.now() + DURACION_MS });
+    return res.status(200).json({ ok, ip: red });
+  } catch (err) {
+    console.error('[red]', err);
+    return res.status(500).json({ error: 'error del servidor', ip: red });
   }
-
-  const ok = (await db.collection('redes').doc(idDe(red)).get()).exists;
-  if (ok) await fijarClaims(usuario.uid, { redHasta: Date.now() + DURACION_MS });
-  return res.status(200).json({ ok, ip: red });
 }

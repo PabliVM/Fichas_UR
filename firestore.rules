@@ -6,9 +6,14 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function email() { return request.auth.token.email.lower(); }
-    // Sesión iniciada con contraseña + código de la app autenticadora (doble verificación propia, api/mfa.js).
-    // La marca mfaAuthTime solo vale para la sesión en la que se puso el código (mismo auth_time). Ver SEGURIDAD.md.
-    function dobleFactor() { return request.auth != null && request.auth.token.get('mfaAuthTime', 0) == request.auth.token.auth_time; }
+    // Cuenta con la que entran las funciones de Vercel (api/mfa.js, api/red.js). Igual que SERVIDOR_EMAIL en api/_firebase.js.
+    function servidor() { return request.auth != null && request.auth.token.email == 'servidor@fichasur-f9d61.firebaseapp.com'; }
+    // Lo que el servidor apunta de cada sesión: authTime (código de la doble verificación acertado) y redHasta (red del club).
+    function sesionPath() { return /databases/$(database)/documents/sesiones/$(email()); }
+    function sesion() { return exists(sesionPath()) ? get(sesionPath()).data : {}; }
+    // Sesión iniciada con contraseña + código de la app autenticadora: solo vale para la sesión en la que se puso
+    // el código (mismo auth_time; un login nuevo vuelve a pedirlo). Ver SEGURIDAD.md.
+    function dobleFactor() { return request.auth != null && request.auth.token.email != null && sesion().get('authTime', 0) == request.auth.token.auth_time; }
     function esSuper() { return dobleFactor() && email() in ['pablo.vegamartin@gmail.com', 'pvega@realmadrid.es']; }
     function perfilPath() { return /databases/$(database)/documents/usuarios/$(email()); }
     function tienePerfil() { return dobleFactor() && request.auth.token.email != null && exists(perfilPath()); }
@@ -22,7 +27,7 @@ service cloud.firestore {
     }
     function horarioOk() { let h = perfil().get('horario', null); return h == null || enFranja(h, 60) || enFranja(h, 120); }
     // "Solo red del club": api/red.js marca la sesión (redHasta) cuando se conecta desde una red registrada.
-    function redOk() { return perfil().get('exigeRed', false) != true || request.auth.token.get('redHasta', 0) > request.time.toMillis(); }
+    function redOk() { return perfil().get('exigeRed', false) != true || sesion().get('redHasta', 0) > request.time.toMillis(); }
     function activo() { return esSuper() || (tienePerfil() && perfil().get('activo', true) == true && horarioOk() && redOk()); }
     function edita(tab) { return esSuper() || (activo() && perfil().get('tabs', {}).get(tab, 'oculta') == 'editar'); }
 
@@ -37,12 +42,17 @@ service cloud.firestore {
 
     // Claves de la doble verificación: solo las usa el servidor (api/mfa.js); nadie las lee desde el navegador.
     match /mfa/{id} {
-      allow read, write: if false;
+      allow read, write: if servidor();
+    }
+    // Marcas de sesión (doble verificación y red del club): las escribe solo el servidor; cada uno lee la suya.
+    match /sesiones/{id} {
+      allow read: if servidor() || (request.auth != null && request.auth.token.email != null && id == email());
+      allow write: if servidor();
     }
 
     // Redes del club (IPs desde las que pueden entrar los usuarios con "Solo red del club"). Las añade api/red.js.
     match /redes/{id} {
-      allow read, write: if esSuper();
+      allow read, write: if esSuper() || servidor();
     }
 
     // Registro de actividad: cada uno solo puede AÑADIR entradas a su nombre; solo el super admin las lee;

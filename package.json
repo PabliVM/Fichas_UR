@@ -4,6 +4,7 @@
   "type": "module",
   "description": "RM Perfiles. Web estática (index.html + js/); solo api/ usa estas dependencias (funciones de Vercel).",
   "dependencies": {
+    "firebase": "10.12.0",
     "firebase-admin": "12.7.0"
   }
 }
