@@ -4,7 +4,7 @@
 // de sesión por inactividad. Ver SEGURIDAD.md.
 // ================================================
 
-import { tieneDobleFactor, iniciarAltaTotp, completarAltaTotp, resolverDobleFactor, logout } from './auth-service.js';
+import { tieneDobleFactor, iniciarAltaTotp, completarAltaTotp, resolverDobleFactor, logout, tokenActual } from './auth-service.js';
 import { addAuditEntry, readDocument, saveDocument } from './firebase-service.js';
 import { emailKey } from './permisos-service.js';
 import { LOGO_PATH } from './constants.js';
@@ -160,7 +160,9 @@ export function mensajeCierre() {
   try {
     const m = sessionStorage.getItem('rm-cierre');
     sessionStorage.removeItem('rm-cierre');
-    return m === 'inactividad' ? `Sesión cerrada tras ${INACTIVIDAD_MIN} minutos sin actividad.` : '';
+    return m === 'inactividad' ? `Sesión cerrada tras ${INACTIVIDAD_MIN} minutos sin actividad.`
+      : m === 'horario' ? 'Sesión cerrada: ha terminado tu horario de acceso.'
+      : m === 'red' ? 'Sesión cerrada: ya no estás conectado a la red del club.' : '';
   } catch (_) { return ''; }
 }
 
@@ -227,4 +229,81 @@ export async function exigirPrivacidad(user) {
       }
     });
   });
+}
+
+// ── HORARIO Y RED DEL CLUB (por usuario, los pone el super admin) ──
+// horario = { dias: [1..7] (1 = lunes), desde, hasta } en minutos, hora de Madrid. exigeRed = solo desde una red de 'redes'.
+const DIAS_TXT = ['', 'L', 'M', 'X', 'J', 'V', 'S', 'D'];
+const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+export const textoHorario = h => h ? `${(h.dias || []).map(d => DIAS_TXT[d]).join(' ')} de ${hm(h.desde)} a ${hm(h.hasta)}` : 'sin límite';
+
+function ahoraMadrid() {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Madrid', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date()).map(x => [x.type, x.value]));
+  return { dia: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(p.weekday) + 1, min: Number(p.hour) * 60 + Number(p.minute) };
+}
+export function dentroDeHorario(h) {
+  if (!h) return true;
+  const { dia, min } = ahoraMadrid();
+  return (h.dias || []).includes(dia) && min >= h.desde && min < h.hasta;
+}
+
+/**
+ * Pregunta al servidor (api/red.js) desde qué red se conecta. Si es una red del club, el servidor marca la
+ * sesión como "en la red" durante 1 hora (lo comprueban las reglas de Firestore).
+ * accion 'registrar' (solo super admin) añade la red actual a la lista. @returns {{ ok, ip, error }}
+ */
+export async function comprobarRed(accion = 'comprobar', nombre = '') {
+  try {
+    const token = await tokenActual();
+    const r = await fetch('/api/red', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ accion, nombre }),
+    });
+    const datos = await r.json().catch(() => ({}));
+    if (!r.ok) return { ok: false, ip: datos.ip || '', error: datos.error || `HTTP ${r.status}` };
+    return { ok: !!datos.ok, ip: datos.ip || '', error: null };
+  } catch (err) {
+    return { ok: false, ip: '', error: err?.message || 'sin conexión' };
+  }
+}
+
+function cerrarPor(motivo, detalle) {
+  auditar('salida', detalle);
+  try { sessionStorage.setItem('rm-cierre', motivo); } catch (_) { /* ignorar */ }
+  setTimeout(() => logout().catch(() => {}), 500);
+}
+
+/**
+ * Al entrar (usuarios que no son super admin): comprueba horario y red, y los vigila durante la sesión.
+ * @returns {Promise<boolean>} true = puede entrar.
+ */
+export async function exigirAcceso(perfil) {
+  if (!dentroDeHorario(perfil?.horario)) {
+    auditar('acceso denegado', `fuera de horario (${textoHorario(perfil.horario)})`);
+    conSalir(pantalla(`${titulo('Fuera de tu horario')}<p class="text-sm text-muted mb-16">Tu horario de acceso es ${safeText(textoHorario(perfil.horario))} (hora de Madrid).</p>${salirBtn}`));
+    return false;
+  }
+  if (perfil?.exigeRed) {
+    const r = await comprobarRed();
+    if (!r.ok) {
+      auditar('acceso denegado', `fuera de la red del club (${r.ip || r.error || '?'})`);
+      conSalir(pantalla(`${titulo('Solo desde la red del club')}<p class="text-sm text-muted mb-16">Solo puedes entrar conectado a la WiFi o red del club.${r.ip ? ` Estás conectado desde ${safeText(r.ip)}.` : ''}</p>${salirBtn}`));
+      return false;
+    }
+    await tokenActual(true); // token nuevo: ya lleva la marca de "en la red del club"
+    setInterval(async () => { // la marca dura 1 hora: se renueva mientras siga en la red
+      const r2 = await comprobarRed();
+      if (r2.ok) await tokenActual(true); else cerrarPor('red', `fuera de la red del club (${r2.ip || r2.error || '?'})`);
+    }, 45 * 60000);
+  }
+  if (perfil?.horario) {
+    const t = setInterval(() => {
+      if (dentroDeHorario(perfil.horario)) return;
+      clearInterval(t);
+      cerrarPor('horario', `fin del horario (${textoHorario(perfil.horario)})`);
+    }, 60000);
+  }
+  return true;
 }

@@ -58,6 +58,12 @@ export async function crearCuenta(email) {
   }
 }
 
+/** Token de la sesión actual (force = pedir uno nuevo, p. ej. tras cambiar los permisos especiales de la cuenta). */
+export function tokenActual(force = false) {
+  const u = getAuthInstance().currentUser;
+  return u ? u.getIdToken(force) : Promise.resolve(null);
+}
+
 // ── DOBLE VERIFICACIÓN (TOTP: app autenticadora, código de 6 dígitos) ──
 // Requiere Firebase con Identity Platform y TOTP activado (ver SEGURIDAD.md).
 

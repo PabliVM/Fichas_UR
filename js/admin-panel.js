@@ -10,6 +10,7 @@
 import { TABS } from './constants.js';
 import { readCollection, saveDocument, deleteDocument, readRecent } from './firebase-service.js';
 import { state, setState } from './state.js';
+import { comprobarRed } from './seguridad.js';
 import { exportarJugador, borrarJugadorCompleto } from './rgpd.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { crearCuenta, resetPassword } from './auth-service.js';
@@ -17,13 +18,31 @@ import { NIVELES, SUPERADMIN_EMAILS, SUBPANTALLAS, emailKey, clavesDe, nivelDePe
 import { showError, showSuccess, safeText } from './utils.js';
 
 const NIVEL_LABEL = { oculta: 'Oculta', ver: 'Ver', editar: 'Editar' };
+// Horario de acceso: { dias: [1..7] (1 = lunes), desde, hasta } en minutos del día, hora de Madrid. null = sin límite.
+const DIAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const aMin = t => { const [h, m] = String(t || '').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+function accesoHTML(u) {
+  const id = safeText(u.id), h = u.horario;
+  const lbl = 'class="text-xs" style="display:flex;gap:4px;align-items:center;font-weight:400;margin-top:4px;"';
+  return `
+    <label ${lbl} title="Solo puede entrar conectado a una red registrada en Super admin › Redes del club"><input type="checkbox" data-u="${id}" data-red ${u.exigeRed ? 'checked' : ''} /> Solo red del club</label>
+    <label ${lbl}><input type="checkbox" data-u="${id}" data-hor-on ${h ? 'checked' : ''} /> Limitar horario</label>
+    <div data-u="${id}" data-hor-box style="${h ? '' : 'display:none;'}font-weight:400;">
+      <div style="display:flex;gap:3px;margin-top:2px;">${DIAS.map((d, i) => `<label class="text-xs" style="display:flex;flex-direction:column;align-items:center;"><input type="checkbox" data-u="${id}" data-hor-dia="${i + 1}" ${(h ? (h.dias || []).includes(i + 1) : i < 5) ? 'checked' : ''} />${d}</label>`).join('')}</div>
+      <div style="display:flex;gap:3px;align-items:center;margin-top:2px;">
+        <input class="input" type="time" data-u="${id}" data-hor-desde value="${hm(h?.desde ?? 480)}" style="padding:1px 3px;font-size:11px;width:78px;" />–
+        <input class="input" type="time" data-u="${id}" data-hor-hasta value="${hm(h?.hasta ?? 1200)}" style="padding:1px 3px;font-size:11px;width:78px;" />
+      </div>
+    </div>`;
+}
 const ENTRADA = { jugadores: 'lista', plantillas: 'grid' }; // subpantalla por la que se entra a las demás
 let usuariosCache = null;
 
 let adminVista = 'usuarios'; // 'usuarios' | 'actividad' | 'conservacion'
 
 export async function renderPanelAdmin(container) {
-  const VISTAS = [['usuarios', 'Usuarios y permisos'], ['actividad', 'Registro de actividad'], ['conservacion', 'Conservación de datos']];
+  const VISTAS = [['usuarios', 'Usuarios y permisos'], ['redes', 'Redes del club'], ['actividad', 'Registro de actividad'], ['conservacion', 'Conservación de datos']];
   container.innerHTML = `
     <div class="rm-sticky mb-16 flex gap-8" style="padding:6px 0;flex-wrap:wrap;">
       ${VISTAS.map(([k, l]) => `<button class="btn ${adminVista === k ? 'btn-primary' : 'btn-sm'}" data-adm-vista="${k}">${l}</button>`).join('')}
@@ -32,6 +51,7 @@ export async function renderPanelAdmin(container) {
   container.querySelectorAll('[data-adm-vista]').forEach(b => b.addEventListener('click', () => { adminVista = b.dataset.admVista; renderPanelAdmin(container); }));
   const sub = container.querySelector('#adm-sub');
   if (adminVista === 'actividad') return renderActividad(sub);
+  if (adminVista === 'redes') return renderRedes(sub);
   if (adminVista === 'conservacion') return renderConservacion(sub);
   return renderUsuarios(sub);
 }
@@ -104,6 +124,7 @@ async function renderUsuarios(container) {
                   <div style="font-weight:700;color:var(--text-primary);">${safeText(u.nombre || u.id.split('@')[0])}</div>
                   <div class="text-xs text-muted" style="font-weight:400;">${safeText(u.id)}</div>
                   <label class="text-xs" style="display:flex;gap:4px;align-items:center;font-weight:400;margin-top:4px;"><input type="checkbox" data-u="${safeText(u.id)}" data-activo ${u.activo === false ? '' : 'checked'} /> Activo</label>
+                  ${accesoHTML(u)}
                   <div style="margin-top:4px;white-space:nowrap;">
                     <button class="btn btn-sm" data-reset="${safeText(u.id)}" title="Enviar email para poner/cambiar contraseña">✉</button>
                     <button class="btn btn-sm" data-borrar="${safeText(u.id)}" title="Quitar acceso">×</button>
@@ -140,6 +161,12 @@ async function renderUsuarios(container) {
     marcar(s.dataset.u);
   }));
   container.querySelectorAll('[data-activo]').forEach(cb => cb.addEventListener('change', () => marcar(cb.dataset.u)));
+  const elDe = (id, sel) => [...container.querySelectorAll(sel)].filter(x => x.dataset.u === id);
+  container.querySelectorAll('[data-red], [data-hor-dia], [data-hor-desde], [data-hor-hasta]').forEach(el => el.addEventListener('change', () => marcar(el.dataset.u)));
+  container.querySelectorAll('[data-hor-on]').forEach(cb => cb.addEventListener('change', () => {
+    elDe(cb.dataset.u, '[data-hor-box]')[0].style.display = cb.checked ? '' : 'none';
+    marcar(cb.dataset.u);
+  }));
 
   container.querySelectorAll('.adm-guardar').forEach(btn => btn.addEventListener('click', async () => {
     const ids = [...pendientes];
@@ -155,9 +182,19 @@ async function renderUsuarios(container) {
       });
       const tabs = Object.fromEntries(TABS.map(t => [t.key, maxNivel(clavesDe(t.key).map(c => permisos[c]))]));
       const activo = [...container.querySelectorAll('[data-activo]')].find(c => c.dataset.u === id)?.checked !== false;
+      const exigeRed = !!elDe(id, '[data-red]')[0]?.checked;
+      let horario = null;
+      if (elDe(id, '[data-hor-on]')[0]?.checked) {
+        horario = {
+          dias: elDe(id, '[data-hor-dia]').filter(c => c.checked).map(c => Number(c.dataset.horDia)),
+          desde: aMin(elDe(id, '[data-hor-desde]')[0].value),
+          hasta: aMin(elDe(id, '[data-hor-hasta]')[0].value),
+        };
+        if (!horario.dias.length || horario.desde >= horario.hasta) { fallos.push(`${id} (horario: elige días y una hora de fin posterior a la de inicio)`); continue; }
+      }
       try {
-        await saveDocument('usuarios', id, { permisos, tabs, activo }, { merge: true });
-        Object.assign(usuariosCache.find(u => u.id === id), { permisos, tabs, activo });
+        await saveDocument('usuarios', id, { permisos, tabs, activo, exigeRed, horario }, { merge: true });
+        Object.assign(usuariosCache.find(u => u.id === id), { permisos, tabs, activo, exigeRed, horario });
       } catch (err) { console.error('[Admin] Guardar:', id, err); fallos.push(id); }
     }
     renderUsuarios(container);
@@ -326,4 +363,43 @@ async function renderConservacion(container) {
     if (avisos.length) showError(`No se pudo borrar: ${[...new Set(avisos)].join(', ')}.`, 12000);
     if (fallos.length) showError(`Fallaron ${fallos.length} jugador(es).`, 12000);
   });
+}
+
+// ── REDES DEL CLUB ────────────────────────────────
+// IPs públicas desde las que pueden entrar los usuarios marcados "Solo red del club". Se registran desde la propia red
+// (el servidor ve la IP real; el navegador no puede falsearla). Colección 'redes', escrita por api/red.js.
+async function renderRedes(container) {
+  if (isFirebaseUnconfigured()) { container.innerHTML = '<p class="text-sm text-muted">Configura Firebase.</p>'; return; }
+  container.innerHTML = '<p class="text-xs text-muted">Cargando…</p>';
+  const [redes, aqui] = await Promise.all([
+    readCollection('redes').catch(err => { console.error('[Admin] Redes:', err); return []; }),
+    comprobarRed(),
+  ]);
+  container.innerHTML = `
+    <div class="card">
+      <div class="card-title">Redes del club</div>
+      <div class="card-body">
+        <p class="text-sm mb-8">Los usuarios con <b>Solo red del club</b> solo pueden entrar conectados a una de estas redes (WiFi o cable del club). Para añadir una, conéctate a ella y pulsa el botón.
+          Si la red cambia de IP habrá que registrarla otra vez.</p>
+        ${aqui.error === 'no-configurado'
+          ? '<p class="text-sm" style="color:#ef4444;">El servidor no está configurado todavía (falta FIREBASE_SERVICE_ACCOUNT en Vercel, ver SEGURIDAD.md).</p>'
+          : aqui.error ? `<p class="text-sm" style="color:#ef4444;">No se pudo consultar el servidor (${safeText(aqui.error)}).</p>`
+          : `<p class="text-sm mb-8">Ahora estás conectado desde <code>${safeText(aqui.ip)}</code> ${aqui.ok ? '— <b style="color:#22c55e;">red registrada</b>' : '— no registrada'}</p>
+             ${aqui.ok ? '' : `<div class="flex gap-8 mb-16" style="flex-wrap:wrap;"><input class="input" id="red-nombre" placeholder="Nombre (p. ej. WiFi Valdebebas)" /><button class="btn btn-primary" id="red-add">Registrar la red desde la que estoy</button></div>`}`}
+        <table class="table table-compact">
+          <thead><tr><th>Nombre</th><th>Red</th><th>Registrada</th><th></th></tr></thead>
+          <tbody>${redes.map(r => `<tr><td>${safeText(r.nombre || '')}</td><td><code>${safeText(r.clave)}</code></td><td class="text-xs">${fechaTxt(r.fecha)} · ${safeText(r.por || '')}</td><td><button class="btn btn-sm" data-red-del="${safeText(r.id)}">Quitar</button></td></tr>`).join('') || '<tr><td colspan="4" class="text-muted">Ninguna red registrada.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+  container.querySelector('#red-add')?.addEventListener('click', async () => {
+    const r = await comprobarRed('registrar', container.querySelector('#red-nombre').value.trim());
+    if (r.ok) showSuccess('Red registrada.'); else showError('No se pudo registrar: ' + (r.error || 'error'));
+    renderRedes(container);
+  });
+  container.querySelectorAll('[data-red-del]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('¿Quitar esta red? Los usuarios con "Solo red del club" ya no podrán entrar desde ella.')) return;
+    try { await deleteDocument('redes', b.dataset.redDel); } catch (err) { console.error(err); showError('No se pudo quitar.'); }
+    renderRedes(container);
+  }));
 }

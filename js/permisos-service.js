@@ -31,6 +31,8 @@ export async function cargarPerfil(user) {
 }
 
 export const esSuperadmin = () => _super;
+/** Perfil del usuario actual (usuarios/{email}); null para el super admin. */
+export const perfilActual = () => _perfil;
 
 // Subpantallas de cada pestaña (mantener en sintonía con los botones de app.js: registroSubTab,
 // jugFichaTab, plVista.modo y CONFIG_GROUPS). La primera de Jugadores y Plantillas es la de entrada.
