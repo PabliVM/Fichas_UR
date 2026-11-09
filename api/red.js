@@ -8,14 +8,9 @@
 // ================================================
 
 import admin from 'firebase-admin';
+import { SUPERADMIN_EMAILS, configurado, firebase, usuarioDe, fijarClaims } from './_firebase.js';
 
-const SUPERADMIN_EMAILS = ['pablo.vegamartin@gmail.com', 'pvega@realmadrid.es']; // igual que js/permisos-service.js
 const DURACION_MS = 60 * 60 * 1000;
-
-function firebase() {
-  if (!admin.apps.length) admin.initializeApp({ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) });
-  return admin;
-}
 
 const ipDe = req => String(req.headers['x-real-ip'] || String(req.headers['x-forwarded-for'] || '').split(',')[0] || '').trim();
 // IPv4 exacta; IPv6 por su prefijo /64 (la parte final cambia sola en muchas redes).
@@ -25,13 +20,9 @@ const idDe = red => red.replace(/[^a-zA-Z0-9.]/g, '_');
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'método' });
   const red = redDe(ipDe(req));
-  if (!process.env.FIREBASE_SERVICE_ACCOUNT) return res.status(503).json({ error: 'no-configurado', ip: red });
-  let usuario;
-  try {
-    usuario = await firebase().auth().verifyIdToken(String(req.headers.authorization || '').replace(/^Bearer /, ''));
-  } catch (_) {
-    return res.status(401).json({ error: 'sesión no válida', ip: red });
-  }
+  if (!configurado()) return res.status(503).json({ error: 'no-configurado', ip: red });
+  const usuario = await usuarioDe(req);
+  if (!usuario) return res.status(401).json({ error: 'sesión no válida', ip: red });
   const db = firebase().firestore();
   const accion = req.body?.accion;
 
@@ -47,9 +38,6 @@ export default async function handler(req, res) {
   }
 
   const ok = (await db.collection('redes').doc(idDe(red)).get()).exists;
-  if (ok) {
-    const actual = (await firebase().auth().getUser(usuario.uid)).customClaims || {};
-    await firebase().auth().setCustomUserClaims(usuario.uid, { ...actual, redHasta: Date.now() + DURACION_MS });
-  }
+  if (ok) await fijarClaims(usuario.uid, { redHasta: Date.now() + DURACION_MS });
   return res.status(200).json({ ok, ip: red });
 }

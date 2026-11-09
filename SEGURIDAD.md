@@ -1,30 +1,33 @@
 # Seguridad y protección de datos — RM Perfiles
 
-## 1. Verificación en dos pasos (app autenticadora)
+## 1. Verificación en dos pasos (app autenticadora) — gratis
 
-Es obligatoria para todos. La primera vez que alguien entra, la app le enseña un QR para darse de alta en Google Authenticator o Microsoft Authenticator. A partir de ahí, cada vez que entre le pide la contraseña y el código de 6 dígitos.
+Es obligatoria para todos. La primera vez que alguien entra, la app le enseña un QR para darse de alta en Google Authenticator o Microsoft Authenticator. A partir de ahí, cada vez que inicie sesión le pide la contraseña y el código de 6 dígitos.
 
-### Activarla en Firebase (una sola vez)
+No usa Identity Platform ni el plan de pago de Firebase: el código lo comprueba la función gratuita de Vercel `api/mfa.js`.
+- La clave secreta de cada usuario se guarda en la colección `mfa`, que nadie puede leer desde el navegador.
+- Al acertar el código, la sesión queda marcada. Esa marca solo vale para esa sesión: un login nuevo, aunque alguien sepa la contraseña, vuelve a pedir código.
+- Cada código sirve una sola vez.
+- Tras 5 fallos seguidos, bloquea 15 minutos.
 
-1. Firebase Console → **Authentication** → **Settings** → **Upgrade** a *Firebase Authentication with Identity Platform*. Puede pedir activar la facturación (plan Blaze); con pocos usuarios no tiene coste.
-2. Abre **Google Cloud Shell** (https://shell.cloud.google.com) con tu cuenta y pega este comando:
+### Ponerla en marcha (una vez)
 
-```bash
-curl -X PATCH "https://identitytoolkit.googleapis.com/admin/v2/projects/fichasur-f9d61/config?updateMask=mfa" \
-  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-  -H "Content-Type: application/json" \
-  -H "X-Goog-User-Project: fichasur-f9d61" \
-  -d '{"mfa":{"state":"ENABLED","providerConfigs":[{"state":"ENABLED","totpProviderConfig":{"adjacentIntervals":5}}]}}'
-```
+1. Firebase Console → ⚙️ **Configuración del proyecto** → **Cuentas de servicio** → **Generar nueva clave privada**. Se descarga un `.json`.
+   > Esa clave da acceso total al proyecto: no la subas a GitHub ni la envíes por correo.
+2. Vercel → tu proyecto → **Settings → Environment Variables** → añade `FIREBASE_SERVICE_ACCOUNT`, con todo el contenido del `.json` como valor, en el entorno **Production**.
+3. **Deployments → ⋯ → Redeploy**.
+4. Entra en la app: te pedirá escanear el QR. Hazlo y escribe el código.
+5. **Después**, publica `firestore.rules` (Firestore → Reglas → Publicar). Esas reglas exigen la doble verificación para leer o escribir datos.
 
-3. Entra en la app: te pedirá dar de alta el autenticador.
-4. **Después**, publica `firestore.rules` (Firestore → Reglas → Publicar). Esas reglas exigen la doble verificación para leer o escribir datos.
+> Mientras falte el paso 2, la app deja entrar con "Continuar sin verificación (temporal)". Queda anotado en el registro de actividad.
 
-> Mientras no esté activada en Firebase, la app deja entrar con el botón "Continuar sin verificación (temporal)". Queda anotado en el registro de actividad como `entrada sin doble factor`.
+La misma clave sirve también para "Redes del club" (apartado 2b).
 
 ### Si alguien pierde el móvil
 
-Firebase Console → Authentication → Users → borra su cuenta y vuelve a crearla con el mismo email (Add user). Después, en Super admin, pulsa ✉ en su columna para que ponga una contraseña nueva. Sus permisos se conservan, porque van por email. Al entrar dará de alta el autenticador otra vez.
+En **Super admin → Usuarios y permisos**, pulsa 🔑 en su columna. Al entrar escaneará un QR nuevo.
+
+Si el que lo pierde es el super admin: Firebase Console → Firestore → colección `mfa` → borra el documento cuyo campo `email` es el tuyo.
 
 ## 2. Registro de actividad y cierre por inactividad
 
@@ -45,10 +48,7 @@ En **Super admin → Usuarios y permisos**, la columna de cada usuario tiene dos
 
 El navegador no puede saber a qué WiFi estás conectado. Por eso se comprueba en un servidor (`api/red.js`, una función de Vercel): ve la IP pública desde la que llega la conexión, y esa IP no se puede falsear.
 
-1. En Firebase Console → ⚙️ **Configuración del proyecto** → **Cuentas de servicio** → **Generar nueva clave privada**. Se descarga un archivo `.json`.
-   > Esa clave da acceso total al proyecto: no la subas a GitHub ni la envíes por correo.
-2. En Vercel → tu proyecto → **Settings → Environment Variables** → añade `FIREBASE_SERVICE_ACCOUNT`, con todo el contenido del `.json` como valor, en el entorno **Production**.
-3. Vuelve a desplegar (**Deployments → ⋯ → Redeploy**).
+1–3. Igual que en el apartado 1: la clave `FIREBASE_SERVICE_ACCOUNT` en Vercel y Redeploy (si ya lo hiciste, no hace falta repetirlo).
 4. Conéctate a la WiFi del club, entra en la app → **Super admin → Redes del club** → **Registrar la red desde la que estoy**. Repítelo con cada red (otra sede, red por cable…).
 5. Marca **Solo red del club** a los usuarios que quieras y pulsa **Guardar cambios**.
 6. Publica el `firestore.rules` nuevo.

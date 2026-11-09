@@ -8,7 +8,7 @@ import { watchAuthState, login, logout, resetPassword } from './auth-service.js'
 import { cargarPerfil, tabsVisibles, nivel, puedeVer, puedeEditar, esSuperadmin, perfilActual, SUBPANTALLAS } from './permisos-service.js';
 import { renderPanelAdmin } from './admin-panel.js';
 import { exportarJugador, borrarJugadorCompleto } from './rgpd.js';
-import { iniciarAuditoria, auditar, exigirDobleFactor, pedirCodigoLogin, exigirPrivacidad, exigirAcceso, iniciarInactividad, mensajeCierre } from './seguridad.js';
+import { iniciarAuditoria, auditar, exigirDobleFactor, exigirPrivacidad, exigirAcceso, iniciarInactividad, mensajeCierre } from './seguridad.js';
 import { leerTablaJugadores, CAMPO_LABEL, descargarPlantilla } from './importar-jugadores.js';
 import { leerFilas, filasDesdeTexto, leerTablaCondicional } from './importar-condicional.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
@@ -5094,7 +5094,6 @@ function showLogin() {
     try {
       await login(email, password);
     } catch (err) {
-      if (err?.code === 'auth/multi-factor-auth-required') { pedirCodigoLogin(err); return; }
       console.error('[Auth] Login fallido:', err);
       errEl.textContent = 'Email o contraseña incorrectos.';
       errEl.style.display = 'block';
