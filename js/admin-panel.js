@@ -10,7 +10,7 @@
 import { TABS } from './constants.js';
 import { readCollection, saveDocument, deleteDocument, readRecent } from './firebase-service.js';
 import { state, setState } from './state.js';
-import { comprobarRed } from './seguridad.js';
+import { comprobarRed, reiniciarDobleFactor } from './seguridad.js';
 import { exportarJugador, borrarJugadorCompleto } from './rgpd.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { crearCuenta, resetPassword } from './auth-service.js';
@@ -127,6 +127,7 @@ async function renderUsuarios(container) {
                   ${accesoHTML(u)}
                   <div style="margin-top:4px;white-space:nowrap;">
                     <button class="btn btn-sm" data-reset="${safeText(u.id)}" title="Enviar email para poner/cambiar contraseña">✉</button>
+                    <button class="btn btn-sm" data-mfa-reset="${safeText(u.id)}" title="Ha perdido el móvil: al entrar volverá a escanear un QR">🔑</button>
                     <button class="btn btn-sm" data-borrar="${safeText(u.id)}" title="Quitar acceso">×</button>
                   </div>
                 </th>`).join('')}
@@ -224,6 +225,12 @@ async function renderUsuarios(container) {
     }
   });
 
+  container.querySelectorAll('[data-mfa-reset]').forEach(btn => btn.addEventListener('click', async () => {
+    const id = btn.dataset.mfaReset;
+    if (!confirm(`¿Reiniciar la verificación en dos pasos de ${id}? La próxima vez que entre tendrá que escanear un QR nuevo con su móvil.`)) return;
+    const r = await reiniciarDobleFactor(id);
+    if (r.ok) showSuccess('Verificación reiniciada.'); else showError('No se pudo reiniciar: ' + (r.error || r.status));
+  }));
   container.querySelectorAll('[data-reset]').forEach(btn => btn.addEventListener('click', async () => {
     try { await resetPassword(btn.dataset.reset); showSuccess('Email enviado.'); }
     catch (err) { console.error('[Admin] Reset:', err); showError('No se pudo enviar el email.'); }

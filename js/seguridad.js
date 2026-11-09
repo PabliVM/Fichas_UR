@@ -4,7 +4,7 @@
 // de sesión por inactividad. Ver SEGURIDAD.md.
 // ================================================
 
-import { tieneDobleFactor, iniciarAltaTotp, completarAltaTotp, resolverDobleFactor, logout, tokenActual } from './auth-service.js';
+import { logout, tokenActual } from './auth-service.js';
 import { addAuditEntry, readDocument, saveDocument } from './firebase-service.js';
 import { emailKey } from './permisos-service.js';
 import { LOGO_PATH } from './constants.js';
@@ -41,65 +41,98 @@ export function auditar(accion, detalle = '') {
     .catch(err => console.warn('[Auditoría] No se pudo registrar:', err?.code || err));
 }
 
-// ── DOBLE VERIFICACIÓN ────────────────────────────
+// ── DOBLE VERIFICACIÓN (propia: api/mfa.js en Vercel, gratis) ──
+// Código de 6 dígitos de Google/Microsoft Authenticator. El servidor guarda la clave y, al acertar,
+// marca ESTA sesión (las reglas de Firestore lo exigen). Ver SEGURIDAD.md.
 
-/** Al entrar con contraseña, si la cuenta tiene doble verificación: pide el código de 6 dígitos. */
-export function pedirCodigoLogin(err) {
-  const terminar = resolverDobleFactor(err);
-  const el = pantalla(`
-    ${titulo('Verificación en dos pasos')}
-    <p class="text-sm text-muted mb-16">Escribe el código de 6 dígitos de tu app autenticadora.</p>
-    <input class="input" id="seg-codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" style="width:100%;text-align:center;font-size:22px;letter-spacing:6px;" />
-    <p class="text-xs mb-8" id="seg-error" style="display:none;color:#ef4444;margin-top:8px;"></p>
-    <button class="btn btn-primary" id="seg-ok" style="width:100%;margin-top:12px;">Entrar</button>
-    <button class="btn btn-ghost" id="seg-volver" style="width:100%;margin-top:8px;">Volver</button>`);
-  const inp = el.querySelector('#seg-codigo');
-  const errEl = el.querySelector('#seg-error');
-  inp.focus();
-  const enviar = async () => {
-    const codigo = inp.value.replace(/\D/g, '');
-    if (codigo.length !== 6) { errEl.textContent = 'El código tiene 6 dígitos.'; errEl.style.display = 'block'; return; }
-    try {
-      await terminar(codigo); // onAuthStateChanged arranca la app
-      sessionStorage.setItem('rm-entrada', '1');
-    } catch (e) {
-      console.error('[Auth] Código:', e);
-      errEl.textContent = e?.code === 'auth/invalid-verification-code' ? 'Código incorrecto o caducado.' : 'No se pudo verificar. Vuelve a intentarlo.';
-      errEl.style.display = 'block';
-    }
-  };
-  el.querySelector('#seg-ok').addEventListener('click', enviar);
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') enviar(); });
-  el.querySelector('#seg-volver').addEventListener('click', () => location.reload());
+/** Llama a una función de Vercel (api/<ruta>) con el token de la sesión. @returns {{ ok, status, ...datos }} */
+async function llamarApi(ruta, body) {
+  try {
+    const token = await tokenActual();
+    const r = await fetch(`/api/${ruta}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const datos = await r.json().catch(() => ({}));
+    return { ...datos, ok: r.ok && datos.ok !== false, status: r.status };
+  } catch (err) {
+    return { ok: false, status: 0, error: err?.message || 'sin conexión' };
+  }
+}
+
+const campoCodigo = '<input class="input" id="seg-codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" style="width:100%;text-align:center;font-size:22px;letter-spacing:6px;" /><p class="text-xs" id="seg-error" style="display:none;color:#ef4444;margin-top:8px;"></p>';
+
+/** Espera a que el usuario escriba un código que el servidor acepte (accion 'activar' o 'verificar'). */
+function esperarCodigo(el, accion, textoBoton) {
+  return new Promise(resolve => {
+    const inp = el.querySelector('#seg-codigo');
+    const errEl = el.querySelector('#seg-error');
+    const btn = el.querySelector('#seg-ok');
+    btn.textContent = textoBoton;
+    inp.focus();
+    const enviar = async () => {
+      const codigo = inp.value.replace(/\D/g, '');
+      if (codigo.length !== 6) { errEl.textContent = 'El código tiene 6 dígitos.'; errEl.style.display = 'block'; return; }
+      btn.disabled = true;
+      const r = await llamarApi('mfa', { accion, codigo });
+      btn.disabled = false;
+      if (!r.ok) {
+        errEl.textContent = r.status === 429 ? 'Demasiados intentos. Espera 15 minutos.' : r.status === 400 ? 'Código incorrecto o caducado.' : `No se pudo verificar (${r.error || r.status}).`;
+        errEl.style.display = 'block';
+        inp.value = ''; inp.focus();
+        return;
+      }
+      await tokenActual(true); // token nuevo: ya lleva la marca de la verificación
+      resolve();
+    };
+    btn.addEventListener('click', enviar);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') enviar(); });
+  });
 }
 
 /**
- * Obligatoria para todos: si la cuenta aún no tiene app autenticadora, se da de alta antes de entrar.
- * @returns {Promise<boolean>} true = ya la tiene, se puede continuar; false = se queda en la pantalla de alta.
+ * Obligatoria para todos: la primera vez se da de alta la app autenticadora (QR); después, código en cada entrada.
+ * @returns {Promise<boolean>} true = verificada, se puede continuar; false = se queda en esta pantalla.
  */
 export async function exigirDobleFactor(user) {
-  if (tieneDobleFactor(user)) return true;
-  let el = pantalla(`${titulo('Activa la verificación en dos pasos')}<p class="text-sm text-muted">Preparando…</p>`);
-  let datos;
-  try {
-    datos = await iniciarAltaTotp(user);
-  } catch (err) {
-    console.error('[Auth] Alta doble factor:', err);
-    const reciente = err?.code === 'auth/requires-recent-login';
-    // Mientras no esté activada en Firebase (lo decide el servidor, no el usuario) se deja entrar para no bloquear a nadie.
-    el = pantalla(`${titulo('Verificación en dos pasos')}
-      <p class="text-sm text-muted mb-16">${reciente
-        ? 'Por seguridad, sal y vuelve a iniciar sesión para activarla.'
-        : 'La verificación en dos pasos todavía no está activada en Firebase. El administrador debe activarla (ver SEGURIDAD.md).'}</p>
-      <p class="text-xs text-muted">${safeText(err?.code || '')}</p>
-      ${reciente ? '' : '<button class="btn btn-primary" id="seg-seguir" style="width:100%;margin-top:8px;">Continuar sin verificación (temporal)</button>'}
+  pantalla(`${titulo('Verificación en dos pasos')}<p class="text-sm text-muted">Comprobando…</p>`);
+  const estado = await llamarApi('mfa', { accion: 'estado' });
+  if (estado.ok && estado.verificada) return true; // esta sesión ya puso el código (p. ej. al recargar la página)
+
+  if (!estado.ok) {
+    // Servidor sin configurar todavía (falta la clave en Vercel): se deja entrar para no bloquear a nadie, y queda registrado.
+    const sinConfig = estado.status === 503 || estado.status === 404;
+    const el = pantalla(`${titulo('Verificación en dos pasos')}
+      <p class="text-sm text-muted mb-16">${sinConfig
+        ? 'La verificación en dos pasos todavía no está configurada en el servidor (ver SEGURIDAD.md).'
+        : `No se pudo contactar con el servidor de verificación (${safeText(estado.error || estado.status)}).`}</p>
+      ${sinConfig ? '<button class="btn btn-primary" id="seg-seguir" style="width:100%;margin-top:8px;">Continuar sin verificación (temporal)</button>' : ''}
       ${salirBtn}`);
     conSalir(el);
-    if (reciente) return false;
+    if (!sinConfig) return false;
     return new Promise(resolve => el.querySelector('#seg-seguir').addEventListener('click', () => {
-      auditar('entrada sin doble factor', err?.code || '');
+      auditar('entrada sin doble factor', 'servidor sin configurar');
       resolve(true);
     }));
+  }
+
+  if (estado.alta) {
+    const el = pantalla(`
+      ${titulo('Verificación en dos pasos')}
+      <p class="text-sm text-muted mb-16">Escribe el código de 6 dígitos de tu app autenticadora.</p>
+      ${campoCodigo}
+      <button class="btn btn-primary" id="seg-ok" style="width:100%;margin-top:12px;"></button>
+      ${salirBtn}`);
+    conSalir(el);
+    await esperarCodigo(el, 'verificar', 'Entrar');
+    return true;
+  }
+
+  const datos = await llamarApi('mfa', { accion: 'iniciar' });
+  if (!datos.ok) {
+    conSalir(pantalla(`${titulo('Verificación en dos pasos')}<p class="text-sm text-muted mb-16">No se pudo preparar el alta (${safeText(datos.error || datos.status)}).</p>${salirBtn}`));
+    return false;
   }
   let qrSVG = '';
   try {
@@ -107,7 +140,7 @@ export async function exigirDobleFactor(user) {
     const qr = qrcode(0, 'M'); qr.addData(datos.url); qr.make();
     qrSVG = qr.createSvgTag(5, 2);
   } catch (e) { console.warn('[Auth] QR no disponible, se muestra solo la clave:', e); }
-  el = pantalla(`
+  const el = pantalla(`
     ${titulo('Activa la verificación en dos pasos')}
     <ol class="text-sm" style="text-align:left;margin:0 0 12px 18px;line-height:1.6;">
       <li>Instala <b>Google Authenticator</b> o <b>Microsoft Authenticator</b> en tu móvil.</li>
@@ -116,30 +149,18 @@ export async function exigirDobleFactor(user) {
     </ol>
     ${qrSVG ? `<div style="display:flex;justify-content:center;background:#fff;padding:8px;border-radius:8px;margin:0 auto 8px;width:max-content;">${qrSVG}</div>` : ''}
     <p class="text-xs text-muted mb-8">Clave manual: <code style="user-select:all;word-break:break-all;">${safeText(datos.clave)}</code></p>
-    <input class="input" id="seg-codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" style="width:100%;text-align:center;font-size:22px;letter-spacing:6px;" />
-    <p class="text-xs" id="seg-error" style="display:none;color:#ef4444;margin-top:8px;"></p>
-    <button class="btn btn-primary" id="seg-ok" style="width:100%;margin-top:12px;">Activar</button>
+    ${campoCodigo}
+    <button class="btn btn-primary" id="seg-ok" style="width:100%;margin-top:12px;"></button>
     ${salirBtn}`);
   conSalir(el);
-  const inp = el.querySelector('#seg-codigo');
-  const errEl = el.querySelector('#seg-error');
-  const activar = async () => {
-    const codigo = inp.value.replace(/\D/g, '');
-    if (codigo.length !== 6) { errEl.textContent = 'El código tiene 6 dígitos.'; errEl.style.display = 'block'; return; }
-    try {
-      await completarAltaTotp(user, datos.secret, codigo);
-      auditar('doble factor activado');
-      pantalla(`${titulo('Verificación activada')}<p class="text-sm text-muted">Vuelve a entrar con tu contraseña y el código de la app.</p>`);
-      setTimeout(() => logout().catch(() => {}), 2500); // el token nuevo ya lleva el segundo factor
-    } catch (e) {
-      console.error('[Auth] Confirmar doble factor:', e);
-      errEl.textContent = e?.code === 'auth/invalid-verification-code' ? 'Código incorrecto o caducado.' : 'No se pudo activar. Vuelve a intentarlo.';
-      errEl.style.display = 'block';
-    }
-  };
-  el.querySelector('#seg-ok').addEventListener('click', activar);
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') activar(); });
-  return false;
+  await esperarCodigo(el, 'activar', 'Activar');
+  auditar('doble factor activado');
+  return true;
+}
+
+/** Super admin: borra la verificación de otro usuario (móvil perdido); al entrar escaneará un QR nuevo. */
+export async function reiniciarDobleFactor(email) {
+  return llamarApi('mfa', { accion: 'reiniciar', email });
 }
 
 // ── CIERRE POR INACTIVIDAD ────────────────────────
@@ -254,19 +275,8 @@ export function dentroDeHorario(h) {
  * accion 'registrar' (solo super admin) añade la red actual a la lista. @returns {{ ok, ip, error }}
  */
 export async function comprobarRed(accion = 'comprobar', nombre = '') {
-  try {
-    const token = await tokenActual();
-    const r = await fetch('/api/red', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ accion, nombre }),
-    });
-    const datos = await r.json().catch(() => ({}));
-    if (!r.ok) return { ok: false, ip: datos.ip || '', error: datos.error || `HTTP ${r.status}` };
-    return { ok: !!datos.ok, ip: datos.ip || '', error: null };
-  } catch (err) {
-    return { ok: false, ip: '', error: err?.message || 'sin conexión' };
-  }
+  const r = await llamarApi('red', { accion, nombre });
+  return { ok: r.ok, ip: r.ip || '', error: r.ok ? null : (r.error || `HTTP ${r.status}`) };
 }
 
 function cerrarPor(motivo, detalle) {

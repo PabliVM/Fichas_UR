@@ -6,8 +6,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function email() { return request.auth.token.email.lower(); }
-    // Sesión iniciada con contraseña + código de la app autenticadora (doble verificación). Ver SEGURIDAD.md.
-    function dobleFactor() { return request.auth != null && request.auth.token.firebase.get('sign_in_second_factor', null) != null; }
+    // Sesión iniciada con contraseña + código de la app autenticadora (doble verificación propia, api/mfa.js).
+    // La marca mfaAuthTime solo vale para la sesión en la que se puso el código (mismo auth_time). Ver SEGURIDAD.md.
+    function dobleFactor() { return request.auth != null && request.auth.token.get('mfaAuthTime', 0) == request.auth.token.auth_time; }
     function esSuper() { return dobleFactor() && email() in ['pablo.vegamartin@gmail.com', 'pvega@realmadrid.es']; }
     function perfilPath() { return /databases/$(database)/documents/usuarios/$(email()); }
     function tienePerfil() { return dobleFactor() && request.auth.token.email != null && exists(perfilPath()); }
@@ -32,6 +33,11 @@ service cloud.firestore {
       allow write: if esSuper();
       allow update: if dobleFactor() && request.auth.token.email != null && id == email()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['privacidadAceptada', 'updatedAt']);
+    }
+
+    // Claves de la doble verificación: solo las usa el servidor (api/mfa.js); nadie las lee desde el navegador.
+    match /mfa/{id} {
+      allow read, write: if false;
     }
 
     // Redes del club (IPs desde las que pueden entrar los usuarios con "Solo red del club"). Las añade api/red.js.
