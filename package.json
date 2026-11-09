@@ -1,0 +1,9 @@
+{
+  "name": "fichas-ur",
+  "private": true,
+  "type": "module",
+  "description": "RM Perfiles. Web estática (index.html + js/); solo api/ usa estas dependencias (funciones de Vercel).",
+  "dependencies": {
+    "firebase-admin": "12.7.0"
+  }
+}

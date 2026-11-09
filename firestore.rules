@@ -12,7 +12,17 @@ service cloud.firestore {
     function perfilPath() { return /databases/$(database)/documents/usuarios/$(email()); }
     function tienePerfil() { return dobleFactor() && request.auth.token.email != null && exists(perfilPath()); }
     function perfil() { return get(perfilPath()).data; }
-    function activo() { return esSuper() || (tienePerfil() && perfil().get('activo', true) == true); }
+    // Horario de acceso del perfil { dias: [1..7] (1 = lunes), desde, hasta } en minutos, hora de Madrid.
+    // Las reglas no conocen el cambio de hora: se acepta si encaja con UTC+1 o con UTC+2 (margen de 1 h en los bordes).
+    function enFranja(h, offset) {
+      let t = request.time + duration.value(offset, 'm');
+      let m = t.hours() * 60 + t.minutes();
+      return t.dayOfWeek() in h.dias && m >= h.desde && m < h.hasta;
+    }
+    function horarioOk() { let h = perfil().get('horario', null); return h == null || enFranja(h, 60) || enFranja(h, 120); }
+    // "Solo red del club": api/red.js marca la sesión (redHasta) cuando se conecta desde una red registrada.
+    function redOk() { return perfil().get('exigeRed', false) != true || request.auth.token.get('redHasta', 0) > request.time.toMillis(); }
+    function activo() { return esSuper() || (tienePerfil() && perfil().get('activo', true) == true && horarioOk() && redOk()); }
     function edita(tab) { return esSuper() || (activo() && perfil().get('tabs', {}).get(tab, 'oculta') == 'editar'); }
 
     // Gestión de usuarios: solo el super admin. Cada uno puede leer su propio perfil
@@ -22,6 +32,11 @@ service cloud.firestore {
       allow write: if esSuper();
       allow update: if dobleFactor() && request.auth.token.email != null && id == email()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['privacidadAceptada', 'updatedAt']);
+    }
+
+    // Redes del club (IPs desde las que pueden entrar los usuarios con "Solo red del club"). Las añade api/red.js.
+    match /redes/{id} {
+      allow read, write: if esSuper();
     }
 
     // Registro de actividad: cada uno solo puede AÑADIR entradas a su nombre; solo el super admin las lee;

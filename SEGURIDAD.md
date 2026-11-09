@@ -33,6 +33,28 @@ Firebase Console → Authentication → Users → borra su cuenta y vuelve a cre
 - Las reglas impiden modificar o borrar entradas.
 - La sesión se cierra sola tras **15 minutos** sin actividad.
 
+## 2b. Horario de acceso y red del club (por usuario)
+
+En **Super admin → Usuarios y permisos**, la columna de cada usuario tiene dos opciones:
+
+- **Limitar horario**: elige los días y la franja (hora de Madrid). Fuera de ella no puede entrar, y si está dentro cuando acaba la franja se le cierra la sesión.
+  - Las reglas de Firestore también lo comprueban. No conocen el cambio de hora, así que dan un margen de 1 hora en los bordes.
+- **Solo red del club**: solo puede entrar conectado a una red registrada en **Super admin → Redes del club**.
+
+### Poner en marcha "Redes del club" (una vez)
+
+El navegador no puede saber a qué WiFi estás conectado. Por eso se comprueba en un servidor (`api/red.js`, una función de Vercel): ve la IP pública desde la que llega la conexión, y esa IP no se puede falsear.
+
+1. En Firebase Console → ⚙️ **Configuración del proyecto** → **Cuentas de servicio** → **Generar nueva clave privada**. Se descarga un archivo `.json`.
+   > Esa clave da acceso total al proyecto: no la subas a GitHub ni la envíes por correo.
+2. En Vercel → tu proyecto → **Settings → Environment Variables** → añade `FIREBASE_SERVICE_ACCOUNT`, con todo el contenido del `.json` como valor, en el entorno **Production**.
+3. Vuelve a desplegar (**Deployments → ⋯ → Redeploy**).
+4. Conéctate a la WiFi del club, entra en la app → **Super admin → Redes del club** → **Registrar la red desde la que estoy**. Repítelo con cada red (otra sede, red por cable…).
+5. Marca **Solo red del club** a los usuarios que quieras y pulsa **Guardar cambios**.
+6. Publica el `firestore.rules` nuevo.
+
+> Si el club cambia de proveedor de internet o de IP, los usuarios marcados no podrán entrar hasta que vuelvas a registrar la red. Los datos móviles y las WiFi de casa no cuentan como red del club.
+
 ## 3. RGPD
 
 - **Aviso de privacidad**: cada usuario lo acepta la primera vez que entra, y queda guardado en `usuarios/{email}.privacidadAceptada`. Se puede volver a leer desde el pie de página.

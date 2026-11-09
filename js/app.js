@@ -5,10 +5,10 @@
 import { initFirebase, setWriteGuard, setAfterWrite, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, readCollection, saveDocument, readDocument, updateMapEntry, arrayUnion, arrayRemove } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { watchAuthState, login, logout, resetPassword } from './auth-service.js';
-import { cargarPerfil, tabsVisibles, nivel, puedeVer, puedeEditar, esSuperadmin, SUBPANTALLAS } from './permisos-service.js';
+import { cargarPerfil, tabsVisibles, nivel, puedeVer, puedeEditar, esSuperadmin, perfilActual, SUBPANTALLAS } from './permisos-service.js';
 import { renderPanelAdmin } from './admin-panel.js';
 import { exportarJugador, borrarJugadorCompleto } from './rgpd.js';
-import { iniciarAuditoria, auditar, exigirDobleFactor, pedirCodigoLogin, exigirPrivacidad, iniciarInactividad, mensajeCierre } from './seguridad.js';
+import { iniciarAuditoria, auditar, exigirDobleFactor, pedirCodigoLogin, exigirPrivacidad, exigirAcceso, iniciarInactividad, mensajeCierre } from './seguridad.js';
 import { leerTablaJugadores, CAMPO_LABEL, descargarPlantilla } from './importar-jugadores.js';
 import { leerFilas, filasDesdeTexto, leerTablaCondicional } from './importar-condicional.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
@@ -5188,6 +5188,7 @@ async function boot() {
       const visibles = tabsVisibles();
       if (!visibles.length) { showSinPermisos(user.email); return; }
       if (conFirebase) await exigirPrivacidad(user);
+      if (conFirebase && !esSuperadmin() && !(await exigirAcceso(perfilActual()))) return; // horario / red del club
       await arrancarApp(user, visibles);
     } finally { _booting = false; }
   });
