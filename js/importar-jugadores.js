@@ -98,13 +98,13 @@ const buscarPor = (lista, v) => {
 };
 
 /**
- * @param {File} file
+ * @param {File|Array<Array>} origen  archivo, o filas (la 1ª con los títulos) de un texto pegado
  * @param {Array} positions  state.positions
  * @returns {{ columnas: Array<{titulo, campo}>, filas: Array<{data, avisos:string[]}> }}
  */
-export async function leerTablaJugadores(file, positions) {
-  const filas2D = await leerFilas(file);
-  if (!filas2D.length) throw new Error('El archivo está vacío.');
+export async function leerTablaJugadores(origen, positions) {
+  const filas2D = Array.isArray(origen) ? origen : await leerFilas(origen); // archivo, o filas ya leídas de un texto pegado
+  if (!filas2D.length) throw new Error('No hay datos.');
   const [cab, ...resto] = filas2D;
   const columnas = cab.map(t => ({ titulo: String(t ?? '').trim(), campo: campoDeCabecera(t) }));
   const usados = new Set(columnas.map(c => c.campo));
