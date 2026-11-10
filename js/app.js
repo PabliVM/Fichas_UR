@@ -2274,12 +2274,16 @@ function buildJugImportHTML() {
   if (!jugImport.filas) {
     return `
     <div class="card mb-16">
-      <div class="card-title">Importar jugadores desde Excel / CSV</div>
+      <div class="card-title">Importar jugadores (Excel, CSV o copiar y pegar)</div>
       <div class="card-body">
         ${formatoImportHTML(columnasPlantillaJugadores(), 'una fila por jugador; la fila 1 con estos títulos (el orden da igual y puedes quitar las columnas que no tengas). Lo que falte queda vacío y se completa luego con Editar. Las fotos se suben desde Editar.')}
         <div class="flex gap-8" style="flex-wrap:wrap;align-items:center;">
           <button class="btn" id="jimp-plantilla">⬇ Descargar plantilla Excel</button>
           <input class="input" type="file" id="jug-import-file" accept=".xlsx,.xls,.csv" />
+        </div>
+        <textarea class="input" id="jimp-texto" rows="6" style="width:100%;margin-top:12px;font-family:monospace;font-size:12px;" placeholder="…o pega aquí las filas copiadas de Excel (con la fila de títulos)"></textarea>
+        <div class="flex gap-8 mt-16">
+          <button class="btn btn-primary" id="jimp-leer">Leer texto pegado</button>
           <button class="btn btn-ghost" id="jimp-cancel">Cancelar</button>
         </div>
       </div>
@@ -2600,12 +2604,11 @@ function renderPanelJugadores(container) {
     const cols = columnasPlantillaJugadores();
     descargarPlantilla('plantilla-jugadores.xlsx', [cols.map(c => c.titulo)]); // solo títulos: una fila de ejemplo se importaría como jugador
   });
-  container.querySelector('#jug-import-file')?.addEventListener('change', async e => {
-    const file = e.target.files[0];
-    if (!file) return;
+  // origen = archivo elegido o filas del texto pegado (copiado de Excel)
+  const leerJugadores = async origen => {
     try {
-      const { columnas, filas } = await leerTablaJugadores(file, state.positions);
-      if (!filas.length) { showError('No hay jugadores con nombre en el archivo.'); return; }
+      const { columnas, filas } = await leerTablaJugadores(origen, state.positions);
+      if (!filas.length) { showError('No hay jugadores con nombre en los datos.'); return; }
       const vistos = new Set();
       filas.forEach(f => {
         const nombre = `${f.data.nombre} ${f.data.apellidos}`.trim();
@@ -2623,8 +2626,14 @@ function renderPanelJugadores(container) {
       renderPanelJugadores(container);
     } catch (err) {
       console.error('[Importar jugadores]', err);
-      showError('No se pudo leer el archivo: ' + (err.message || err), 9000);
+      showError('No se pudieron leer los datos: ' + (err.message || err), 9000);
     }
+  };
+  container.querySelector('#jug-import-file')?.addEventListener('change', e => { if (e.target.files[0]) leerJugadores(e.target.files[0]); });
+  container.querySelector('#jimp-leer')?.addEventListener('click', () => {
+    const texto = container.querySelector('#jimp-texto').value;
+    if (!texto.trim()) { showError('Pega primero las filas copiadas de Excel.'); return; }
+    leerJugadores(filasDesdeTexto(texto));
   });
   container.querySelectorAll('[data-jimp-i]').forEach(cb => cb.addEventListener('change', () => {
     jugImport.filas[+cb.dataset.jimpI].crear = cb.checked;
