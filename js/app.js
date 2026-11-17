@@ -4106,7 +4106,7 @@ function renderPanelPlantillas(container) {
   if (plVista.modo === 'datos') return renderPlantillaDatos(container);
   if (plVista.modo === 'pres') return renderPlantillaPresentacion(container);
   const docDe = teamKey => plantillasCache.find(d => d.id === plantillaDocId(plantillaTemporada, teamKey));
-  const nombreDe = id => { const j = state.players.find(x => x.id === id); return j ? nombreCompleto(j) : '(jugador eliminado)'; };
+  const nombreDe = id => { const j = state.players.find(x => x.id === id); return j ? `${j.nombre || ''} ${j.apellidos || ''}`.trim() : '(jugador eliminado)'; }; // nombre primero
   const todos = [...state.players].sort(ordenJugadores);
 
   container.innerHTML = `
