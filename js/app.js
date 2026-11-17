@@ -2439,9 +2439,9 @@ function renderPanelJugadores(container) {
   }
   const soloForm = !!(jugFichaId && jugadorFormId); // editando desde la ficha: se oculta la lista
 
-  // Orden: alfabético (apellidos, nombre); con filtro de equipo, primero por posición (portero → delantero) y luego alfabético.
+  // Orden: alfabético por nombre (y apellidos); con filtro de equipo, primero por posición (portero → delantero) y luego alfabético.
   const jugadoresFiltrados = state.players.filter(jugadorPasaFiltros)
-    .sort((a, b) => (jugFiltros.teamKey ? rangoPosicion(a.positionKey) - rangoPosicion(b.positionKey) : 0) || ordenJugadores(a, b));
+    .sort((a, b) => (jugFiltros.teamKey ? rangoPosicion(a.positionKey) - rangoPosicion(b.positionKey) : 0) || ordenPorNombre(a, b));
   const rows = jugadoresFiltrados.map(p => {
     const { age, year } = calcAgeAndYear(p.birthDate);
     const teamLabel = TEAMS.find(t => t.key === p.teamKey)?.label || '-';
@@ -3973,6 +3973,7 @@ let plRefModo = 'team';   // comparación de las medias en la Presentación: 'te
 
 const nombreCompleto = j => `${j.apellidos || ''}, ${j.nombre || ''}`.replace(/^, |, $/g, '').trim();
 const ordenJugadores = (a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es');
+const ordenPorNombre = (a, b) => `${a.nombre || ''} ${a.apellidos || ''}`.trim().localeCompare(`${b.nombre || ''} ${b.apellidos || ''}`.trim(), 'es'); // listado de Jugadores
 // Orden de las posiciones en el listado filtrado por equipo (se reconoce por la clave o el nombre de Configuración). Sin posición, al final.
 const ORDEN_POSICIONES = ['portero', 'central', 'lateral', 'mediocentro', 'interior', 'extremo', 'delantero'];
 function rangoPosicion(positionKey) {
