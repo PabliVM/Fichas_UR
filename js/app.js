@@ -11,6 +11,7 @@ import { exportarJugador, borrarJugadorCompleto } from './rgpd.js';
 import { iniciarAuditoria, auditar, exigirDobleFactor, exigirPrivacidad, exigirAcceso, iniciarInactividad, mensajeCierre } from './seguridad.js';
 import { leerTablaJugadores, CAMPO_LABEL, descargarPlantilla } from './importar-jugadores.js';
 import { leerFilas, filasDesdeTexto, leerTablaCondicional } from './importar-condicional.js';
+import { abrirEditorFoto } from './foto-editor.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
 import { matchJugador } from './import-matching.js';
 import { calcularMediasPorJugador, calcularMediaGrupo, buildAspectoPorCompetencia } from './medias.js';
@@ -2453,7 +2454,7 @@ function renderPanelJugadores(container) {
     ` : '';
     return `
       <tr>
-        <td>${p.fotoUrl ? `<img src="${p.fotoUrl}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" />` : ''}</td>
+        <td><button type="button" data-jug-foto="${p.id}" title="${p.fotoUrl ? 'Cambiar foto' : 'Poner foto'} (pegar o elegir archivo)" style="width:36px;height:36px;border-radius:50%;padding:0;border:${p.fotoUrl ? 'none' : '1px dashed var(--border-emphasis)'};background:var(--bg-hover);cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:15px;">${p.fotoUrl ? `<img src="${p.fotoUrl}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;display:block;" />` : '📷'}</button></td>
         <td><a href="#" data-jug-ficha="${p.id}" style="font-weight:600;color:inherit;text-decoration:underline;cursor:pointer;">${safeText(p.nombre || '')}</a></td>
         <td><a href="#" data-jug-ficha="${p.id}" style="font-weight:600;color:inherit;text-decoration:underline;cursor:pointer;">${safeText(p.apellidos || '')}</a></td>
         <td>${year ?? '-'}</td>
@@ -2636,6 +2637,29 @@ function renderPanelJugadores(container) {
       }, 'image/png');
     }, 'image/webp', 0.92);
   });
+
+  // Foto desde el listado (sin abrir Editar): ventana para pegar/elegir, ajustar en el círculo y guardar.
+  container.querySelectorAll('[data-jug-foto]').forEach(btn => btn.addEventListener('click', () => {
+    const j = state.players.find(x => x.id === btn.dataset.jugFoto);
+    if (!j) return;
+    abrirEditorFoto({
+      titulo: `${j.nombre || ''} ${j.apellidos || ''}`.trim() || 'Jugador',
+      fotoActual: j.fotoUrl,
+      onGuardar: async file => {
+        const fotoUrl = await new Promise((res, rej) => {
+          const fr = new FileReader();
+          fr.onload = () => res(fr.result);
+          fr.onerror = () => rej(fr.error || new Error('lectura de foto'));
+          fr.readAsDataURL(file);
+        });
+        if (fotoUrl.length > 700000) throw new Error('foto demasiado grande');
+        if (!isFirebaseUnconfigured()) await updateDocument('jugadores', j.id, { fotoUrl });
+        setState({ players: state.players.map(p => p.id === j.id ? { ...p, fotoUrl } : p) });
+        renderPanelJugadores(container);
+        showSuccess('Foto guardada.');
+      },
+    });
+  }));
 
   container.querySelector('#jug-add')?.addEventListener('click', async () => {
     await cargarEvaluacionesSilencioso();
