@@ -10,7 +10,7 @@
  */
 export function buildRadarSVG(items, opts = {}) {
   const size        = opts.size        ?? 300; // diámetro del área de datos
-  const padX         = opts.padX        ?? 75;  // margen extra: etiquetas largas a los lados
+  const padX        = opts.padX        ?? 75;  // margen extra: etiquetas largas a los lados
   const padY         = opts.padY        ?? 25;  // margen extra arriba/abajo
   const max         = opts.max         ?? 5;
   const rings       = opts.rings       ?? 5;
@@ -22,14 +22,26 @@ export function buildRadarSVG(items, opts = {}) {
   const n = items.length;
   if (n < 3) return '<svg></svg>';
 
-  const cx = padX + size / 2;
-  const cy = padY + size / 2;
   const r  = size * 0.32;
   const labelR = size * 0.44;
-  const viewW = size + padX * 2;
+  const angleFor = i => (Math.PI * 2 * i) / n - Math.PI / 2;
+  // Etiquetas largas en el lado de la lista de aspectos (opts.ladoLista: 'left' | 'right'; p. ej. Táctico del
+  // portero): si alguna se saldría del dibujo y pisaría la lista, se amplía SOLO ese margen. El otro lado no cambia.
+  let padL = padX, padR = padX;
+  if (opts.ladoLista === 'left' || opts.ladoLista === 'right') {
+    items.forEach((item, i) => {
+      const cos = Math.cos(angleFor(i));
+      if (Math.abs(cos * labelR) < 4 || (cos > 0) !== (opts.ladoLista === 'right')) return;
+      const necesario = Math.abs(cos * labelR) + Math.max(...wrapLabel(item.label).map(medirTexto)) - size / 2 + 10;
+      if (opts.ladoLista === 'right') padR = Math.max(padR, necesario); else padL = Math.max(padL, necesario);
+    });
+  }
+
+  const cx = padL + size / 2;
+  const cy = padY + size / 2;
+  const viewW = size + padL + padR;
   const viewH = size + padY * 2;
 
-  const angleFor = i => (Math.PI * 2 * i) / n - Math.PI / 2;
   const point = (radius, i) => {
     const a = angleFor(i);
     return [cx + radius * Math.cos(a), cy + radius * Math.sin(a)];
@@ -75,6 +87,21 @@ export function buildRadarSVG(items, opts = {}) {
       ${labelsSVG}
     </svg>
   `;
+}
+
+/** Ancho aproximado (unidades del SVG) de una línea de etiqueta a 13px con la letra de la ficha. */
+let _ctx = null;
+function medirTexto(texto) {
+  try {
+    if (!_ctx) {
+      _ctx = document.createElement('canvas').getContext('2d');
+      const fuente = getComputedStyle(document.documentElement).getPropertyValue('--font-sans').trim() || 'sans-serif';
+      _ctx.font = `13px ${fuente}`;
+    }
+    return _ctx.measureText(String(texto)).width;
+  } catch (_) {
+    return String(texto).length * 7; // sin canvas: estimación
+  }
 }
 
 function escapeXml(str) {
