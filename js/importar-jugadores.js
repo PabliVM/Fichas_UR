@@ -27,11 +27,12 @@ const CAMPOS = {
   weight:          ['peso', 'peso kg'],
   height:          ['altura', 'altura m', 'altura cm', 'talla', 'talla cm', 'estatura'],
   complexion:      ['complexion', 'biotipo'],
+  aniosClub:       ['anos en el club', 'anos club', 'anos en club', 'temporadas en el club', 'antiguedad', 'antiguedad en el club'],
 };
 export const CAMPO_LABEL = {
   nombreCompleto: 'Nombre completo', nombre: 'Nombre', apellidos: 'Apellidos', birthDate: 'Fecha de nacimiento',
   foot: 'Lateralidad', residencia: 'Residencia', maturationalAge: 'Edad madurativa', teamKey: 'Equipo',
-  positionKey: 'Posición', weight: 'Peso', height: 'Altura', complexion: 'Complexión',
+  positionKey: 'Posición', weight: 'Peso', height: 'Altura', complexion: 'Complexión', aniosClub: 'Años en el club',
 };
 const RESIDENCIAS = ['Residente en Madrid', 'En residencia', 'Media pensión'];
 
@@ -134,7 +135,12 @@ export async function leerTablaJugadores(origen, positions) {
       nombre, apellidos,
       birthDate: null, foot: '', residencia: '', maturationalAge: txt('maturationalAge'),
       teamKey: null, positionKey: null, weight: null, height: null, complexion: txt('complexion') || null,
+      aniosClub: null,
     };
+    if (crudo.aniosClub !== undefined) {
+      const n = typeof crudo.aniosClub === 'number' ? crudo.aniosClub : parseEsNumber(crudo.aniosClub);
+      if (n == null || n < 0 || !Number.isInteger(n)) avisos.push(`Años en el club no válido: "${txt('aniosClub')}"`); else data.aniosClub = n;
+    }
     if (crudo.birthDate !== undefined) {
       data.birthDate = parseFecha(crudo.birthDate);
       if (!data.birthDate) avisos.push(`Fecha no válida: "${txt('birthDate')}"`);

@@ -1641,6 +1641,8 @@ function aniosEnClub(p) {
 // ya se hacía con weight/height — solo se amplía el mismo patrón.
 const HISTORICO_FIELDS = ['teamKey', 'positionKey', 'weight', 'height', 'complexion'];
 const esVacio = v => v === null || v === undefined || v === '';
+// Importar un Excel sobre jugadores que ya existen: solo se rellenan estos datos si en la ficha están vacíos.
+const CAMPOS_COMPLETAR = ['apellidos', 'birthDate', 'foot', 'residencia', 'maturationalAge', 'teamKey', 'positionKey', 'weight', 'height', 'complexion', 'aniosClub'];
 
 // Cambios reales entre el jugador guardado (prev) y lo nuevo, incluidos los datos condicionales.
 function cambiosHistorico(prev, nuevo) {
@@ -2262,6 +2264,7 @@ function columnasPlantillaJugadores() {
     { titulo: 'Lateralidad', ejemplo: 'Diestro', nota: 'Diestro, Zurdo o Ambidiestro.' },
     { titulo: 'Residencia', ejemplo: 'En residencia', nota: 'Residente en Madrid, En residencia o Media pensión.' },
     { titulo: 'Edad madurativa', ejemplo: '' },
+    { titulo: 'Años en el club', ejemplo: '3', nota: 'número entero; cada temporada siguiente suma uno sola.' },
     { titulo: 'Equipo', ejemplo: TEAMS[1]?.label || '', nota: 'uno de: ' + TEAMS.map(t => safeText(t.label)).join(', ') + '.' },
     { titulo: 'Posición', ejemplo: state.positions[0]?.label || '', nota: 'una de: ' + state.positions.map(p => safeText(p.label)).join(', ') + '.' },
     { titulo: 'Peso', ejemplo: '78,5', nota: 'en kg.' },
@@ -2293,9 +2296,13 @@ function buildJugImportHTML() {
   const reconocidas = columnas.filter(c => c.campo).map(c => `${safeText(c.titulo)} → ${CAMPO_LABEL[c.campo]}`).join(' · ');
   const ignoradas = columnas.filter(c => !c.campo && c.titulo).map(c => safeText(c.titulo)).join(', ');
   const n = filas.filter(f => f.crear).length;
+  const nCompletar = filas.filter(f => f.crear && f.estado === 'completar').length;
+  const nCrear = n - nCompletar;
+  const textoBoton = [nCrear ? `Crear ${nCrear} jugador${nCrear === 1 ? '' : 'es'}` : '', nCompletar ? `completar ${nCompletar} ficha${nCompletar === 1 ? '' : 's'}` : ''].filter(Boolean).join(' y ') || 'Nada que aplicar';
   const ESTADO = {
     nuevo:    '<span class="badge badge-green">Nuevo</span>',
-    existe:   '<span class="badge badge-gray">Ya existe</span>',
+    existe:   '<span class="badge badge-gray">Ya existe · nada que completar</span>',
+    completar: '<span class="badge badge-blue">Completar ficha</span>',
     dudoso:   '<span class="badge badge-gold">¿Ya existe?</span>',
     repetido: '<span class="badge badge-gray">Repetido en el archivo</span>',
   };
@@ -2304,7 +2311,7 @@ function buildJugImportHTML() {
       <div class="card-title">Importar jugadores (${filas.length} en el archivo)</div>
       <div class="card-body">
         <p class="text-xs text-muted mb-8"><strong>Columnas reconocidas:</strong> ${reconocidas}${ignoradas ? `<br><strong>Ignoradas:</strong> ${ignoradas}` : ''}</p>
-        <p class="text-xs text-muted mb-8">Se crean los marcados. Los datos que falten (o no se reconozcan) quedan vacíos y se pueden completar después con Editar. Las fotos se suben una a una desde Editar.</p>
+        <p class="text-xs text-muted mb-8">Se aplican los marcados: los <b>nuevos</b> se crean; a los que <b>ya existen</b> solo se les rellenan los datos que les faltan en su ficha (lo que ya tienen no se cambia). Lo que no venga en el archivo queda como está. Las fotos se suben desde Editar.</p>
         <div style="overflow-x:auto;max-height:420px;overflow-y:auto;">
           <table class="table table-compact">
             <thead><tr><th><input type="checkbox" id="jimp-all" ${n === filas.length ? 'checked' : ''} /></th><th>Nombre</th><th>Apellidos</th><th>Nacimiento</th><th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th>Estado</th><th>Avisos</th></tr></thead>
@@ -2318,14 +2325,14 @@ function buildJugImportHTML() {
                 <td>${safeText(state.positions.find(p => p.key === f.data.positionKey)?.label || '-')}</td>
                 <td>${f.data.weight ?? '-'}</td>
                 <td>${f.data.height ?? '-'}</td>
-                <td>${ESTADO[f.estado]}${f.parecido ? `<div class="text-xs text-muted">${safeText(f.parecido)}</div>` : ''}</td>
+                <td>${ESTADO[f.estado]}${f.completar && Object.keys(f.completar).length ? `<div class="text-xs text-muted">Añade: ${Object.keys(f.completar).filter(k => CAMPO_LABEL[k]).map(k => CAMPO_LABEL[k]).join(', ')}</div>` : f.parecido ? `<div class="text-xs text-muted">${safeText(f.parecido)}</div>` : ''}</td>
                 <td class="text-xs" style="color:#f59e0b;">${f.avisos.map(safeText).join('<br>')}</td>
               </tr>`).join('')}
             </tbody>
           </table>
         </div>
         <div class="flex gap-8 mt-16">
-          <button class="btn btn-primary" id="jimp-crear" ${n ? '' : 'disabled'}>Crear ${n} jugador${n === 1 ? '' : 'es'}</button>
+          <button class="btn btn-primary" id="jimp-crear" ${n ? '' : 'disabled'}>${textoBoton.charAt(0).toUpperCase() + textoBoton.slice(1)}</button>
           <button class="btn btn-ghost" id="jimp-cancel">Cancelar</button>
         </div>
       </div>
@@ -2615,11 +2622,18 @@ function renderPanelJugadores(container) {
         const clave = nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
         const m = matchJugador(nombre, state.players, { teamKey: f.data.teamKey });
         if (vistos.has(clave)) f.estado = 'repetido';
-        else if (m.status === 'auto') f.estado = 'existe';
+        else if (m.status === 'auto') {
+          // Ya existe: solo se rellenan los datos que le faltan en la ficha (lo que ya tiene no se toca).
+          const actual = state.players.find(p => p.id === m.playerId) || {};
+          f.playerId = m.playerId;
+          f.completar = Object.fromEntries(CAMPOS_COMPLETAR.filter(k => esVacio(actual[k]) && !esVacio(f.data[k])).map(k => [k, f.data[k]]));
+          if (f.completar.aniosClub != null) f.completar.aniosClubTemporada = state.season;
+          f.estado = Object.keys(f.completar).length ? 'completar' : 'existe';
+        }
         else if (m.status === 'dudoso') f.estado = 'dudoso';
         else f.estado = 'nuevo';
         if (m.candidates.length && f.estado !== 'nuevo') f.parecido = m.candidates.map(nombreCompleto).join(' / ');
-        f.crear = f.estado === 'nuevo';
+        f.crear = f.estado === 'nuevo' || f.estado === 'completar';
         vistos.add(clave);
       });
       jugImport = { columnas, filas };
@@ -2640,7 +2654,7 @@ function renderPanelJugadores(container) {
     renderPanelJugadores(container);
   }));
   container.querySelector('#jimp-all')?.addEventListener('change', e => {
-    jugImport.filas.forEach(f => { f.crear = e.target.checked; });
+    jugImport.filas.forEach(f => { if (f.estado !== 'existe' && f.estado !== 'repetido') f.crear = e.target.checked; }); // nunca duplica sin querer
     renderPanelJugadores(container);
   });
   container.querySelector('#jimp-cancel')?.addEventListener('click', () => { jugImport = null; renderPanelJugadores(container); });
@@ -2651,12 +2665,22 @@ function renderPanelJugadores(container) {
     btn.disabled = true;
     let ok = 0;
     const fallos = [];
+    let completadas = 0;
     for (const f of aCrear) {
-      btn.textContent = `Creando ${ok + fallos.length + 1} de ${aCrear.length}…`;
+      btn.textContent = `Guardando ${ok + completadas + fallos.length + 1} de ${aCrear.length}…`;
       const data = f.data;
       try {
-        const id = isFirebaseUnconfigured() ? crypto.randomUUID() : await addDocument('jugadores', data);
-        setState({ players: [...state.players, { id, ...data }] });
+        if (f.estado === 'completar') { // ficha existente: solo los datos que le faltaban
+          const patch = f.completar;
+          if (!isFirebaseUnconfigured()) await updateDocument('jugadores', f.playerId, patch);
+          setState({ players: state.players.map(p => p.id === f.playerId ? { ...p, ...patch } : p) });
+          if (patch.teamKey) await añadirAPlantilla(f.playerId, patch.teamKey, state.season);
+          completadas++;
+          continue;
+        }
+        const nuevo = data.aniosClub != null ? { ...data, aniosClubTemporada: state.season } : data;
+        const id = isFirebaseUnconfigured() ? crypto.randomUUID() : await addDocument('jugadores', nuevo);
+        setState({ players: [...state.players, { id, ...nuevo }] });
         if (data.teamKey) await añadirAPlantilla(id, data.teamKey, state.season);
         ok++;
       } catch (err) {
@@ -2666,7 +2690,7 @@ function renderPanelJugadores(container) {
     }
     jugImport = null;
     renderPanelJugadores(container);
-    if (ok) showSuccess(`${ok} jugador${ok === 1 ? '' : 'es'} creado${ok === 1 ? '' : 's'}.`);
+    if (ok || completadas) showSuccess([ok ? `${ok} jugador${ok === 1 ? '' : 'es'} creado${ok === 1 ? '' : 's'}` : '', completadas ? `${completadas} ficha${completadas === 1 ? '' : 's'} completada${completadas === 1 ? '' : 's'}` : ''].filter(Boolean).join(' y ') + '.');
     if (fallos.length) showError(`Fallaron ${fallos.length}: ${fallos.join(', ')}. Revisa permisos o conexión.`, 12000);
   });
 
