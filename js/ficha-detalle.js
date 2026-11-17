@@ -221,7 +221,8 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref, ma
   const cabeceraManual = '<li class="ficha-manual-head"><span class="ficha-manual-h" title="Columna para nota manual"></span></li>';
 
   const radarSVG = buildRadarSVG(
-    items.map(i => ({ label: i.label, value: i.value }))
+    items.map(i => ({ label: i.label, value: i.value })),
+    { ladoLista: side }, // las etiquetas de ese lado no pueden pisar la lista de aspectos
   );
 
   const listBlock  = `<ul class="ficha-item-list ${side === 'left' ? 'align-left' : 'align-right'}" style="font-size:${listFontSize}px;gap:${listGap}px;">${cabeceraManual}${listHTML}</ul>`;
