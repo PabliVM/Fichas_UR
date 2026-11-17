@@ -1652,6 +1652,22 @@ function aniosEnClub(p) {
 const HISTORICO_FIELDS = ['teamKey', 'positionKey', 'weight', 'height', 'complexion'];
 const esVacio = v => v === null || v === undefined || v === '';
 // Importar un Excel sobre jugadores que ya existen: solo se rellenan estos datos si en la ficha están vacíos.
+// A quién va una fila importada: id de un jugador (se completa su ficha), 'nuevo' (se crea) o '' (sin elegir: no se aplica).
+function asignarDestino(f, destino) {
+  f.destino = destino;
+  if (destino && destino !== 'nuevo') {
+    const actual = state.players.find(p => p.id === destino) || {};
+    f.playerId = destino;
+    f.completar = Object.fromEntries(CAMPOS_COMPLETAR.filter(k => esVacio(actual[k]) && !esVacio(f.data[k])).map(k => [k, f.data[k]]));
+    if (f.completar.aniosClub != null) f.completar.aniosClubTemporada = state.season;
+    f.estado = Object.keys(f.completar).length ? 'completar' : 'existe';
+  } else {
+    f.playerId = null;
+    f.completar = null;
+    f.estado = destino === 'nuevo' ? 'nuevo' : 'dudoso';
+  }
+  f.crear = f.estado === 'nuevo' || f.estado === 'completar';
+}
 const CAMPOS_COMPLETAR = ['apellidos', 'birthDate', 'foot', 'residencia', 'maturationalAge', 'teamKey', 'positionKey', 'weight', 'height', 'complexion', 'aniosClub'];
 
 // Cambios reales entre el jugador guardado (prev) y lo nuevo, incluidos los datos condicionales.
@@ -2311,13 +2327,14 @@ function buildJugImportHTML() {
   const ignoradas = columnas.filter(c => !c.campo && c.titulo).map(c => safeText(c.titulo)).join(', ');
   const n = filas.filter(f => f.crear).length;
   const nCompletar = filas.filter(f => f.crear && f.estado === 'completar').length;
+  const todosOrdenados = [...state.players].sort(ordenPorNombre);
   const nCrear = n - nCompletar;
   const textoBoton = [nCrear ? `Crear ${nCrear} jugador${nCrear === 1 ? '' : 'es'}` : '', nCompletar ? `completar ${nCompletar} ficha${nCompletar === 1 ? '' : 's'}` : ''].filter(Boolean).join(' y ') || 'Nada que aplicar';
   const ESTADO = {
     nuevo:    '<span class="badge badge-green">Nuevo</span>',
     existe:   '<span class="badge badge-gray">Ya existe · nada que completar</span>',
     completar: '<span class="badge badge-blue">Completar ficha</span>',
-    dudoso:   '<span class="badge badge-gold">¿Ya existe?</span>',
+    dudoso:   '<span class="badge badge-gold">Elige el jugador</span>',
     repetido: '<span class="badge badge-gray">Repetido en el archivo</span>',
   };
   return `
@@ -2328,18 +2345,25 @@ function buildJugImportHTML() {
         <p class="text-xs text-muted mb-8">Se aplican los marcados: los <b>nuevos</b> se crean; a los que <b>ya existen</b> solo se les rellenan los datos que les faltan en su ficha (lo que ya tienen no se cambia). Lo que no venga en el archivo queda como está. Las fotos se suben desde Editar.</p>
         <div style="overflow-x:auto;max-height:420px;overflow-y:auto;">
           <table class="table table-compact">
-            <thead><tr><th><input type="checkbox" id="jimp-all" ${n === filas.length ? 'checked' : ''} /></th><th>Nombre</th><th>Apellidos</th><th>Nacimiento</th><th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th>Estado</th><th>Avisos</th></tr></thead>
+            <thead><tr><th><input type="checkbox" id="jimp-all" ${n === filas.length ? 'checked' : ''} /></th><th>Nombre</th><th>Apellidos</th><th>Jugador de la app</th><th>Nacimiento</th><th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th>Años club</th><th>Estado</th><th>Avisos</th></tr></thead>
             <tbody>${filas.map((f, i) => `
               <tr>
-                <td><input type="checkbox" data-jimp-i="${i}" ${f.crear ? 'checked' : ''} /></td>
+                <td><input type="checkbox" data-jimp-i="${i}" ${f.crear ? 'checked' : ''} ${f.estado === 'dudoso' ? 'disabled title="Elige primero el jugador"' : f.estado === 'existe' ? 'disabled title="No le falta ningún dato de los que trae el archivo"' : ''} /></td>
                 <td>${safeText(f.data.nombre)}</td>
                 <td>${safeText(f.data.apellidos)}</td>
+                <td>${f.estado === 'repetido' ? '' : `<select class="select" data-jimp-dest="${i}" style="min-width:210px;font-size:12px;min-height:30px;${f.estado === 'dudoso' ? 'border-color:#f59e0b;' : ''}">
+                  ${f.destino === '' ? '<option value="" selected>— elige jugador —</option>' : ''}
+                  <option value="nuevo" ${f.destino === 'nuevo' ? 'selected' : ''}>＋ Crear como nuevo</option>
+                  ${(f.candidatos || []).length ? `<optgroup label="Parecidos">${f.candidatos.map(id => { const j = state.players.find(x => x.id === id); return j ? `<option value="${id}" ${f.destino === id ? 'selected' : ''}>${safeText(nombreCompleto(j))}</option>` : ''; }).join('')}</optgroup>` : ''}
+                  <optgroup label="Todos">${todosOrdenados.filter(j => !(f.candidatos || []).includes(j.id)).map(j => `<option value="${j.id}" ${f.destino === j.id ? 'selected' : ''}>${safeText(nombreCompleto(j))}</option>`).join('')}</optgroup>
+                </select>`}</td>
                 <td>${f.data.birthDate ? f.data.birthDate.split('-').reverse().join('/') : '-'}</td>
                 <td>${safeText(TEAMS.find(t => t.key === f.data.teamKey)?.label || '-')}</td>
                 <td>${safeText(state.positions.find(p => p.key === f.data.positionKey)?.label || '-')}</td>
                 <td>${f.data.weight ?? '-'}</td>
                 <td>${f.data.height ?? '-'}</td>
-                <td>${ESTADO[f.estado]}${f.completar && Object.keys(f.completar).length ? `<div class="text-xs text-muted">Añade: ${Object.keys(f.completar).filter(k => CAMPO_LABEL[k]).map(k => CAMPO_LABEL[k]).join(', ')}</div>` : f.parecido ? `<div class="text-xs text-muted">${safeText(f.parecido)}</div>` : ''}</td>
+                <td>${f.data.aniosClub ?? '-'}</td>
+                <td>${ESTADO[f.estado]}${f.completar && Object.keys(f.completar).length ? `<div class="text-xs text-muted">Añade: ${Object.keys(f.completar).filter(k => CAMPO_LABEL[k]).map(k => CAMPO_LABEL[k]).join(', ')}</div>` : ''}</td>
                 <td class="text-xs" style="color:#f59e0b;">${f.avisos.map(safeText).join('<br>')}</td>
               </tr>`).join('')}
             </tbody>
@@ -2682,19 +2706,13 @@ function renderPanelJugadores(container) {
         const nombre = `${f.data.nombre} ${f.data.apellidos}`.trim();
         const clave = nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
         const m = matchJugador(nombre, state.players, { teamKey: f.data.teamKey });
-        if (vistos.has(clave)) f.estado = 'repetido';
-        else if (m.status === 'auto') {
-          // Ya existe: solo se rellenan los datos que le faltan en la ficha (lo que ya tiene no se toca).
-          const actual = state.players.find(p => p.id === m.playerId) || {};
-          f.playerId = m.playerId;
-          f.completar = Object.fromEntries(CAMPOS_COMPLETAR.filter(k => esVacio(actual[k]) && !esVacio(f.data[k])).map(k => [k, f.data[k]]));
-          if (f.completar.aniosClub != null) f.completar.aniosClubTemporada = state.season;
-          f.estado = Object.keys(f.completar).length ? 'completar' : 'existe';
-        }
-        else if (m.status === 'dudoso') f.estado = 'dudoso';
-        else f.estado = 'nuevo';
-        if (m.candidates.length && f.estado !== 'nuevo') f.parecido = m.candidates.map(nombreCompleto).join(' / ');
-        f.crear = f.estado === 'nuevo' || f.estado === 'completar';
+        f.candidatos = (m.candidates || []).map(c => c.id);
+        if (vistos.has(clave)) { f.estado = 'repetido'; f.crear = false; }
+        // Ya existe: solo se rellenan los datos que le faltan en la ficha (lo que ya tiene no se toca).
+        else if (m.status === 'auto') asignarDestino(f, m.playerId);
+        // Parecido (p. ej. solo el nombre): con un único candidato se propone ese; con varios, se elige en la fila.
+        else if (m.status === 'dudoso') asignarDestino(f, f.candidatos.length === 1 ? f.candidatos[0] : '');
+        else asignarDestino(f, 'nuevo');
         vistos.add(clave);
       });
       jugImport = { columnas, filas };
@@ -2710,12 +2728,16 @@ function renderPanelJugadores(container) {
     if (!texto.trim()) { showError('Pega primero las filas copiadas de Excel.'); return; }
     leerJugadores(filasDesdeTexto(texto));
   });
+  container.querySelectorAll('[data-jimp-dest]').forEach(sel => sel.addEventListener('change', () => {
+    asignarDestino(jugImport.filas[+sel.dataset.jimpDest], sel.value);
+    renderPanelJugadores(container);
+  }));
   container.querySelectorAll('[data-jimp-i]').forEach(cb => cb.addEventListener('change', () => {
     jugImport.filas[+cb.dataset.jimpI].crear = cb.checked;
     renderPanelJugadores(container);
   }));
   container.querySelector('#jimp-all')?.addEventListener('change', e => {
-    jugImport.filas.forEach(f => { if (f.estado !== 'existe' && f.estado !== 'repetido') f.crear = e.target.checked; }); // nunca duplica sin querer
+    jugImport.filas.forEach(f => { if (f.estado === 'nuevo' || f.estado === 'completar') f.crear = e.target.checked; }); // nunca duplica sin querer
     renderPanelJugadores(container);
   });
   container.querySelector('#jimp-cancel')?.addEventListener('click', () => { jugImport = null; renderPanelJugadores(container); });
