@@ -2426,7 +2426,9 @@ function renderPanelJugadores(container) {
   }
   const soloForm = !!(jugFichaId && jugadorFormId); // editando desde la ficha: se oculta la lista
 
-  const jugadoresFiltrados = state.players.filter(jugadorPasaFiltros);
+  // Orden: alfabético (apellidos, nombre); con filtro de equipo, primero por posición (portero → delantero) y luego alfabético.
+  const jugadoresFiltrados = state.players.filter(jugadorPasaFiltros)
+    .sort((a, b) => (jugFiltros.teamKey ? rangoPosicion(a.positionKey) - rangoPosicion(b.positionKey) : 0) || ordenJugadores(a, b));
   const rows = jugadoresFiltrados.map(p => {
     const { age, year } = calcAgeAndYear(p.birthDate);
     const teamLabel = TEAMS.find(t => t.key === p.teamKey)?.label || '-';
@@ -3936,6 +3938,15 @@ let plRefModo = 'team';   // comparación de las medias en la Presentación: 'te
 
 const nombreCompleto = j => `${j.apellidos || ''}, ${j.nombre || ''}`.replace(/^, |, $/g, '').trim();
 const ordenJugadores = (a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es');
+// Orden de las posiciones en el listado filtrado por equipo (se reconoce por la clave o el nombre de Configuración). Sin posición, al final.
+const ORDEN_POSICIONES = ['portero', 'central', 'lateral', 'mediocentro', 'interior', 'extremo', 'delantero'];
+function rangoPosicion(positionKey) {
+  if (!positionKey) return ORDEN_POSICIONES.length + 1;
+  const pos = state.positions.find(p => p.key === positionKey);
+  const txt = normalizeTxt(`${positionKey} ${pos?.label || ''}`);
+  const i = ORDEN_POSICIONES.findIndex(w => txt.includes(w));
+  return i < 0 ? ORDEN_POSICIONES.length : i;
+}
 
 // Guarda (fusiona) campos en el doc de la plantilla temporada+equipo sin perder los demás (jugadorIds, fotos…).
 // cachePatch: lo que se apunta en la caché local cuando patch lleva arrayUnion/arrayRemove.
