@@ -1313,6 +1313,15 @@ function renderPanelRegistro(container) {
 }
 
 let jugadorFormId = null; // null=formulario cerrado, 'new'=alta, <id>=editando ese jugador
+// Ctrl+V con el formulario de jugador abierto: si lo copiado es una imagen, va a la foto (un solo listener para toda la app).
+let jugPegarFoto = null;
+document.addEventListener('paste', e => {
+  if (!jugPegarFoto || !document.getElementById('jug-foto')) return;
+  const item = [...(e.clipboardData?.items || [])].find(i => i.kind === 'file' && i.type.startsWith('image/'));
+  if (!item) return; // texto normal: se pega en el campo como siempre
+  e.preventDefault();
+  jugPegarFoto(item.getAsFile());
+});
 let jugImport = null; // alta masiva desde Excel/CSV: { columnas, filas:[{data, avisos, estado, crear}] } mientras se revisa
 let condImport = null; // carga de datos condicionales: { evalId, columnas?, filas?:[{nombre, media, max, avisos, playerId}] }
 let configCriteriaPosition = null;      // qué posición se está editando en "Items a evaluar"
@@ -1689,6 +1698,10 @@ function buildJugadorFormHTML(player) {
           <div class="field-group">
             <label class="label">Foto</label>
             <input class="input" type="file" id="jug-foto" accept="image/*" />
+            <div class="flex gap-8" style="align-items:center;margin-top:6px;flex-wrap:wrap;">
+              <button class="btn btn-sm" type="button" id="jug-foto-pegar" title="Pega la imagen que hayas copiado (también vale Ctrl+V)">📋 Pegar foto copiada</button>
+              <span class="text-xs text-muted">o copia una imagen y pulsa Ctrl+V</span>
+            </div>
           </div>
           <div id="jug-crop" style="display:none;">
             <div id="jug-crop-view" style="width:180px;height:180px;border-radius:50%;overflow:hidden;position:relative;background:var(--bg-hover);cursor:grab;touch-action:none;border:2px solid var(--blue-500, #3b82f6);">
@@ -2553,6 +2566,28 @@ function renderPanelJugadores(container) {
     img.onerror = () => { crop = null; showError('No se pudo leer esa imagen.'); };
     img.src = url;
   });
+  // Foto pegada (copiada de una web, WhatsApp, captura…): se mete en el mismo campo y abre el mismo recorte circular.
+  const usarFotoPegada = blob => {
+    const inp = container.querySelector('#jug-foto');
+    if (!inp || !blob) return;
+    const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    const dt = new DataTransfer();
+    dt.items.add(new File([blob], `foto-pegada.${ext}`, { type: blob.type || 'image/png' }));
+    inp.files = dt.files;
+    inp.dispatchEvent(new Event('change'));
+  };
+  container.querySelector('#jug-foto-pegar')?.addEventListener('click', async () => {
+    try {
+      for (const item of await navigator.clipboard.read()) {
+        const tipo = item.types.find(t => t.startsWith('image/'));
+        if (tipo) { usarFotoPegada(await item.getType(tipo)); return; }
+      }
+      showError('No hay ninguna imagen copiada. Copia una foto (clic derecho → Copiar imagen) y vuelve a pulsar.');
+    } catch (_) {
+      showError('El navegador no deja leer el portapapeles con el botón: pulsa Ctrl+V (⌘+V en Mac) con el formulario abierto.', 7000);
+    }
+  });
+  if (container.querySelector('#jug-foto')) jugPegarFoto = usarFotoPegada; // lo usa el Ctrl+V global (ver abajo)
   cropZoomEl?.addEventListener('input', () => {
     if (!crop) return;
     const old = crop.min * crop.zoom;
