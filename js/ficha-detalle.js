@@ -192,10 +192,11 @@ function centerFichaCircle(root) {
 function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref, manualVals }) {
   const avg = blockAvg({ rp, items });
   const avgColor = avg != null ? (scoreColor(avg, bands) || '#ffffff') : null;
-  const avgHTML = avg != null ? ` <span class="ficha-q-media" style="color:${avgColor};margin-left:40px;font-weight:800;">${formatNum(avg)}</span>` : '';
+  const avgHTML = avg != null ? `<span class="ficha-q-media" style="color:${avgColor};font-weight:800;">${formatNum(avg)}</span>` : '';
   const refHTML = (ref != null && !Number.isNaN(ref)) ? ` <span class="ficha-q-sep">/</span><span class="ficha-q-media ficha-q-ref" style="color:${scoreColor(ref, bands) || '#ffffff'};">${formatNum(ref)}*</span>` : '';
   // Celda de la media de las notas manuales (se rellena sola al escribir en las celdas "M"; ver wireNotasManuales).
-  const manualAvgHTML = ' <span class="ficha-q-manual" title="Media de las notas manuales (M)"><span class="ficha-q-manual-v"></span><span class="ficha-q-manual-ref"></span></span>';
+  // Recuadro con la M dentro: media de las notas manuales (se rellena sola al escribir en las celdas "M") y, si hay, la comparativa.
+  const manualAvgHTML = '<span class="ficha-q-manual" title="Media de las notas manuales (M)"><span class="ficha-q-manual-m">M</span><span class="ficha-q-manual-v"></span><span class="ficha-q-manual-ref"></span></span>';
   // Con muchas items (ej. Táctico portero, 24) la lista lateral no cabe
   // en la altura fija de la ficha si mantiene el tamaño pensado para ~12.
   // A partir de 18 items se reduce letra/gap solo de esta lista, para no
@@ -231,7 +232,7 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref, ma
   return `
     <section class="ficha-quadrant q-${blockKey} pos-${pos} ${side === 'left' ? 'q-left' : 'q-right'}" data-ref="${ref != null && !Number.isNaN(ref) ? ref : ''}">
       <header class="ficha-q-header">
-        <span class="ficha-q-title">${safeText(title)}${avgHTML}${refHTML}${manualAvgHTML}</span>
+        <span class="ficha-q-title ficha-q-title-2l"><span class="ficha-q-nombre">${safeText(title)}</span><span class="ficha-q-notas">${avgHTML}${refHTML}${avgHTML ? '<span class="ficha-q-guion">—</span>' : ''}${manualAvgHTML}</span></span>
       </header>
       <div class="ficha-q-body">
         ${side === 'left' ? listBlock + radarBlock : radarBlock + listBlock}
