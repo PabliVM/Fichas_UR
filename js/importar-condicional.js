@@ -4,6 +4,8 @@
 // una lista pegada (copiar/pegar de Excel). Fila 1 = títulos:
 // columna(s) del jugador + una columna por ítem condicional.
 // "<ítem> máx" / "máx <ítem>" = máxima; el resto, media.
+// Alevines e infantiles: columnas con las capacidades (Coordinación, Agilidad…)
+// y ✔ / ▬ / ✘ (o Bien / Regular / Mal). A cada jugador se le guarda lo suyo.
 // ================================================
 
 import { parseCSV, parseEsNumber } from './importar-csv.js';
@@ -22,11 +24,13 @@ export function filasDesdeTexto(texto) {
 
 const MAX_PREF = ['max', 'maxima', 'maximo'];
 
-function columnaDe(titulo, items) {
+function columnaDe(titulo, items, base) {
   const n = norm(titulo);
   if (!n) return { tipo: null };
   const item = items.find(i => norm(i) === n);
-  if (item) return { tipo: 'media', item };
+  const capacidad = base.find(b => norm(b) === n); // misma columna puede valer para los dos (p. ej. Edad madurativa)
+  if (item) return { tipo: 'media', item, ...(capacidad ? { base: capacidad } : {}) };
+  if (capacidad) return { tipo: 'base', base: capacidad };
   for (const m of MAX_PREF) {
     const resto = n.endsWith(' ' + m) ? n.slice(0, -m.length - 1) : n.startsWith(m + ' ') ? n.slice(m.length + 1) : null;
     const it = resto && items.find(i => norm(i) === resto);
@@ -37,25 +41,35 @@ function columnaDe(titulo, items) {
   return { tipo: null };
 }
 
+/** ✔ / ▬ / ✘ (y equivalentes escritos) → 'ok' | 'dash' | 'fail', o null si no se reconoce. */
+export function parseSimbolo(txt) {
+  const t = String(txt ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (['✔', '✓', '✅', '✔️', 'ok', 'bien', 'b', 'si', '+', 'verde'].includes(t)) return 'ok';
+  if (['▬', '-', '–', '—', '=', '~', 'regular', 'r', 'amarillo', 'normal'].includes(t)) return 'dash';
+  if (['✘', '✗', 'x', '❌', 'mal', 'm', 'no', 'rojo'].includes(t)) return 'fail';
+  return null;
+}
+
 /**
  * @param {Array<Array>} filas2D  primera fila = títulos
- * @param {string[]} items        state.aspectosComunes.condicional
- * @returns {{ columnas: Array<{titulo, tipo, item}>, filas: Array<{nombre, media:{}, max:{}, avisos:string[]}> }}
+ * @param {string[]} items        state.aspectosComunes.condicional (datos numéricos)
+ * @param {string[]} [base]       capacidades de alevines/infantiles (símbolos)
+ * @returns {{ columnas: Array<{titulo, tipo, item, base}>, filas: Array<{nombre, media:{}, max:{}, base:{}, avisosNum:string[], avisosBase:string[]}> }}
  */
-export function leerTablaCondicional(filas2D, items) {
+export function leerTablaCondicional(filas2D, items, base = []) {
   if (!filas2D.length) throw new Error('No hay datos.');
   const [cab, ...resto] = filas2D;
-  const columnas = cab.map(t => ({ titulo: String(t ?? '').trim(), ...columnaDe(t, items) }));
+  const columnas = cab.map(t => ({ titulo: String(t ?? '').trim(), ...columnaDe(t, items, base) }));
   // Sin columna de nombre reconocida: la primera (si no es un ítem) es el jugador.
   if (!columnas.some(c => ['nombre', 'nombreCompleto'].includes(c.tipo))) {
-    if (columnas[0] && !columnas[0].item) columnas[0].tipo = 'nombreCompleto';
+    if (columnas[0] && !columnas[0].item && !columnas[0].base) columnas[0].tipo = 'nombreCompleto';
     else throw new Error('No encuentro la columna del jugador (Jugador, Nombre o Nombre completo).');
   }
-  if (!columnas.some(c => c.item)) throw new Error('Ninguna columna coincide con un ítem condicional de Configuración.');
+  if (!columnas.some(c => c.item || c.base)) throw new Error('Ninguna columna coincide con un ítem condicional de Configuración ni con una capacidad de alevines/infantiles.');
 
   const filas = resto.map(cols => {
     let nombre = '', apellidos = '', completo = '';
-    const media = {}, max = {}, avisos = [];
+    const media = {}, max = {}, simbolos = {}, avisosNum = [], avisosBase = [];
     columnas.forEach((c, i) => {
       const v = cols[i];
       const txt = String(v ?? '').replace(/\s+/g, ' ').trim();
@@ -63,13 +77,20 @@ export function leerTablaCondicional(filas2D, items) {
       if (c.tipo === 'nombre') nombre = txt;
       else if (c.tipo === 'apellidos') apellidos = apellidos ? `${apellidos} ${txt}` : txt;
       else if (c.tipo === 'nombreCompleto') completo = txt.includes(',') ? txt.split(',').reverse().map(x => x.trim()).join(' ') : txt;
-      else if (c.item) {
-        const n = typeof v === 'number' ? v : parseEsNumber(txt);
-        if (n == null) avisos.push(`${c.titulo}: "${txt}" no es un número`);
-        else (c.tipo === 'max' ? max : media)[slugify(c.item)] = n;
+      else {
+        if (c.item) {
+          const n = typeof v === 'number' ? v : parseEsNumber(txt);
+          if (n == null) avisosNum.push(`${c.titulo}: "${txt}" no es un número`);
+          else (c.tipo === 'max' ? max : media)[slugify(c.item)] = n;
+        }
+        if (c.base) {
+          const s = parseSimbolo(txt);
+          if (s == null) avisosBase.push(`${c.titulo}: "${txt}" no es ✔ / ▬ / ✘`);
+          else simbolos[slugify(c.base)] = s;
+        }
       }
     });
-    return { nombre: completo || `${nombre} ${apellidos}`.trim(), media, max, avisos };
+    return { nombre: completo || `${nombre} ${apellidos}`.trim(), media, max, base: simbolos, avisosNum, avisosBase };
   }).filter(f => f.nombre);
   return { columnas, filas };
 }
