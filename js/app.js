@@ -5053,8 +5053,10 @@ async function renderPlantillaPresentacion(container) {
       label: `Comparado con: ${plRefModo === 'team' ? 'Equipo' : 'Equipo · misma posición'} ${t?.label || ''} (${pool.length} jug.)`,
     };
   };
-  const grupos = state.positions.map(pos => ({ titulo: pos.label, items: preps.filter(x => x.prep.fPos === pos.key) }));
-  grupos.push({ titulo: 'Sin posición', items: preps.filter(x => !x.prep.fPos || !state.positions.some(pos => pos.key === x.prep.fPos)) });
+  // Agrupa por la posición del jugador (la de su ficha / plantilla); si no tiene, la de su evaluación.
+  const posDe = x => (state.positions.some(pos => pos.key === x.j.positionKey) ? x.j.positionKey : x.prep.fPos);
+  const grupos = state.positions.map(pos => ({ titulo: pos.label, items: preps.filter(x => posDe(x) === pos.key) }));
+  grupos.push({ titulo: 'Sin posición', items: preps.filter(x => !posDe(x) || !state.positions.some(pos => pos.key === posDe(x))) });
 
   let hechas = 0;
   for (const g of grupos.filter(g => g.items.length)) {
