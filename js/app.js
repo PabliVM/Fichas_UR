@@ -2054,11 +2054,12 @@ function renderFichaJugador(container, p) {
       const ev = evInfo(eid);
       if (!ev || filasEval.some(f => f.eid === eid)) return;
       const idx = (regEvaluaciones || []).findIndex(e => e.id === eid);
-      filasEval.push({ eid, ev, posKey: ev.posicionKey || p.positionKey, n: 0, media: null, orden: `${ev.fechaFin || ev.fechaInicio || ''}|${String(idx).padStart(5, '0')}` });
+      filasEval.push({ eid, ev, posKey: p.positionKey || ev.posicionKey, n: 0, media: null, orden: `${ev.fechaFin || ev.fechaInicio || ''}|${String(idx).padStart(5, '0')}` });
     });
     filasEval.sort((x, y) => String(y.orden).localeCompare(String(x.orden)));
   }
-  const evSel = filasEval.find(f => f.eid === jugFichaEvalId) || filasEval[0] || null; // por defecto, la final
+  // Por defecto, la final con notas de la encuesta (una evaluación con solo datos condicionales no tapa las medias).
+  const evSel = filasEval.find(f => f.eid === jugFichaEvalId) || filasEval.find(f => f.media) || filasEval[0] || null;
 
   // ── Pestaña "Datos personales"
   const items = state.aspectosComunes.condicional || [];
@@ -4394,10 +4395,10 @@ function prepararFichaJugador(p, regs, temporada) {
     const ev = evInfo(eid);
     if (!ev || filasEval.some(f => f.eid === eid)) return;
     const idx = (regEvaluaciones || []).findIndex(e => e.id === eid);
-    filasEval.push({ eid, ev, posKey: ev.posicionKey || p.positionKey, media: null, orden: `${ev.fechaFin || ev.fechaInicio || ''}|${String(idx).padStart(5, '0')}` });
+    filasEval.push({ eid, ev, posKey: p.positionKey || ev.posicionKey, media: null, orden: `${ev.fechaFin || ev.fechaInicio || ''}|${String(idx).padStart(5, '0')}` });
   });
   filasEval.sort((x, y) => String(y.orden).localeCompare(String(x.orden)));
-  const evSel = filasEval.find(f => f.ev?.temporada === temporada) || filasEval[0] || null;
+  const evSel = filasEval.find(f => f.ev?.temporada === temporada && f.media) || filasEval.find(f => f.ev?.temporada === temporada) || filasEval.find(f => f.media) || filasEval[0] || null;
   const textosKey = evSel?.eid || 'sin-evaluacion';
   const regsEval = evSel ? (regs || []).filter(r => (r.evaluacionId || 'sin-evaluacion') === evSel.eid) : [];
   const filasTexto = k => regsEval.map(r => String(r.textos?.[k] || '').replace(/\s*\n+\s*/g, ' · ').trim()).filter(Boolean);
@@ -5052,8 +5053,10 @@ async function renderPlantillaPresentacion(container) {
       label: `Comparado con: ${plRefModo === 'team' ? 'Equipo' : 'Equipo · misma posición'} ${t?.label || ''} (${pool.length} jug.)`,
     };
   };
-  const grupos = state.positions.map(pos => ({ titulo: pos.label, items: preps.filter(x => x.prep.fPos === pos.key) }));
-  grupos.push({ titulo: 'Sin posición', items: preps.filter(x => !x.prep.fPos || !state.positions.some(pos => pos.key === x.prep.fPos)) });
+  // Agrupa por la posición del jugador (la de su ficha / plantilla); si no tiene, la de su evaluación.
+  const posDe = x => (state.positions.some(pos => pos.key === x.j.positionKey) ? x.j.positionKey : x.prep.fPos);
+  const grupos = state.positions.map(pos => ({ titulo: pos.label, items: preps.filter(x => posDe(x) === pos.key) }));
+  grupos.push({ titulo: 'Sin posición', items: preps.filter(x => !posDe(x) || !state.positions.some(pos => pos.key === posDe(x))) });
 
   let hechas = 0;
   for (const g of grupos.filter(g => g.items.length)) {
