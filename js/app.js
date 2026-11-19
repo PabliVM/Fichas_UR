@@ -9,7 +9,7 @@ import { cargarPerfil, tabsVisibles, nivel, puedeVer, puedeEditar, esSuperadmin,
 import { renderPanelAdmin } from './admin-panel.js';
 import { exportarJugador, borrarJugadorCompleto } from './rgpd.js';
 import { iniciarAuditoria, auditar, exigirDobleFactor, exigirPrivacidad, exigirAcceso, iniciarInactividad, mensajeCierre } from './seguridad.js';
-import { leerTablaJugadores, CAMPO_LABEL, descargarPlantilla } from './importar-jugadores.js';
+import { leerTablaJugadores, CAMPO_LABEL, descargarPlantilla, campoDeCabecera } from './importar-jugadores.js';
 import { leerFilas, filasDesdeTexto, leerTablaCondicional } from './importar-condicional.js';
 import { abrirEditorFoto } from './foto-editor.js';
 import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
@@ -1660,13 +1660,42 @@ function asignarDestino(f, destino) {
     f.playerId = destino;
     f.completar = Object.fromEntries(CAMPOS_COMPLETAR.filter(k => esVacio(actual[k]) && !esVacio(f.data[k])).map(k => [k, f.data[k]]));
     if (f.completar.aniosClub != null) f.completar.aniosClubTemporada = state.season;
-    f.estado = Object.keys(f.completar).length ? 'completar' : 'existe';
+    f.condPend = condPendienteDe(f, { ...actual, teamKey: actual.teamKey || f.completar.teamKey || null });
+    f.estado = Object.keys(f.completar).length || f.condPend ? 'completar' : 'existe';
   } else {
     f.playerId = null;
     f.completar = null;
+    f.condPend = destino === 'nuevo' ? condPendienteDe(f, { teamKey: f.data.teamKey }) : null;
     f.estado = destino === 'nuevo' ? 'nuevo' : 'dudoso';
   }
   f.crear = f.estado === 'nuevo' || f.estado === 'completar';
+}
+// Datos condicionales que trae la misma fila del Excel de jugadores, para la evaluación elegida: solo los que le
+// falten al jugador en esa evaluación. Alevín/infantil → símbolos; resto → números. null = nada que guardar.
+function condPendienteDe(f, jugador) {
+  const c = f.cond, evalId = jugImport?.evalId;
+  if (!c || !evalId) return null;
+  const esBase = esEquipoBase(jugador?.teamKey);
+  const falta = (mapa, vals) => Object.fromEntries(Object.entries(vals || {}).filter(([k]) => esVacio(mapa?.[evalId]?.[k])));
+  const p = esBase ? { base: falta(jugador?.condicionalBasePorEval, c.base) }
+    : { media: falta(jugador?.condicionalPorEval, c.media), max: falta(jugador?.condicionalMaxPorEval, c.max) };
+  const n = Object.values(p).reduce((a, m) => a + Object.keys(m).length, 0);
+  return n ? { ...p, esBase, n } : null;
+}
+// Guarda en la ficha los datos condicionales pendientes de una fila (mismo formato que la carga de datos condicionales).
+async function guardarCondPend(id, cp, evalId) {
+  const prev = state.players.find(p => p.id === id);
+  if (!prev || !cp) return;
+  const juntar = (campo, vals) => {
+    const todo = JSON.parse(JSON.stringify(prev[campo] || {}));
+    todo[evalId] = { ...(todo[evalId] || {}), ...vals };
+    return todo;
+  };
+  const patch = cp.esBase ? { condicionalBasePorEval: juntar('condicionalBasePorEval', cp.base) }
+    : { condicionalPorEval: juntar('condicionalPorEval', cp.media), condicionalMaxPorEval: juntar('condicionalMaxPorEval', cp.max) };
+  if (!isFirebaseUnconfigured()) await updateDocument('jugadores', id, patch);
+  setState({ players: state.players.map(p => p.id === id ? { ...p, ...patch } : p) });
+  await registrarCambios(id, prev, patch);
 }
 const CAMPOS_COMPLETAR = ['apellidos', 'birthDate', 'foot', 'residencia', 'maturationalAge', 'teamKey', 'positionKey', 'weight', 'height', 'complexion', 'aniosClub'];
 
@@ -2300,6 +2329,9 @@ function columnasPlantillaJugadores() {
     { titulo: 'Peso', ejemplo: '78,5', nota: 'en kg.' },
     { titulo: 'Altura', ejemplo: '1,85', nota: 'en metros (1,85) o centímetros (185).' },
     { titulo: 'Complexión', ejemplo: '' },
+    // Opcional: datos condicionales en el mismo Excel (se elige la evaluación al importar). Sin la columna Jugador ni lo que ya es dato personal.
+    ...columnasPlantillaCondicional().slice(1).filter(c => !campoDeCabecera(c.titulo))
+      .map(c => ({ ...c, nota: `condicional (opcional): ${c.nota}` })),
   ];
 }
 
@@ -2323,8 +2355,25 @@ function buildJugImportHTML() {
     </div>`;
   }
   const { columnas, filas } = jugImport;
+  const condCols = jugImport.condColumnas || [];
+  const evs = regEvaluaciones || [];
+  const condHTML = !condCols.length ? '' : `
+        <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
+          <span class="text-xs"><strong>Datos condicionales</strong> (${condCols.map(c => safeText(c.titulo)).join(', ')}) →</span>
+          ${evs.length ? `<select class="select" id="jimp-eval" style="max-width:320px;min-height:30px;font-size:12px;">${evs.map(e => `<option value="${e.id}" ${e.id === jugImport.evalId ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>
+            <span class="text-xs text-muted">alevín/infantil: ✔ ▬ ✘; resto: números. Solo se rellenan los que falten en esa evaluación.</span>`
+          : '<span class="text-xs" style="color:#f59e0b;">no hay evaluaciones: crea una en Registro de datos para guardarlos (los demás datos sí se guardan).</span>'}
+        </div>`;
+  const resumenCond = f => {
+    const cp = f.condPend; if (!cp) return '';
+    const etiqueta = clave => condCols.find(c => slugify(c.base || '') === clave || slugify(c.item || '') === clave);
+    const partes = cp.esBase
+      ? Object.entries(cp.base).map(([k, v]) => `${etiqueta(k)?.base || k} ${SIMBOLO_TXT[v] || v}`)
+      : [...Object.entries(cp.media).map(([k, v]) => `${etiqueta(k)?.item || k} ${String(v).replace('.', ',')}`), ...Object.entries(cp.max).map(([k, v]) => `${etiqueta(k)?.item || k} máx ${String(v).replace('.', ',')}`)];
+    return `<span title="${safeText(partes.join(' · '))}">${cp.n} dato${cp.n === 1 ? '' : 's'}${cp.esBase ? ' ✔▬✘' : ''}</span>`;
+  };
   const reconocidas = columnas.filter(c => c.campo).map(c => `${safeText(c.titulo)} → ${CAMPO_LABEL[c.campo]}`).join(' · ');
-  const ignoradas = columnas.filter(c => !c.campo && c.titulo).map(c => safeText(c.titulo)).join(', ');
+  const ignoradas = columnas.filter(c => !c.campo && c.titulo && !condCols.some(cc => cc.titulo === c.titulo)).map(c => safeText(c.titulo)).join(', ');
   const n = filas.filter(f => f.crear).length;
   const nCompletar = filas.filter(f => f.crear && f.estado === 'completar').length;
   const todosOrdenados = [...state.players].sort(ordenPorNombre);
@@ -2341,11 +2390,11 @@ function buildJugImportHTML() {
     <div class="card mb-16">
       <div class="card-title">Importar jugadores (${filas.length} en el archivo)</div>
       <div class="card-body">
-        <p class="text-xs text-muted mb-8"><strong>Columnas reconocidas:</strong> ${reconocidas}${ignoradas ? `<br><strong>Ignoradas:</strong> ${ignoradas}` : ''}</p>
+        <p class="text-xs text-muted mb-8"><strong>Columnas reconocidas:</strong> ${reconocidas}${ignoradas ? `<br><strong>Ignoradas:</strong> ${ignoradas}` : ''}</p>${condHTML}
         <p class="text-xs text-muted mb-8">Se aplican los marcados: los <b>nuevos</b> se crean; a los que <b>ya existen</b> solo se les rellenan los datos que les faltan en su ficha (lo que ya tienen no se cambia). Lo que no venga en el archivo queda como está. Las fotos se suben desde Editar.</p>
         <div style="overflow-x:auto;max-height:420px;overflow-y:auto;">
           <table class="table table-compact">
-            <thead><tr><th><input type="checkbox" id="jimp-all" ${n === filas.length ? 'checked' : ''} /></th><th>Nombre</th><th>Apellidos</th><th>Jugador de la app</th><th>Nacimiento</th><th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th>Años club</th><th>Estado</th><th>Avisos</th></tr></thead>
+            <thead><tr><th><input type="checkbox" id="jimp-all" ${n === filas.length ? 'checked' : ''} /></th><th>Nombre</th><th>Apellidos</th><th>Jugador de la app</th><th>Nacimiento</th><th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th>Años club</th>${condCols.length ? '<th>Condicional</th>' : ''}<th>Estado</th><th>Avisos</th></tr></thead>
             <tbody>${filas.map((f, i) => `
               <tr>
                 <td><input type="checkbox" data-jimp-i="${i}" ${f.crear ? 'checked' : ''} ${f.estado === 'dudoso' ? 'disabled title="Elige primero el jugador"' : f.estado === 'existe' ? 'disabled title="No le falta ningún dato de los que trae el archivo"' : ''} /></td>
@@ -2363,7 +2412,8 @@ function buildJugImportHTML() {
                 <td>${f.data.weight ?? '-'}</td>
                 <td>${f.data.height ?? '-'}</td>
                 <td>${f.data.aniosClub ?? '-'}</td>
-                <td>${ESTADO[f.estado]}${f.completar && Object.keys(f.completar).length ? `<div class="text-xs text-muted">Añade: ${Object.keys(f.completar).filter(k => CAMPO_LABEL[k]).map(k => CAMPO_LABEL[k]).join(', ')}</div>` : ''}</td>
+                ${condCols.length ? `<td class="text-xs">${resumenCond(f)}</td>` : ''}
+                <td>${ESTADO[f.estado]}${f.estado === 'completar' ? `<div class="text-xs text-muted">Añade: ${[...Object.keys(f.completar || {}).filter(k => CAMPO_LABEL[k]).map(k => CAMPO_LABEL[k]), ...(f.condPend ? [`datos condicionales (${f.condPend.n})`] : [])].join(', ')}</div>` : ''}</td>
                 <td class="text-xs" style="color:#f59e0b;">${f.avisos.map(safeText).join('<br>')}</td>
               </tr>`).join('')}
             </tbody>
@@ -2711,8 +2761,20 @@ function renderPanelJugadores(container) {
   // origen = archivo elegido o filas del texto pegado (copiado de Excel)
   const leerJugadores = async origen => {
     try {
-      const { columnas, filas } = await leerTablaJugadores(origen, state.positions);
+      const filas2D = Array.isArray(origen) ? origen : await leerFilas(origen);
+      const { columnas, filas } = await leerTablaJugadores(filas2D, state.positions);
       if (!filas.length) { showError('No hay jugadores con nombre en los datos.'); return; }
+      // Columnas de datos condicionales en el mismo Excel (las que ya son un dato personal, p. ej. Edad madurativa, se quedan como dato personal).
+      let condColumnas = [];
+      try {
+        const cab = (filas2D[0] || []).map(t => (['nombre', 'apellidos', 'nombreCompleto', null].includes(campoDeCabecera(t)) ? t : ''));
+        const cond = leerTablaCondicional([cab, ...filas2D.slice(1)], state.aspectosComunes.condicional || [], CONDICIONAL_BASE);
+        condColumnas = cond.columnas.filter(c => c.item || c.base);
+        const porFila = new Map(cond.filas.map(c => [c.fila, c]));
+        filas.forEach(f => { f.cond = porFila.get(f.fila) || null; });
+      } catch (_) { /* sin columnas condicionales: solo datos personales */ }
+      if (condColumnas.length) await cargarEvaluacionesSilencioso();
+      jugImport = { columnas, filas, condColumnas, evalId: condColumnas.length ? (regEvaluaciones?.[0]?.id || null) : null };
       const vistos = new Set();
       filas.forEach(f => {
         const nombre = `${f.data.nombre} ${f.data.apellidos}`.trim();
@@ -2727,7 +2789,6 @@ function renderPanelJugadores(container) {
         else asignarDestino(f, 'nuevo');
         vistos.add(clave);
       });
-      jugImport = { columnas, filas };
       renderPanelJugadores(container);
     } catch (err) {
       console.error('[Importar jugadores]', err);
@@ -2739,6 +2800,11 @@ function renderPanelJugadores(container) {
     const texto = container.querySelector('#jimp-texto').value;
     if (!texto.trim()) { showError('Pega primero las filas copiadas de Excel.'); return; }
     leerJugadores(filasDesdeTexto(texto));
+  });
+  container.querySelector('#jimp-eval')?.addEventListener('change', e => {
+    jugImport.evalId = e.target.value;
+    jugImport.filas.forEach(f => { if (f.estado !== 'repetido') asignarDestino(f, f.destino); }); // lo que falta depende de la evaluación
+    renderPanelJugadores(container);
   });
   container.querySelectorAll('[data-jimp-dest]').forEach(sel => sel.addEventListener('change', () => {
     asignarDestino(jugImport.filas[+sel.dataset.jimpDest], sel.value);
@@ -2767,9 +2833,12 @@ function renderPanelJugadores(container) {
       try {
         if (f.estado === 'completar') { // ficha existente: solo los datos que le faltaban
           const patch = f.completar;
-          if (!isFirebaseUnconfigured()) await updateDocument('jugadores', f.playerId, patch);
-          setState({ players: state.players.map(p => p.id === f.playerId ? { ...p, ...patch } : p) });
-          if (patch.teamKey) await añadirAPlantilla(f.playerId, patch.teamKey, state.season);
+          if (Object.keys(patch).length) {
+            if (!isFirebaseUnconfigured()) await updateDocument('jugadores', f.playerId, patch);
+            setState({ players: state.players.map(p => p.id === f.playerId ? { ...p, ...patch } : p) });
+            if (patch.teamKey) await añadirAPlantilla(f.playerId, patch.teamKey, state.season);
+          }
+          await guardarCondPend(f.playerId, f.condPend, jugImport.evalId);
           completadas++;
           continue;
         }
@@ -2777,6 +2846,7 @@ function renderPanelJugadores(container) {
         const id = isFirebaseUnconfigured() ? crypto.randomUUID() : await addDocument('jugadores', nuevo);
         setState({ players: [...state.players, { id, ...nuevo }] });
         if (data.teamKey) await añadirAPlantilla(id, data.teamKey, state.season);
+        await guardarCondPend(id, f.condPend, jugImport.evalId);
         ok++;
       } catch (err) {
         console.error('[Importar jugadores] Fallo con', data.nombre, data.apellidos, err);
