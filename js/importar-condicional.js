@@ -67,7 +67,7 @@ export function leerTablaCondicional(filas2D, items, base = []) {
   }
   if (!columnas.some(c => c.item || c.base)) throw new Error('Ninguna columna coincide con un ítem condicional de Configuración ni con una capacidad de alevines/infantiles.');
 
-  const filas = resto.map(cols => {
+  const filas = resto.map((cols, fila) => {
     let nombre = '', apellidos = '', completo = '';
     const media = {}, max = {}, simbolos = {}, avisosNum = [], avisosBase = [];
     columnas.forEach((c, i) => {
@@ -90,7 +90,7 @@ export function leerTablaCondicional(filas2D, items, base = []) {
         }
       }
     });
-    return { nombre: completo || `${nombre} ${apellidos}`.trim(), media, max, base: simbolos, avisosNum, avisosBase };
+    return { nombre: completo || `${nombre} ${apellidos}`.trim(), media, max, base: simbolos, avisosNum, avisosBase, fila };
   }).filter(f => f.nombre);
   return { columnas, filas };
 }

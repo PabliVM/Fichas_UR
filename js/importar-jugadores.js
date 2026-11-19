@@ -113,7 +113,7 @@ export async function leerTablaJugadores(origen, positions) {
     throw new Error('No encuentro la columna "Nombre" (o "Nombre completo" / "Jugador") en la primera fila.');
   }
 
-  const filas = resto.map(cols => {
+  const filas = resto.map((cols, fila) => {
     const crudo = {}; // campo → valor (apellidos de varias columnas se juntan)
     columnas.forEach((c, i) => {
       if (!c.campo) return;
@@ -170,7 +170,7 @@ export async function leerTablaJugadores(origen, positions) {
       if (n != null && n > 3) n = Math.round(n) / 100; // en cm → m
       if (n == null || n <= 0) avisos.push(`Altura no válida: "${txt('height')}"`); else data.height = n;
     }
-    return { data, avisos };
+    return { data, avisos, fila }; // fila: posición en el archivo (para juntar con los datos condicionales de la misma fila)
   }).filter(f => f.data.nombre);
 
   return { columnas, filas };
