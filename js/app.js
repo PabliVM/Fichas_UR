@@ -1724,6 +1724,14 @@ async function registrarCambios(id, prev, nuevo) {
   delete jugadorHistoricoCache[id]; // se recarga la próxima vez que se abra
 }
 
+/** Evaluación que se propone por defecto al cargar datos: la más reciente (por fecha de fin o de inicio). */
+function evalPorDefecto() {
+  const evs = regEvaluaciones || [];
+  if (!evs.length) return null;
+  const clave = e => `${e.fechaFin || e.fechaInicio || ''}|${String(e.createdAt?.seconds || 0).padStart(12, '0')}`;
+  return [...evs].sort((a, b) => clave(b).localeCompare(clave(a)))[0].id;
+}
+
 async function cargarEvaluacionesSilencioso() {
   if (regEvaluaciones !== null) return;
   if (isFirebaseUnconfigured()) { regEvaluaciones = []; return; }
@@ -1757,6 +1765,12 @@ function buildJugadorFormHTML(player) {
             <div class="text-xs text-muted">Arrastra para mover · desliza para ampliar</div>
           </div>
         </div>
+        <details class="mb-16" id="jug-pegar-box">
+          <summary class="text-sm" style="cursor:pointer;font-weight:600;">📋 Rellenar pegando sus datos desde Excel o una lista</summary>
+          <p class="text-xs text-muted" style="margin:8px 0;">Pega la fila de títulos y la fila del jugador (copiadas de Excel), o una lista con un dato por línea: <code>Peso	72</code>, <code>V.MAX.	31,5</code>, <code>Coordinación	✔</code>… Se rellenan los campos de abajo (los condicionales, en la evaluación elegida más abajo); revisa y pulsa Guardar.</p>
+          <textarea class="input" id="jug-pegar-texto" rows="4" style="width:100%;font-family:monospace;font-size:12px;"></textarea>
+          <button class="btn btn-sm btn-primary mt-8" type="button" id="jug-pegar-ok">Rellenar formulario</button>
+        </details>
         <div class="flex gap-12" style="flex-wrap:wrap;">
           <div class="field-group" style="min-width:180px;">
             <label class="label">Nombre</label>
@@ -1823,7 +1837,7 @@ function buildJugadorFormHTML(player) {
         ${(regEvaluaciones || []).length ? `
         <div class="field-group mb-8" style="min-width:260px;max-width:360px;">
           <label class="label">Evaluación</label>
-          <select class="select" id="jug-cond-eval">${regEvaluaciones.map((e, i) => `<option value="${e.id}" ${i === 0 ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>
+          <select class="select" id="jug-cond-eval">${regEvaluaciones.map(e => `<option value="${e.id}" ${e.id === evalPorDefecto() ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>
         </div>
         <div style="overflow-x:auto;"><table class="table table-compact" style="max-width:520px;">
           <thead><tr><th>Capacidad</th><th>Valoración</th></tr></thead>
@@ -1839,7 +1853,7 @@ function buildJugadorFormHTML(player) {
         ${(regEvaluaciones || []).length ? `
         <div class="field-group mb-8" style="min-width:260px;max-width:360px;">
           <label class="label">Evaluación</label>
-          <select class="select" id="jug-cond-eval">${regEvaluaciones.map((e, i) => `<option value="${e.id}" ${i === 0 ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>
+          <select class="select" id="jug-cond-eval">${regEvaluaciones.map(e => `<option value="${e.id}" ${e.id === evalPorDefecto() ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>
         </div>
         <div style="overflow-x:auto;"><table class="table table-compact" style="max-width:520px;">
           <thead><tr><th>Ítem condicional</th><th>Media</th><th>Máxima</th></tr></thead>
@@ -2462,7 +2476,18 @@ function buildCondImportHTML() {
         <div class="flex gap-8 mt-16">
           <button class="btn btn-primary" id="cimp-leer">Leer</button>
           <button class="btn btn-ghost" id="cimp-cancel">Cancelar</button>
-        </div>`}
+        </div>
+        <details class="mt-16">
+          <summary class="text-sm" style="cursor:pointer;font-weight:600;">↔ ¿Los cargaste en otra evaluación? Moverlos de una a otra</summary>
+          <div class="flex gap-8 mt-8" style="align-items:center;flex-wrap:wrap;">
+            <span class="text-sm">De</span>
+            <select class="select" id="cimp-mov-de" style="max-width:280px;">${evs.map(e => `<option value="${e.id}">${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>
+            <span class="text-sm">a</span>
+            <select class="select" id="cimp-mov-a" style="max-width:280px;">${evs.map(e => `<option value="${e.id}" ${e.id === evalPorDefecto() ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>
+            <button class="btn btn-sm" id="cimp-mover">Mover</button>
+          </div>
+          <p class="text-xs text-muted" style="margin-top:6px;">Pasa los datos condicionales (números y símbolos ✔▬✘) de todos los jugadores de la primera evaluación a la segunda y los quita de la primera. Si en la de destino ya había un dato, se queda el de destino.</p>
+        </details>`}
         ${!evs.length || !items.length ? '<button class="btn btn-ghost mt-16" id="cimp-cancel">Cerrar</button>' : ''}
       </div>
     </div>`;
@@ -2676,6 +2701,53 @@ function renderPanelJugadores(container) {
     }
   });
   if (container.querySelector('#jug-foto')) jugPegarFoto = usarFotoPegada; // lo usa el Ctrl+V global (ver abajo)
+
+  // Rellenar el formulario de UN jugador pegando sus datos (fila de Excel con títulos, o lista "dato ⇥ valor").
+  container.querySelector('#jug-pegar-ok')?.addEventListener('click', async () => {
+    const texto = container.querySelector('#jug-pegar-texto').value;
+    let filas = filasDesdeTexto(texto);
+    if (!filas.length) { showError('Pega primero los datos.'); return; }
+    // ¿Lista vertical (un dato por línea) o fila horizontal (títulos + valores)?
+    const vertical = filas.every(f => f.length <= 2) && (filas.length > 2 || !(campoDeCabecera(filas[0][0]) && campoDeCabecera(filas[0][1])));
+    let [cab, vals] = vertical ? [filas.map(f => f[0]), filas.map(f => f[1] ?? '')] : [filas[0], filas[1] || []];
+    // Si no trae nombre, se usa el del formulario solo para poder leer la tabla.
+    const sinNombre = !cab.some(t => ['nombre', 'nombreCompleto'].includes(campoDeCabecera(t)));
+    if (sinNombre) { cab = ['Nombre', ...cab]; vals = [container.querySelector('#jug-nombre').value || 'x', ...vals]; }
+    let n = 0;
+    const avisos = [];
+    const poner = (sel, v) => { const el = container.querySelector(sel); if (el && v != null && v !== '') { el.value = v; n++; } };
+    try {
+      const { columnas, filas: fs } = await leerTablaJugadores([cab, vals], state.positions);
+      const d = fs[0]?.data || {};
+      const hay = k => columnas.some(c => c.campo === k) || (k === 'nombre' || k === 'apellidos') && columnas.some(c => c.campo === 'nombreCompleto');
+      if (!sinNombre) poner('#jug-nombre', d.nombre);
+      if (hay('apellidos')) poner('#jug-apellidos', d.apellidos);
+      if (hay('birthDate')) poner('#jug-birthdate', d.birthDate);
+      if (hay('foot')) poner('#jug-foot', d.foot);
+      if (hay('residencia')) poner('#jug-residencia', d.residencia);
+      if (hay('maturationalAge')) poner('#jug-maturational', d.maturationalAge);
+      if (hay('aniosClub')) poner('#jug-anios-club', d.aniosClub);
+      if (hay('teamKey')) poner('#jug-team', d.teamKey);
+      if (hay('positionKey')) poner('#jug-position', d.positionKey);
+      if (hay('weight')) poner('#jug-weight', d.weight);
+      if (hay('height')) poner('#jug-height', d.height);
+      if (hay('complexion')) poner('#jug-complexion', d.complexion);
+      avisos.push(...(fs[0]?.avisos || []));
+    } catch (_) { /* solo datos condicionales */ }
+    try { // condicionales, en la evaluación elegida en el formulario
+      const cabCond = cab.map(t => (['nombre', 'apellidos', 'nombreCompleto', null].includes(campoDeCabecera(t)) ? t : ''));
+      const c = leerTablaCondicional([cabCond, vals], state.aspectosComunes.condicional || [], CONDICIONAL_BASE).filas[0];
+      if (c) {
+        Object.entries(c.media).forEach(([k, v]) => poner(`[data-jug-cond="${k}"]`, String(v).replace('.', ',')));
+        Object.entries(c.max).forEach(([k, v]) => poner(`[data-jug-condmax="${k}"]`, String(v).replace('.', ',')));
+        Object.entries(c.base).forEach(([k, v]) => poner(`[data-jug-cbase="${k}"]`, v));
+        avisos.push(...(container.querySelector('[data-jug-cbase]') ? c.avisosBase : c.avisosNum));
+      }
+    } catch (_) { /* sin columnas condicionales */ }
+    if (n) showSuccess(`${n} dato${n === 1 ? '' : 's'} rellenado${n === 1 ? '' : 's'}. Revisa y pulsa Guardar.`);
+    else showError('No reconozco ningún dato. Usa los mismos títulos que en la plantilla de importar jugadores.');
+    if (avisos.length) showError(avisos.join(' · '), 9000);
+  });
   cropZoomEl?.addEventListener('input', () => {
     if (!crop) return;
     const old = crop.min * crop.zoom;
@@ -2775,7 +2847,7 @@ function renderPanelJugadores(container) {
         filas.forEach(f => { f.cond = porFila.get(f.fila) || null; });
       } catch (_) { /* sin columnas condicionales: solo datos personales */ }
       if (condColumnas.length) await cargarEvaluacionesSilencioso();
-      jugImport = { columnas, filas, condColumnas, evalId: condColumnas.length ? (regEvaluaciones?.[0]?.id || null) : null };
+      jugImport = { columnas, filas, condColumnas, evalId: condColumnas.length ? evalPorDefecto() : null };
       const vistos = new Set();
       filas.forEach(f => {
         const nombre = `${f.data.nombre} ${f.data.apellidos}`.trim();
@@ -2864,11 +2936,41 @@ function renderPanelJugadores(container) {
   container.querySelector('#jug-cond-import')?.addEventListener('click', async () => {
     await cargarEvaluacionesSilencioso();
     jugImport = null;
-    condImport = { evalId: regEvaluaciones?.[0]?.id || null };
+    condImport = { evalId: evalPorDefecto() };
     renderPanelJugadores(container);
   });
   container.querySelector('#cimp-eval')?.addEventListener('change', e => { condImport.evalId = e.target.value; });
   container.querySelector('#cimp-cancel')?.addEventListener('click', () => { condImport = null; renderPanelJugadores(container); });
+  container.querySelector('#cimp-mover')?.addEventListener('click', async e => {
+    const de = container.querySelector('#cimp-mov-de').value, a = container.querySelector('#cimp-mov-a').value;
+    if (!de || !a || de === a) { showError('Elige dos evaluaciones distintas.'); return; }
+    const CAMPOS = ['condicionalPorEval', 'condicionalMaxPorEval', 'condicionalBasePorEval'];
+    const afectados = state.players.filter(j => CAMPOS.some(c => Object.keys(j[c]?.[de] || {}).length));
+    if (!afectados.length) { showError('Ningún jugador tiene datos condicionales en esa evaluación.'); return; }
+    const nombreEv = id => { const ev = (regEvaluaciones || []).find(x => x.id === id); return ev ? `${ev.temporada} · ${ev.nombre}` : id; };
+    if (!confirm(`¿Mover los datos condicionales de ${afectados.length} jugador(es) de "${nombreEv(de)}" a "${nombreEv(a)}"?`)) return;
+    const btn = e.currentTarget; btn.disabled = true;
+    let ok = 0; const fallos = [];
+    for (const j of afectados) {
+      btn.textContent = `Moviendo ${ok + fallos.length + 1} de ${afectados.length}…`;
+      const patch = {};
+      CAMPOS.forEach(c => {
+        if (!j[c]?.[de]) return;
+        const todo = JSON.parse(JSON.stringify(j[c]));
+        todo[a] = { ...todo[de], ...(todo[a] || {}) }; // lo que ya hubiera en el destino se queda
+        delete todo[de];
+        patch[c] = todo;
+      });
+      try {
+        if (!isFirebaseUnconfigured()) await updateDocument('jugadores', j.id, patch);
+        setState({ players: state.players.map(p => p.id === j.id ? { ...p, ...patch } : p) });
+        ok++;
+      } catch (err) { console.error('[Condicional] Mover', j.id, err); fallos.push(nombreCompleto(j)); }
+    }
+    renderPanelJugadores(container);
+    if (ok) showSuccess(`Datos condicionales de ${ok} jugador${ok === 1 ? '' : 'es'} movidos a "${nombreEv(a)}".`);
+    if (fallos.length) showError(`Fallaron ${fallos.length}: ${fallos.join(', ')}.`, 12000);
+  });
   container.querySelector('#cimp-plantilla')?.addEventListener('click', () => {
     const cols = columnasPlantillaCondicional();
     descargarPlantilla('plantilla-datos-condicionales.xlsx', [cols.map(c => c.titulo)]);
