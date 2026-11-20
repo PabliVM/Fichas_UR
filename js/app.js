@@ -952,8 +952,10 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
       .bt-wrap { overflow:auto; max-height:75vh; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
       .bt { border-collapse:collapse; width:max-content; min-width:100%; background:#fff; color:#0f1117; font-size:11px; }
       .bt th { background:var(--header-bg, #1d4ed8); color:#fff; font-size:9.5px; font-weight:700; line-height:1.2; text-transform:uppercase; letter-spacing:.1px;
-               text-align:center; vertical-align:middle; padding:5px 4px; width:72px; min-width:72px; max-width:72px; border-left:1px solid rgba(255,255,255,.35); overflow-wrap:anywhere; hyphens:auto; position:sticky; top:0; z-index:1; }
+               text-align:center; vertical-align:middle; padding:5px 4px; width:96px; min-width:96px; max-width:96px; border-left:1px solid rgba(255,255,255,.35); overflow-wrap:break-word; word-break:normal; hyphens:manual; position:sticky; top:0; z-index:1; }
       .bt th.bt-th-txt { width:380px; min-width:380px; max-width:380px; }
+      .bt th.bt-th-fija { width:auto; min-width:110px; max-width:none; white-space:nowrap; }
+      .bt th.bt-th-jug { min-width:200px; }
       .bt th:first-child { border-left:none; }
       .bt th .bt-n { display:block; font-size:9px; font-weight:600; opacity:.75; margin-bottom:2px; }
       .bt td { background:#fff; color:#0f1117; padding:1px 5px; border-left:1px solid #cbd5e1; border-top:1px solid #cbd5e1; text-align:center; vertical-align:middle; line-height:1.25; height:22px; }
@@ -970,7 +972,7 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
     </style>
     <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración → Columnas encuesta. Edita una nota y sal de la celda para guardar.</p>
     <div class="bt-wrap"><table class="bt">
-      <thead><tr>${cols.map(c => `<th class="${String(tipoCol(c) || '').startsWith('@txt_') ? 'bt-th-txt' : ''}" title="Columna ${c.num} de la encuesta"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}<th title="Borrar un registro">Borrar</th></tr></thead>
+      <thead><tr>${cols.map(c => `<th class="${String(tipoCol(c) || '').startsWith('@txt_') ? 'bt-th-txt' : ['@fecha', '@evaluador', '@jugador'].includes(tipoCol(c)) ? 'bt-th-fija' + (tipoCol(c) === '@jugador' ? ' bt-th-jug' : '') : ''}" title="Columna ${c.num} de la encuesta"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}<th title="Borrar un registro">Borrar</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`;
 }
