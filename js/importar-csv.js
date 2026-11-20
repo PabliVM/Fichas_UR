@@ -120,8 +120,7 @@ export function clasificarFilas(filas, existentes) {
     if (!existente) { nuevos.push(fila); return; }
     const igual = JSON.stringify(existente.puntuaciones || {}) === JSON.stringify(fila.puntuaciones || {})
       && JSON.stringify(existente.textos || {}) === JSON.stringify(fila.textos || {})
-      && JSON.stringify(existente.rp || {}) === JSON.stringify(fila.rp || {})
-      && JSON.stringify(existente.extras || {}) === JSON.stringify(fila.extras || {});
+      && JSON.stringify(existente.rp || {}) === JSON.stringify(fila.rp || {});
     if (igual) sinCambios.push(fila);
     else conCambios.push({ ...fila, existente });
   });
