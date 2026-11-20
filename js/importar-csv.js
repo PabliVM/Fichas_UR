@@ -7,6 +7,7 @@
 // ================================================
 
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.18.7/package/xlsx.mjs';
+import { elegirHoja } from './elegir-hoja.js';
 
 /** Genera ['Columna 1', 'Columna 2', ...] hasta n. */
 function columnLabels(n) {
@@ -16,11 +17,14 @@ function columnLabels(n) {
 /**
  * Excel (.xlsx/.xls) → {headers, rows}. SIN fila de cabecera: toda fila es
  * dato. headers son etiquetas sintéticas "Columna N" (contrato fijo: ver
- * mapping de columnas 1-6 en app.js). Usa la primera hoja.
+ * mapping de columnas 1-6 en app.js). Con varias pestañas pregunta cuál
+ * (sugerida: la que se parezca a ese nombre). Si se cancela → { cancelado: true }.
  */
-export function parseXLSXBuffer(arrayBuffer) {
+export async function parseXLSXBuffer(arrayBuffer, sugerida = '') {
   const wb = XLSX.read(arrayBuffer, { type: 'array' });
-  const hoja = wb.Sheets[wb.SheetNames[0]];
+  const nombre = await elegirHoja(wb, sugerida);
+  if (nombre == null && wb.SheetNames.length > 1) return { headers: [], rows: [], cancelado: true };
+  const hoja = wb.Sheets[nombre];
   if (!hoja) return { headers: [], rows: [] };
   const filas2D = XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
   const filasConDatos = filas2D.filter(cols => cols.some(c => String(c ?? '').trim() !== ''));

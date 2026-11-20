@@ -10,6 +10,7 @@
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.18.7/package/xlsx.mjs';
 import { parseCSV, parseEsNumber } from './importar-csv.js';
 import { TEAMS } from './constants.js';
+import { elegirHoja } from './elegir-hoja.js';
 
 export const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
@@ -49,13 +50,16 @@ export function campoDeCabecera(h) {
   return mejor;
 }
 
+/** Filas del archivo. Con varias pestañas pregunta cuál; si se cancela devuelve null. */
 export async function leerFilas(file) {
   if (/\.csv$/i.test(file.name)) {
     const { headers, rows } = parseCSV(await file.text());
     return rows.map(r => headers.map(h => r[h]));
   }
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-  const hoja = wb.Sheets[wb.SheetNames[0]];
+  const nombre = await elegirHoja(wb);
+  if (nombre == null && wb.SheetNames.length > 1) return null;
+  const hoja = wb.Sheets[nombre];
   if (!hoja) return [];
   return XLSX.utils.sheet_to_json(hoja, { header: 1, raw: true, defval: '' })
     .filter(cols => cols.some(c => String(c ?? '').trim() !== ''));
