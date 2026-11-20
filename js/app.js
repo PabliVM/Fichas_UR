@@ -1658,25 +1658,40 @@ function asignarDestino(f, destino) {
   if (destino && destino !== 'nuevo') {
     const actual = state.players.find(p => p.id === destino) || {};
     f.playerId = destino;
-    f.completar = Object.fromEntries(CAMPOS_COMPLETAR.filter(k => esVacio(actual[k]) && !esVacio(f.data[k])).map(k => [k, f.data[k]]));
-    if (f.completar.aniosClub != null) f.completar.aniosClubTemporada = state.season;
+    // Celda vacía → se queda lo que tenía; dato nuevo → se guarda; dato distinto → se actualiza.
+    const patch = {}, cambios = [];
+    CAMPOS_COMPLETAR.forEach(k => {
+      if (esVacio(f.data[k])) return;
+      const antes = k === 'aniosClub' ? aniosEnClub(actual) : actual[k];
+      if (!esVacio(antes) && mismoValor(antes, f.data[k])) return;
+      patch[k] = f.data[k];
+      if (!esVacio(antes)) cambios.push({ k, antes, despues: f.data[k] });
+    });
+    if (patch.aniosClub != null) patch.aniosClubTemporada = state.season;
+    f.completar = patch;
+    f.cambios = cambios;
     f.condPend = condPendienteDe(f, { ...actual, teamKey: actual.teamKey || f.completar.teamKey || null });
     f.estado = Object.keys(f.completar).length || f.condPend ? 'completar' : 'existe';
   } else {
     f.playerId = null;
     f.completar = null;
+    f.cambios = [];
     f.condPend = destino === 'nuevo' ? condPendienteDe(f, { teamKey: f.data.teamKey }) : null;
     f.estado = destino === 'nuevo' ? 'nuevo' : 'dudoso';
   }
   f.crear = f.estado === 'nuevo' || f.estado === 'completar';
 }
-// Datos condicionales que trae la misma fila del Excel de jugadores, para la evaluación elegida: solo los que le
-// falten al jugador en esa evaluación. Alevín/infantil → símbolos; resto → números. null = nada que guardar.
+// ¿Es el mismo dato? Números por valor; textos sin distinguir mayúsculas ni tildes.
+const mismoValor = (a, b) => (typeof a === 'number' || typeof b === 'number')
+  ? Number(a) === Number(b)
+  : normalizeTxt(String(a ?? '').trim()) === normalizeTxt(String(b ?? '').trim());
+// Datos condicionales que trae la misma fila del Excel de jugadores, para la evaluación elegida: los que el jugador
+// no tiene o tiene distintos (celda vacía = no se toca). Alevín/infantil → símbolos; resto → números. null = nada que guardar.
 function condPendienteDe(f, jugador) {
   const c = f.cond, evalId = jugImport?.evalId;
   if (!c || !evalId) return null;
   const esBase = esEquipoBase(jugador?.teamKey);
-  const falta = (mapa, vals) => Object.fromEntries(Object.entries(vals || {}).filter(([k]) => esVacio(mapa?.[evalId]?.[k])));
+  const falta = (mapa, vals) => Object.fromEntries(Object.entries(vals || {}).filter(([k, v]) => esVacio(mapa?.[evalId]?.[k]) || !mismoValor(mapa[evalId][k], v)));
   const p = esBase ? { base: falta(jugador?.condicionalBasePorEval, c.base) }
     : { media: falta(jugador?.condicionalPorEval, c.media), max: falta(jugador?.condicionalMaxPorEval, c.max) };
   const n = Object.values(p).reduce((a, m) => a + Object.keys(m).length, 0);
@@ -2351,27 +2366,48 @@ function columnasPlantillaJugadores() {
 }
 
 function buildJugImportHTML() {
+  const evs = regEvaluaciones || [];
   if (!jugImport.filas) {
     return `
     <div class="card mb-16">
-      <div class="card-title">Importar jugadores (Excel, CSV o copiar y pegar)</div>
+      <div class="card-title">📥 Cargar datos de jugadores</div>
       <div class="card-body">
-        ${formatoImportHTML(columnasPlantillaJugadores(), 'una fila por jugador; la fila 1 con estos títulos (el orden da igual y puedes quitar las columnas que no tengas). Lo que falte queda vacío y se completa luego con Editar. Las fotos se suben desde Editar.')}
-        <div class="flex gap-8" style="flex-wrap:wrap;align-items:center;">
-          <button class="btn" id="jimp-plantilla">⬇ Descargar plantilla Excel</button>
-          <input class="input" type="file" id="jug-import-file" accept=".xlsx,.xls,.csv" />
+        <p class="text-sm mb-16">Un solo Excel con todos los datos del jugador (personales, años en el club y condicionales). Al subirlo: <b>jugador nuevo</b> → se crea; <b>celda con dato</b> → se guarda o, si es distinto, se actualiza; <b>celda vacía</b> → no se toca lo que ya tiene.</p>
+        ${evs.length ? `<div class="field-group mb-16" style="max-width:420px;"><label class="label">1 · Evaluación de los datos condicionales</label>
+          <select class="select" id="jimp-eval0">${evs.map(e => `<option value="${e.id}" ${e.id === (jugImport.evalInicial || evalPorDefecto()) ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select></div>`
+        : '<p class="text-xs text-muted mb-16">No hay evaluaciones: los datos condicionales no se podrán guardar hasta crear una en Registro de datos.</p>'}
+        <div class="label">${evs.length ? '2' : '1'} · Descarga el Excel</div>
+        <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
+          <button class="btn btn-primary" id="jimp-exportar" title="Los jugadores del listado (con los filtros que tengas puestos) y sus datos actuales: edítalo y vuelve a subirlo">⬇ Excel con los datos actuales (${jugadoresListado().length} jugadores)</button>
+          <button class="btn" id="jimp-plantilla">⬇ Excel vacío</button>
         </div>
-        <textarea class="input" id="jimp-texto" rows="6" style="width:100%;margin-top:12px;font-family:monospace;font-size:12px;" placeholder="…o pega aquí las filas copiadas de Excel (con la fila de títulos)"></textarea>
-        <div class="flex gap-8 mt-16">
+        <div class="label">${evs.length ? '3' : '2'} · Súbelo o pega el texto</div>
+        <input class="input" type="file" id="jug-import-file" accept=".xlsx,.xls,.csv" />
+        <textarea class="input" id="jimp-texto" rows="5" style="width:100%;margin-top:8px;font-family:monospace;font-size:12px;" placeholder="…o pega aquí las filas copiadas de Excel (con la fila de títulos)"></textarea>
+        <div class="flex gap-8 mt-8">
           <button class="btn btn-primary" id="jimp-leer">Leer texto pegado</button>
           <button class="btn btn-ghost" id="jimp-cancel">Cancelar</button>
         </div>
+        <details class="mt-16">
+          <summary class="text-sm" style="cursor:pointer;font-weight:600;">ℹ Columnas que reconoce</summary>
+          <div style="margin-top:8px;">${formatoImportHTML(columnasPlantillaJugadores(), 'una fila por jugador; la fila 1 con estos títulos (el orden da igual y puedes quitar las columnas que no tengas).')}</div>
+        </details>
+        ${evs.length > 1 ? `<details class="mt-8">
+          <summary class="text-sm" style="cursor:pointer;font-weight:600;">↔ ¿Cargaste los datos condicionales en otra evaluación? Moverlos</summary>
+          <div class="flex gap-8 mt-8" style="align-items:center;flex-wrap:wrap;">
+            <span class="text-sm">De</span>
+            <select class="select" id="cimp-mov-de" style="max-width:280px;">${evs.map(e => `<option value="${e.id}">${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>
+            <span class="text-sm">a</span>
+            <select class="select" id="cimp-mov-a" style="max-width:280px;">${evs.map(e => `<option value="${e.id}" ${e.id === evalPorDefecto() ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>
+            <button class="btn btn-sm" id="cimp-mover">Mover</button>
+          </div>
+          <p class="text-xs text-muted" style="margin-top:6px;">Pasa los datos condicionales (números y ✔▬✘) de todos los jugadores de la primera evaluación a la segunda. Si en la de destino ya había un dato, se queda el de destino.</p>
+        </details>` : ''}
       </div>
     </div>`;
   }
   const { columnas, filas } = jugImport;
   const condCols = jugImport.condColumnas || [];
-  const evs = regEvaluaciones || [];
   const condHTML = !condCols.length ? '' : `
         <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
           <span class="text-xs"><strong>Datos condicionales</strong> (${condCols.map(c => safeText(c.titulo)).join(', ')}) →</span>
@@ -2387,17 +2423,27 @@ function buildJugImportHTML() {
       : [...Object.entries(cp.media).map(([k, v]) => `${etiqueta(k)?.item || k} ${String(v).replace('.', ',')}`), ...Object.entries(cp.max).map(([k, v]) => `${etiqueta(k)?.item || k} máx ${String(v).replace('.', ',')}`)];
     return `<span title="${safeText(partes.join(' · '))}">${cp.n} dato${cp.n === 1 ? '' : 's'}${cp.esBase ? ' ✔▬✘' : ''}</span>`;
   };
+  // "Añade: … · Cambia: Peso 70 → 78,5" en las fichas que ya existen.
+  const valTxt = (k, v) => k === 'teamKey' ? (TEAMS.find(t => t.key === v)?.label || v) : k === 'positionKey' ? (state.positions.find(x => x.key === v)?.label || v)
+    : k === 'birthDate' ? String(v).split('-').reverse().join('/') : typeof v === 'number' ? String(v).replace('.', ',') : v;
+  const textoActualiza = f => {
+    const cambiadas = new Set((f.cambios || []).map(c => c.k));
+    const nuevos = Object.keys(f.completar || {}).filter(k => CAMPO_LABEL[k] && !cambiadas.has(k)).map(k => CAMPO_LABEL[k]);
+    if (f.condPend) nuevos.push(`datos condicionales (${f.condPend.n})`);
+    const cambios = (f.cambios || []).map(c => `${CAMPO_LABEL[c.k]} ${safeText(valTxt(c.k, c.antes))} → <b>${safeText(valTxt(c.k, c.despues))}</b>`);
+    return `<div class="text-xs text-muted">${nuevos.length ? `Añade: ${nuevos.map(safeText).join(', ')}` : ''}${nuevos.length && cambios.length ? '<br>' : ''}${cambios.length ? `Cambia: ${cambios.join(', ')}` : ''}</div>`;
+  };
   const reconocidas = columnas.filter(c => c.campo).map(c => `${safeText(c.titulo)} → ${CAMPO_LABEL[c.campo]}`).join(' · ');
   const ignoradas = columnas.filter(c => !c.campo && c.titulo && !condCols.some(cc => cc.titulo === c.titulo)).map(c => safeText(c.titulo)).join(', ');
   const n = filas.filter(f => f.crear).length;
   const nCompletar = filas.filter(f => f.crear && f.estado === 'completar').length;
   const todosOrdenados = [...state.players].sort(ordenPorNombre);
   const nCrear = n - nCompletar;
-  const textoBoton = [nCrear ? `Crear ${nCrear} jugador${nCrear === 1 ? '' : 'es'}` : '', nCompletar ? `completar ${nCompletar} ficha${nCompletar === 1 ? '' : 's'}` : ''].filter(Boolean).join(' y ') || 'Nada que aplicar';
+  const textoBoton = [nCrear ? `Crear ${nCrear} jugador${nCrear === 1 ? '' : 'es'}` : '', nCompletar ? `actualizar ${nCompletar} ficha${nCompletar === 1 ? '' : 's'}` : ''].filter(Boolean).join(' y ') || 'Nada que aplicar';
   const ESTADO = {
     nuevo:    '<span class="badge badge-green">Nuevo</span>',
-    existe:   '<span class="badge badge-gray">Ya existe · nada que completar</span>',
-    completar: '<span class="badge badge-blue">Completar ficha</span>',
+    existe:   '<span class="badge badge-gray">Sin cambios</span>',
+    completar: '<span class="badge badge-blue">Actualizar ficha</span>',
     dudoso:   '<span class="badge badge-gold">Elige el jugador</span>',
     repetido: '<span class="badge badge-gray">Repetido en el archivo</span>',
   };
@@ -2406,13 +2452,13 @@ function buildJugImportHTML() {
       <div class="card-title">Importar jugadores (${filas.length} en el archivo)</div>
       <div class="card-body">
         <p class="text-xs text-muted mb-8"><strong>Columnas reconocidas:</strong> ${reconocidas}${ignoradas ? `<br><strong>Ignoradas:</strong> ${ignoradas}` : ''}</p>${condHTML}
-        <p class="text-xs text-muted mb-8">Se aplican los marcados: los <b>nuevos</b> se crean; a los que <b>ya existen</b> solo se les rellenan los datos que les faltan en su ficha (lo que ya tienen no se cambia). Lo que no venga en el archivo queda como está. Las fotos se suben desde Editar.</p>
+        <p class="text-xs text-muted mb-8">Se aplican los marcados: los <b>nuevos</b> se crean; en los que <b>ya existen</b>, cada celda con dato se guarda y, si es distinto al que tenían, <b>se actualiza</b> (queda en el histórico). Las <b>celdas vacías no borran nada</b>. Las fotos se suben desde el listado.</p>
         <div style="overflow-x:auto;max-height:420px;overflow-y:auto;">
           <table class="table table-compact">
             <thead><tr><th><input type="checkbox" id="jimp-all" ${n === filas.length ? 'checked' : ''} /></th><th>Nombre</th><th>Apellidos</th><th>Jugador de la app</th><th>Nacimiento</th><th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th>Años club</th>${condCols.length ? '<th>Condicional</th>' : ''}<th>Estado</th><th>Avisos</th></tr></thead>
             <tbody>${filas.map((f, i) => `
               <tr>
-                <td><input type="checkbox" data-jimp-i="${i}" ${f.crear ? 'checked' : ''} ${f.estado === 'dudoso' ? 'disabled title="Elige primero el jugador"' : f.estado === 'existe' ? 'disabled title="No le falta ningún dato de los que trae el archivo"' : ''} /></td>
+                <td><input type="checkbox" data-jimp-i="${i}" ${f.crear ? 'checked' : ''} ${f.estado === 'dudoso' ? 'disabled title="Elige primero el jugador"' : f.estado === 'existe' ? 'disabled title="El archivo no trae nada nuevo ni distinto para este jugador"' : ''} /></td>
                 <td>${safeText(f.data.nombre)}</td>
                 <td>${safeText(f.data.apellidos)}</td>
                 <td>${f.estado === 'repetido' ? '' : `<select class="select" data-jimp-dest="${i}" style="min-width:210px;font-size:12px;min-height:30px;${f.estado === 'dudoso' ? 'border-color:#f59e0b;' : ''}">
@@ -2428,7 +2474,7 @@ function buildJugImportHTML() {
                 <td>${f.data.height ?? '-'}</td>
                 <td>${f.data.aniosClub ?? '-'}</td>
                 ${condCols.length ? `<td class="text-xs">${resumenCond(f)}</td>` : ''}
-                <td>${ESTADO[f.estado]}${f.estado === 'completar' ? `<div class="text-xs text-muted">Añade: ${[...Object.keys(f.completar || {}).filter(k => CAMPO_LABEL[k]).map(k => CAMPO_LABEL[k]), ...(f.condPend ? [`datos condicionales (${f.condPend.n})`] : [])].join(', ')}</div>` : ''}</td>
+                <td>${ESTADO[f.estado]}${f.estado === 'completar' ? textoActualiza(f) : ''}</td>
                 <td class="text-xs" style="color:#f59e0b;">${f.avisos.map(safeText).join('<br>')}</td>
               </tr>`).join('')}
             </tbody>
@@ -2537,6 +2583,13 @@ function buildCondImportHTML() {
     </div>`;
 }
 
+// Jugadores del listado con los filtros puestos. Orden: alfabético por nombre (y apellidos); con filtro de equipo,
+// primero por posición (portero → delantero) y luego alfabético.
+function jugadoresListado() {
+  return state.players.filter(jugadorPasaFiltros)
+    .sort((a, b) => (jugFiltros.teamKey ? rangoPosicion(a.positionKey) - rangoPosicion(b.positionKey) : 0) || ordenPorNombre(a, b));
+}
+
 function renderPanelJugadores(container) {
   const editingPlayer = (jugadorFormId && jugadorFormId !== 'new')
     ? state.players.find(p => p.id === jugadorFormId)
@@ -2552,9 +2605,7 @@ function renderPanelJugadores(container) {
   }
   const soloForm = !!(jugFichaId && jugadorFormId); // editando desde la ficha: se oculta la lista
 
-  // Orden: alfabético por nombre (y apellidos); con filtro de equipo, primero por posición (portero → delantero) y luego alfabético.
-  const jugadoresFiltrados = state.players.filter(jugadorPasaFiltros)
-    .sort((a, b) => (jugFiltros.teamKey ? rangoPosicion(a.positionKey) - rangoPosicion(b.positionKey) : 0) || ordenPorNombre(a, b));
+  const jugadoresFiltrados = jugadoresListado();
   const rows = jugadoresFiltrados.map(p => {
     const { age, year } = calcAgeAndYear(p.birthDate);
     const teamLabel = TEAMS.find(t => t.key === p.teamKey)?.label || '-';
@@ -2598,8 +2649,7 @@ function renderPanelJugadores(container) {
       <div class="card-body">
         ${jugadorFormId ? '' : `<div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
           <button class="btn btn-primary" id="jug-add">+ Añadir jugador</button>
-          <button class="btn" id="jug-import" title="Excel o CSV con una fila de títulos: Nombre, Apellidos, Fecha de nacimiento, Lateralidad, Residencia, Edad madurativa, Equipo, Posición, Peso, Altura, Complexión">⬆ Importar desde Excel / CSV</button>
-          <button class="btn" id="jug-cond-import" title="Media y máxima de cada ítem condicional, para una evaluación">⬆ Datos condicionales (Excel / lista)</button>
+          <button class="btn" id="jug-import" title="Descargar / subir un Excel (o pegar texto) con todos los datos de los jugadores">📥 Cargar datos (Excel / texto)</button>
         </div>`}
         <div style="overflow-x:auto;">
           <table class="table">
@@ -2826,7 +2876,37 @@ function renderPanelJugadores(container) {
     renderPanelJugadores(container);
   });
   // Alta masiva desde Excel/CSV
-  container.querySelector('#jug-import')?.addEventListener('click', () => { condImport = null; jugImport = {}; renderPanelJugadores(container); });
+  container.querySelector('#jug-import')?.addEventListener('click', async () => { await cargarEvaluacionesSilencioso(); condImport = null; jugImport = {}; renderPanelJugadores(container); });
+  container.querySelector('#jimp-eval0')?.addEventListener('change', e => { jugImport.evalInicial = e.target.value; });
+  container.querySelector('#jimp-exportar')?.addEventListener('click', () => {
+    const evalId = container.querySelector('#jimp-eval0')?.value || jugImport.evalInicial || evalPorDefecto();
+    const cols = columnasPlantillaJugadores().map(c => c.titulo);
+    const items = state.aspectosComunes.condicional || [];
+    const num = v => (v == null || v === '' ? '' : v);
+    const fila = j => cols.map(t => {
+      switch (campoDeCabecera(t)) {
+        case 'nombre': return j.nombre || '';
+        case 'apellidos': return j.apellidos || '';
+        case 'birthDate': return j.birthDate ? j.birthDate.split('-').reverse().join('/') : '';
+        case 'foot': return j.foot || '';
+        case 'residencia': return j.residencia || '';
+        case 'maturationalAge': return j.maturationalAge || '';
+        case 'aniosClub': return num(aniosEnClub(j));
+        case 'teamKey': return TEAMS.find(x => x.key === j.teamKey)?.label || '';
+        case 'positionKey': return state.positions.find(x => x.key === j.positionKey)?.label || '';
+        case 'weight': return num(j.weight);
+        case 'height': return num(j.height);
+        case 'complexion': return j.complexion || '';
+      }
+      if (!evalId) return '';
+      const media = items.find(i => i === t), max = items.find(i => `${i} máx` === t), cap = CONDICIONAL_BASE.find(b => b === t);
+      if (media) return num(j.condicionalPorEval?.[evalId]?.[slugify(media)]);
+      if (max) return num(j.condicionalMaxPorEval?.[evalId]?.[slugify(max)]);
+      if (cap && esEquipoBase(j.teamKey)) return SIMBOLO_TXT[j.condicionalBasePorEval?.[evalId]?.[slugify(cap)]] || '';
+      return '';
+    });
+    descargarPlantilla(`jugadores-${new Date().toISOString().slice(0, 10)}.xlsx`, [cols, ...jugadoresListado().map(fila)]);
+  });
   container.querySelector('#jimp-plantilla')?.addEventListener('click', () => {
     const cols = columnasPlantillaJugadores();
     descargarPlantilla('plantilla-jugadores.xlsx', [cols.map(c => c.titulo)]); // solo títulos: una fila de ejemplo se importaría como jugador
@@ -2847,7 +2927,8 @@ function renderPanelJugadores(container) {
         filas.forEach(f => { f.cond = porFila.get(f.fila) || null; });
       } catch (_) { /* sin columnas condicionales: solo datos personales */ }
       if (condColumnas.length) await cargarEvaluacionesSilencioso();
-      jugImport = { columnas, filas, condColumnas, evalId: condColumnas.length ? evalPorDefecto() : null };
+      const evalElegida = container.querySelector('#jimp-eval0')?.value || jugImport?.evalInicial || evalPorDefecto();
+      jugImport = { columnas, filas, condColumnas, evalId: condColumnas.length ? evalElegida : null, evalInicial: evalElegida };
       const vistos = new Set();
       filas.forEach(f => {
         const nombre = `${f.data.nombre} ${f.data.apellidos}`.trim();
@@ -2904,11 +2985,13 @@ function renderPanelJugadores(container) {
       btn.textContent = `Guardando ${ok + completadas + fallos.length + 1} de ${aCrear.length}…`;
       const data = f.data;
       try {
-        if (f.estado === 'completar') { // ficha existente: solo los datos que le faltaban
+        if (f.estado === 'completar') { // ficha existente: datos nuevos y los que han cambiado (celdas vacías no se tocan)
           const patch = f.completar;
           if (Object.keys(patch).length) {
+            const prev = state.players.find(p => p.id === f.playerId) || {};
             if (!isFirebaseUnconfigured()) await updateDocument('jugadores', f.playerId, patch);
             setState({ players: state.players.map(p => p.id === f.playerId ? { ...p, ...patch } : p) });
+            await registrarCambios(f.playerId, prev, patch); // los cambios de valor quedan en el histórico
             if (patch.teamKey) await añadirAPlantilla(f.playerId, patch.teamKey, state.season);
           }
           await guardarCondPend(f.playerId, f.condPend, jugImport.evalId);
@@ -2928,7 +3011,7 @@ function renderPanelJugadores(container) {
     }
     jugImport = null;
     renderPanelJugadores(container);
-    if (ok || completadas) showSuccess([ok ? `${ok} jugador${ok === 1 ? '' : 'es'} creado${ok === 1 ? '' : 's'}` : '', completadas ? `${completadas} ficha${completadas === 1 ? '' : 's'} completada${completadas === 1 ? '' : 's'}` : ''].filter(Boolean).join(' y ') + '.');
+    if (ok || completadas) showSuccess([ok ? `${ok} jugador${ok === 1 ? '' : 'es'} creado${ok === 1 ? '' : 's'}` : '', completadas ? `${completadas} ficha${completadas === 1 ? '' : 's'} actualizada${completadas === 1 ? '' : 's'}` : ''].filter(Boolean).join(' y ') + '.');
     if (fallos.length) showError(`Fallaron ${fallos.length}: ${fallos.join(', ')}. Revisa permisos o conexión.`, 12000);
   });
 
