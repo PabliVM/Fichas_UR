@@ -38,8 +38,8 @@ export const perfilActual = () => _perfil;
 // jugFichaTab, plVista.modo y CONFIG_GROUPS). La primera de Jugadores y Plantillas es la de entrada.
 export const SUBPANTALLAS = {
   registro: [
-    { key: 'registro', label: 'Registro' },
-    { key: 'bbdd', label: 'BBDD' },
+    { key: 'registro', label: 'Evaluaciones (crear, importar)' },
+    { key: 'bbdd', label: 'Buscar registros (BBDD)' },
     { key: 'comparativas', label: 'Comparativas' },
   ],
   jugadores: [

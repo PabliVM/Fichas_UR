@@ -116,10 +116,11 @@ export const PROFILES = [
   { key: 'delantero',   label: 'Delantero'   },
 ];
 
+// Orden de la barra por tarea. Las claves (permisos, enlaces #) no cambian.
 export const TABS = [
-  { key: 'registro',   label: 'Registro de datos' },
   { key: 'jugadores',  label: 'Jugadores'         },
-  { key: 'plantillas', label: 'Plantillas'        },
-  { key: 'sucesion',   label: 'Líneas de sucesión' }, // pestaña reservada — contenido pendiente de definir
+  { key: 'plantillas', label: 'Equipos'           },
+  { key: 'registro',   label: 'Evaluaciones'      },
+  { key: 'sucesion',   label: 'Líneas de sucesión', enBarra: false, dentroDe: 'plantillas' }, // se abre desde Equipos
   { key: 'config',     label: 'Configuración'     },
 ];
