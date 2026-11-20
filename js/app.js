@@ -4,7 +4,7 @@
 
 import { initFirebase, setWriteGuard, setAfterWrite, addDocument, updateDocument, deleteDocument, addSubDocument, readSubCollection, readCollection, saveDocument, readDocument, updateMapEntry, arrayUnion, arrayRemove } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
-import { watchAuthState, login, logout, resetPassword } from './auth-service.js';
+import { watchAuthState, login, logout, resetPassword, tokenActual } from './auth-service.js';
 import { cargarPerfil, tabsVisibles, nivel, puedeVer, puedeEditar, esSuperadmin, perfilActual, SUBPANTALLAS } from './permisos-service.js';
 import { renderPanelAdmin } from './admin-panel.js';
 import { exportarJugador, borrarJugadorCompleto } from './rgpd.js';
@@ -2335,13 +2335,11 @@ function formatoImportHTML(cols, intro) {
       <div style="overflow-x:auto;">
         <table style="border-collapse:collapse;font-size:12px;">
           <tr><td style="${cab}"></td>${cols.map((_, i) => `<td style="${cab}">${letra(i)}</td>`).join('')}</tr>
-          <tr><td style="${cab}">1</td>${cols.map(c => `<td style="${celda}font-weight:700;">${safeText(c.titulo)}</td>`).join('')}</tr>
+          <tr><td style="${cab}">1</td>${cols.map(c => `<td style="${celda}font-weight:700;${c.nota ? 'cursor:help;' : ''}" title="${safeText(String(c.nota || '').replace(/<[^>]+>/g, ''))}">${safeText(c.titulo)}</td>`).join('')}</tr>
           <tr><td style="${cab}">2</td>${cols.map(c => `<td style="${celda}color:var(--text-muted);">${safeText(c.ejemplo ?? '')}</td>`).join('')}</tr>
         </table>
       </div>
-      <ul class="text-xs text-muted" style="margin:8px 0 0 18px;">
-        ${cols.map((c, i) => `<li><strong>${letra(i)} · ${safeText(c.titulo)}</strong>${c.nota ? ` — ${c.nota}` : ''}</li>`).join('')}
-      </ul>
+      <p class="text-xs text-muted" style="margin:6px 0 0;">Pasa el ratón por un título para ver qué poner.</p>
     </div>`;
 }
 
@@ -2386,8 +2384,11 @@ function buildJugImportHTML() {
         <textarea class="input" id="jimp-texto" rows="5" style="width:100%;margin-top:8px;font-family:monospace;font-size:12px;" placeholder="…o pega aquí las filas copiadas de Excel (con la fila de títulos)"></textarea>
         <div class="flex gap-8 mt-8">
           <button class="btn btn-primary" id="jimp-leer">Leer texto pegado</button>
+          <button class="btn" id="jimp-ia" title="Para listas escritas sin columnas: la IA las ordena">🤖 Leer texto con IA</button>
+          <label class="btn" style="cursor:pointer;" title="Foto o captura de una tabla o lista (también puedes pegarla con Ctrl+V en el cuadro de texto)">📷 Leer foto con IA<input type="file" id="jimp-foto" accept="image/*" style="display:none;" /></label>
           <button class="btn btn-ghost" id="jimp-cancel">Cancelar</button>
         </div>
+        <p class="text-xs text-muted mt-8" id="jimp-ia-estado">Con IA: antes de guardar siempre ves la vista previa para revisarla.</p>
         <details class="mt-16">
           <summary class="text-sm" style="cursor:pointer;font-weight:600;">ℹ Columnas que reconoce</summary>
           <div style="margin-top:8px;">${formatoImportHTML(columnasPlantillaJugadores(), 'una fila por jugador; la fila 1 con estos títulos (el orden da igual y puedes quitar las columnas que no tengas).')}</div>
@@ -2954,6 +2955,49 @@ function renderPanelJugadores(container) {
     const texto = container.querySelector('#jimp-texto').value;
     if (!texto.trim()) { showError('Pega primero las filas copiadas de Excel.'); return; }
     leerJugadores(filasDesdeTexto(texto));
+  });
+  // Foto o texto libre → /api/extraer (Claude) → filas con los títulos de la app → misma vista previa
+  const leerConIA = async cuerpo => {
+    const estado = container.querySelector('#jimp-ia-estado');
+    const botones = container.querySelectorAll('#jimp-ia, #jimp-leer, label:has(#jimp-foto)');
+    botones.forEach(b => { b.disabled = true; b.style.opacity = .5; b.style.pointerEvents = 'none'; });
+    if (estado) estado.textContent = '⏳ Leyendo con IA… (puede tardar unos segundos)';
+    try {
+      let token = null; try { token = await tokenActual(); } catch (_) { /* modo local sin Firebase */ }
+      const columnas = columnasPlantillaJugadores().map(c => ({ titulo: c.titulo, nota: String(c.nota || '').replace(/<[^>]+>/g, '') }));
+      const r = await fetch('/api/extraer', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (token || '') }, body: JSON.stringify({ ...cuerpo, columnas }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 503 && d.error === 'no-configurado') throw new Error('falta poner la clave ANTHROPIC_API_KEY en Vercel.');
+      if (!r.ok) throw new Error(d.error || ('error ' + r.status));
+      if (!d.filas?.length || d.filas.length < 2) throw new Error('no se encontró ningún jugador.');
+      await leerJugadores(d.filas);
+    } catch (err) {
+      showError('IA: ' + (err.message || err), 9000);
+    } finally {
+      botones.forEach(b => { b.disabled = false; b.style.opacity = ''; b.style.pointerEvents = ''; });
+      if (estado) estado.textContent = 'Con IA: antes de guardar siempre ves la vista previa para revisarla.';
+    }
+  };
+  const leerFotoIA = async file => {
+    if (!file || !/^image\//.test(file.type)) { showError('Elige una imagen (JPG o PNG).'); return; }
+    try {
+      const img = await createImageBitmap(file);
+      const k = Math.min(1, 2000 / Math.max(img.width, img.height)); // reduce el tamaño (más rápido y barato)
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+      const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(img, 0, 0, cv.width, cv.height);
+      leerConIA({ imagen: cv.toDataURL('image/jpeg', 0.9).split(',')[1], mediaType: 'image/jpeg' });
+    } catch (_) { showError('No se pudo abrir la imagen.'); }
+  };
+  container.querySelector('#jimp-foto')?.addEventListener('change', e => leerFotoIA(e.target.files[0]));
+  container.querySelector('#jimp-ia')?.addEventListener('click', () => {
+    const texto = container.querySelector('#jimp-texto').value;
+    if (!texto.trim()) { showError('Pega o escribe primero la lista en el cuadro.'); return; }
+    leerConIA({ texto });
+  });
+  container.querySelector('#jimp-texto')?.addEventListener('paste', e => {
+    const f = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'))?.getAsFile();
+    if (f) { e.preventDefault(); leerFotoIA(f); }
   });
   container.querySelector('#jimp-eval')?.addEventListener('change', e => {
     jugImport.evalId = e.target.value;
