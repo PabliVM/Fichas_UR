@@ -1121,14 +1121,14 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
       .bt-wrap { overflow:auto; max-height:75vh; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
       .bt { border-collapse:collapse; table-layout:fixed; background:#fff; color:#0f1117; font-size:11px; }
       .bt th { background:var(--header-bg, #1d4ed8); color:#fff; font-size:9.5px; font-weight:700; line-height:1.2; text-transform:uppercase; letter-spacing:.1px;
-               text-align:center; vertical-align:middle; padding:5px 4px; width:96px; min-width:96px; max-width:96px; border-left:1px solid rgba(255,255,255,.35); overflow-wrap:break-word; word-break:normal; hyphens:manual; position:sticky; top:0; z-index:1; }
+               text-align:center; vertical-align:middle; padding:15px 4px 6px; width:96px; min-width:96px; max-width:96px; border-left:1px solid rgba(255,255,255,.35); overflow-wrap:break-word; word-break:normal; hyphens:manual; position:sticky; top:0; z-index:1; }
       .bt th.bt-th-txt { width:380px; min-width:380px; max-width:380px; }
       .bt th.bt-th-fija { white-space:nowrap; }
       .bt th.bt-th-del { width:40px; min-width:40px; max-width:40px; padding:5px 0; }
       .bt td { overflow:hidden; }
       .bt td.bt-nowrap { text-overflow:ellipsis; }
       .bt th:first-child { border-left:none; }
-      .bt th .bt-n { display:block; font-size:9px; font-weight:600; opacity:.75; margin-bottom:2px; }
+      .bt th .bt-n { position:absolute; top:2px; left:0; right:0; font-size:9px; font-weight:600; opacity:.75; line-height:1; } /* número pegado arriba; nombre centrado */
       .bt td { background:#fff; color:#0f1117; padding:1px 5px; border-left:1px solid #cbd5e1; border-top:1px solid #cbd5e1; text-align:center; vertical-align:middle; line-height:1.25; height:22px; }
       .bt td:first-child { border-left:none; }
       .bt tbody tr:nth-child(even) td { background:#f8fafc; }
