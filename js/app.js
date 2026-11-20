@@ -12,7 +12,7 @@ import { iniciarAuditoria, auditar, exigirDobleFactor, exigirPrivacidad, exigirA
 import { leerTablaJugadores, CAMPO_LABEL, descargarPlantilla, campoDeCabecera } from './importar-jugadores.js';
 import { leerFilas, filasDesdeTexto, leerTablaCondicional } from './importar-condicional.js';
 import { abrirEditorFoto } from './foto-editor.js';
-import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro } from './evaluaciones-service.js';
+import { crearEvaluacion, actualizarEvaluacion, eliminarEvaluacion, listarEvaluaciones, queryRegistros, crearRegistro, actualizarRegistro, eliminarRegistro } from './evaluaciones-service.js';
 import { matchJugador } from './import-matching.js';
 import { calcularMediasPorJugador, calcularMediaGrupo, buildAspectoPorCompetencia } from './medias.js';
 import { parseCSV, parseXLSXBuffer, parseEsNumber, buildRowKey, clasificarFilas } from './importar-csv.js';
@@ -945,8 +945,8 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
     String(jugadorLabel(a.jugadorId) || '').localeCompare(String(jugadorLabel(b.jugadorId) || ''), 'es', { sensitivity: 'base' })
     || String(a.fechaRegistro || '').localeCompare(String(b.fechaRegistro || '')));
   const rows = ordenados.length
-    ? ordenados.map(r => `<tr>${cols.map(c => celda(r, c)).join('')}</tr>`).join('')
-    : `<tr>${cols.map(() => '<td class="bt-vacia"></td>').join('')}</tr>`;
+    ? ordenados.map(r => `<tr>${cols.map(c => celda(r, c)).join('')}<td class="bt-del"><button class="btn btn-sm btn-ghost" data-reg-borrar="${r.id}" title="Borrar solo este registro">🗑</button></td></tr>`).join('')
+    : `<tr>${cols.map(() => '<td class="bt-vacia"></td>').join('')}<td class="bt-vacia"></td></tr>`;
   return `
     <style>
       .bt-wrap { overflow:auto; max-height:75vh; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
@@ -964,12 +964,13 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
       .bt .bt-texto { width:380px; min-width:380px; max-width:380px; font-size:10px; line-height:1.25; text-align:left; vertical-align:top; padding-top:3px; padding-bottom:3px; }
       .bt .bt-vacia { height:22px; }
       .bt .bt-num { padding:0; }
+      .bt .bt-del { padding:0 2px; } .bt .bt-del .btn { padding:0 6px; min-height:0; height:20px; line-height:1; }
       .bt .bt-num input { width:100%; box-sizing:border-box; height:22px; font-size:11px; padding:0 2px; text-align:center; background:transparent; color:#0f1117; border:none; border-radius:0; box-shadow:none; }
       .bt .bt-num input:focus { outline:2px solid var(--blue-500, #3b82f6); outline-offset:-2px; background:#fff; }
     </style>
     <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración → Columnas encuesta. Edita una nota y sal de la celda para guardar.</p>
     <div class="bt-wrap"><table class="bt">
-      <thead><tr>${cols.map(c => `<th class="${String(tipoCol(c) || '').startsWith('@txt_') ? 'bt-th-txt' : ''}" title="Columna ${c.num} de la encuesta"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}</tr></thead>
+      <thead><tr>${cols.map(c => `<th class="${String(tipoCol(c) || '').startsWith('@txt_') ? 'bt-th-txt' : ''}" title="Columna ${c.num} de la encuesta"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}<th title="Borrar un registro">Borrar</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`;
 }
@@ -1132,6 +1133,30 @@ function renderBBDDSub(container) {
         console.error('[Firestore] No se pudo guardar la nota:', err);
         showError('No se pudo guardar la nota (revisa las reglas de Firestore).');
         inp.value = reg.puntuaciones?.[clave] ?? '';
+      }
+    });
+  });
+
+  container.querySelectorAll('[data-reg-borrar]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const reg = (bbddResultado?.registros || []).find(r => r.id === btn.dataset.regBorrar);
+      if (!reg) return;
+      const p = state.players.find(x => x.id === reg.jugadorId);
+      const quien = p ? `${p.nombre} ${p.apellidos}` : '(sin identificar)';
+      if (!confirm(`¿Borrar solo este registro?\n\nJugador: ${quien}\nEvaluador: ${reg.evaluador || '—'}\n\nEl resto de la evaluación no se toca.`)) return;
+      try {
+        await eliminarRegistro(reg.id);
+        bbddResultado.registros = bbddResultado.registros.filter(r => r.id !== reg.id);
+        const porPosicion = {};
+        bbddResultado.registros.forEach(r => { (porPosicion[r.posicionKey] = porPosicion[r.posicionKey] || []).push(r); });
+        const medias = {};
+        Object.entries(porPosicion).forEach(([pk, regs]) => Object.assign(medias, calcularMediasPorJugador(regs, buildAspectoPorCompetencia(state, pk))));
+        bbddResultado.mediasPorJugador = medias;
+        showSuccess('Registro borrado.');
+        renderBBDDSub(container);
+      } catch (err) {
+        console.error('[Firestore] No se pudo borrar el registro:', err);
+        showError('No se pudo borrar el registro (revisa permisos o reglas de Firestore).');
       }
     });
   });
