@@ -18,6 +18,7 @@ import { calcularMediasPorJugador, calcularMediaGrupo, buildAspectoPorCompetenci
 import { parseCSV, parseXLSXBuffer, parseEsNumber, buildRowKey, clasificarFilas } from './importar-csv.js';
 import { renderHeader }  from './render-header.js';
 import { renderTabs, switchTab } from './render-tabs.js';
+import { preguntasDeCabecera, comprobarPorBloques } from './comprobar-columnas.js';
 import { renderFooter }  from './render-footer.js';
 import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS, PROFILES, CONDICIONAL_BASE, esEquipoBase } from './constants.js';
 import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore, loadPlayersFromFirestore } from './state.js';
@@ -454,6 +455,14 @@ function buildEvaluacionesListHTML() {
   }).join('')}</div>`;
 }
 
+/** Criterios de una posición por bloque, para comparar cada columna solo con los de su bloque. */
+function bloquesCriterios(posicionKey) {
+  const apc = buildAspectoPorCompetencia(state, posicionKey);
+  const bloques = { perfiles: (state.criteriaSchemas[posicionKey]?.perfiles || []).filter(Boolean) };
+  Object.entries(apc).forEach(([c, a]) => { if (a !== 'condicional') (bloques[a] = bloques[a] || []).push(c); });
+  return bloques;
+}
+
 // ── Registro: wizard de importación CSV ───────────
 
 function buildImportWizardHTML() {
@@ -489,17 +498,35 @@ function buildImportWizardHTML() {
         ]),
       ].join('');
     };
+    const preguntas = regImport.preguntas || {};
+    const hayPreguntas = Object.keys(preguntas).length > 0;
+    const chk = hayPreguntas ? comprobarPorBloques(preguntas, regImport.mapping, bloquesCriterios(ev.posicionKey)) : { porColumna: {}, avisos: 0 };
+    const estadoHTML = h => {
+      const e = chk.porColumna[h];
+      if (!e) return '';
+      if (e.estado === 'ok') return '<span style="color:#15803d;font-weight:700;">✓ Cuadra</span>';
+      if (e.estado === 'aviso') return `<span style="color:#b45309;font-weight:700;">⚠ ¿${safeText(e.sugerido)}?</span>`;
+      return '<span class="text-muted" title="No hay un criterio con nombre parecido: revísala tú">? Revisar</span>';
+    };
+    const aviso = !hayPreguntas ? ''
+      : chk.avisos ? `<div class="mb-16" style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <div style="flex:1 1 300px;color:#78350f;"><b>⚠ ${chk.avisos} columna${chk.avisos === 1 ? '' : 's'} no cuadra${chk.avisos === 1 ? '' : 'n'} con la pregunta del Excel.</b><div class="text-xs">Si importas así, esas notas se guardarían en otro criterio.</div></div>
+          <button class="btn btn-primary" id="import-auto">Colocar según el Excel</button>
+        </div>`
+      : '<div class="mb-16" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;color:#166534;"><b>✓ Las columnas cuadran con las preguntas del Excel.</b></div>';
     body = `
+      ${aviso}
       <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas${regImport.omitidas ? ` (${regImport.omitidas} filas de cabecera omitidas)` : ''}${regImport.precargado ? '. Mapeo precargado desde Configuración → Columnas encuesta' : ''}. Indica qué es cada columna (obligatorio: Jugador y Evaluador). Posición: ${safeText(posLabel)}.</p>
       <div style="overflow-x:auto;">
         <table class="table table-compact">
-          <thead><tr><th>Columna del archivo</th><th>Ejemplo</th><th>Se importa como</th></tr></thead>
+          <thead><tr><th>Columna del archivo</th><th>${hayPreguntas ? 'Pregunta del Excel' : 'Ejemplo'}</th><th>Se importa como</th>${hayPreguntas ? '<th>Estado</th>' : ''}</tr></thead>
           <tbody>
             ${regImport.headers.map(h => `
-              <tr>
+              <tr style="${chk.porColumna[h]?.estado === 'aviso' ? 'background:#fffbeb;' : ''}">
                 <td>${safeText(h)}</td>
-                <td class="text-muted">${safeText(String(regImport.rows[0]?.[h] ?? '').slice(0, 40))}</td>
+                <td class="text-muted" style="max-width:420px;">${safeText(preguntas[h] || String(regImport.rows[0]?.[h] ?? '').slice(0, 40))}</td>
                 <td><select class="select" data-map-col="${safeText(h)}">${optionsFor(h)}</select></td>
+                ${hayPreguntas ? `<td class="text-xs" style="white-space:nowrap;">${estadoHTML(h)}</td>` : ''}
               </tr>
             `).join('')}
           </tbody>
@@ -827,6 +854,7 @@ function renderRegistroSub(container) {
     regImport.headers = parsed.headers;
     regImport.rows = normalizarFechas(limpio.rows, colFechaImp);
     regImport.omitidas = limpio.omitidas;
+    regImport.preguntas = preguntasDeCabecera(parsed.rows.slice(0, limpio.omitidas), parsed.headers);
     regImport.mapping = mapeoInicial;
     regImport.precargado = Object.keys(regImport.mapping).length > 0;
     regImport.step = 'mapeo';
@@ -840,7 +868,19 @@ function renderRegistroSub(container) {
   });
 
   container.querySelectorAll('[data-map-col]').forEach(sel => {
-    sel.addEventListener('change', () => { regImport.mapping[sel.dataset.mapCol] = sel.value; });
+    sel.addEventListener('change', () => { regImport.mapping[sel.dataset.mapCol] = sel.value; if (regImport.preguntas && Object.keys(regImport.preguntas).length) renderRegistroSub(container); });
+  });
+
+  container.querySelector('#import-auto')?.addEventListener('click', () => {
+    const ev = regEvaluaciones.find(e => e.id === regEvalSel);
+    const { porColumna, propuesta } = comprobarPorBloques(regImport.preguntas || {}, regImport.mapping, bloquesCriterios(ev?.posicionKey));
+    Object.entries(porColumna).forEach(([h, e]) => { if (e.estado === 'aviso') regImport.mapping[h] = e.sugerido; });
+    // Una columna sin criterio claro que se quede con uno ya colocado en otra → se ignora (no se duplica).
+    const tomados = new Set(Object.values(propuesta));
+    let dudosas = 0;
+    Object.entries(porColumna).forEach(([h, e]) => { if (e.estado === '?' && tomados.has(regImport.mapping[h])) { regImport.mapping[h] = ''; dudosas++; } });
+    showSuccess('Columnas colocadas según el Excel.' + (dudosas ? ` ${dudosas} quedan sin criterio: elige tú (marcadas "? Revisar").` : ''));
+    renderRegistroSub(container);
   });
 
   container.querySelector('#import-validar')?.addEventListener('click', () => {
