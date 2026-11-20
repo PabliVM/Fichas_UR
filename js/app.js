@@ -29,7 +29,7 @@ import { exportFichaAsPDF, exportFichasAsPDF } from './pdf-export.js';
 import { showError, showSuccess, safeText } from './utils.js';
 import { renderFichasEspejo } from './ficha-espejo-ui.js';
 import { buildCatalogo, slugify } from './ficha-espejo.js';
-import { quitarCabeceras, normalizarFechas, mapeoPorDefecto, columnasEfectivas, TEXTOS_DESTINOS, RP_DESTINOS } from './importar-plantilla.js';
+import { quitarCabeceras, normalizarFechas, mapeoPorDefecto, columnasEfectivas, TEXTOS_DESTINOS, RP_DESTINOS, EXTRAS_DESTINOS } from './importar-plantilla.js';
 import { renderColumnasEncuesta } from './columnas-encuesta-ui.js';
 
 // ── EVITAR SALTO DE SCROLL AL RE-RENDERIZAR ───────
@@ -518,7 +518,7 @@ function buildImportWizardHTML() {
         `<option value="">— Ignorar columna —</option>`,
         o('@fecha', 'Fecha y hora'), o('@evaluador', 'Evaluador'), o('@jugador', 'Jugador'),
         o('equipo', 'Equipo (opcional — ayuda a identificar al jugador)'),
-        ...Object.entries({ ...RP_DESTINOS, ...TEXTOS_DESTINOS }).map(([k, l]) => o(k, l)),
+        ...Object.entries({ ...RP_DESTINOS, ...TEXTOS_DESTINOS, ...EXTRAS_DESTINOS }).map(([k, l]) => o(k, l)),
         ...perfiles.filter(Boolean).map(p => o(p, `Perfil: ${p}`)),
         ...competencias.flatMap(c => aspectoPorCompetencia[c] === 'condicional' ? [
           o(c + '::A', `Condicional: ${c} — valor 1`), o(c + '::B', `Condicional: ${c} — valor 2`),
@@ -702,6 +702,12 @@ async function procesarImport(container) {
       const v = parseEsNumber(row[header]);
       if (v != null) rp[target.slice(1)] = v;
     });
+    const extras = {}; // Perfil técnico, Inteligencia táctica, Talento: aparte, no cuentan en medias
+    Object.entries(regImport.mapping).forEach(([header, target]) => {
+      if (!target || !target.startsWith('@x_')) return;
+      const v = parseEsNumber(row[header]);
+      if (v != null) extras[target.slice(3)] = v;
+    });
     Object.entries(regImport.mapping).forEach(([header, target]) => {
       if (!target || target === 'equipo' || target.startsWith('@')) return;
       const raw = row[header];
@@ -718,11 +724,11 @@ async function procesarImport(container) {
     const teamKey = colEquipo ? teamKeyPorLabel(row[colEquipo]) : null;
     const match = matchJugador(jugadorNombreArchivo, state.players, { teamKey });
     if (match.status !== 'auto') {
-      return { jugadorNombreArchivo, evaluador, puntuaciones, puntuacionesId, textos, rp, fechaRegistro, matchStatus: match.status, matchCandidates: match.candidates };
+      return { jugadorNombreArchivo, evaluador, puntuaciones, puntuacionesId, textos, rp, extras, fechaRegistro, matchStatus: match.status, matchCandidates: match.candidates };
     }
     const jugadorId = match.playerId;
     const rowKey = buildRowKey({ evaluacionId: ev.id, jugadorId, jugadorNombreArchivo, evaluador });
-    return { jugadorNombreArchivo, evaluador, puntuaciones, puntuacionesId, textos, rp, fechaRegistro, jugadorId, rowKey };
+    return { jugadorNombreArchivo, evaluador, puntuaciones, puntuacionesId, textos, rp, extras, fechaRegistro, jugadorId, rowKey };
   });
 
   regImport.pendientes = filas.filter(f => !f.error && !f.jugadorId);
@@ -984,7 +990,7 @@ function renderRegistroSub(container) {
       const playerId = sel?.value || '';
       if (!playerId) { restantes.push(f); return; }
       const rowKey = buildRowKey({ evaluacionId: regEvalSel, jugadorId: playerId, jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador });
-      resueltos.push({ jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador, puntuaciones: f.puntuaciones, puntuacionesId: f.puntuacionesId, textos: f.textos || {}, rp: f.rp || {}, fechaRegistro: f.fechaRegistro, jugadorId: playerId, rowKey });
+      resueltos.push({ jugadorNombreArchivo: f.jugadorNombreArchivo, evaluador: f.evaluador, puntuaciones: f.puntuaciones, puntuacionesId: f.puntuacionesId, textos: f.textos || {}, rp: f.rp || {}, extras: f.extras || {}, fechaRegistro: f.fechaRegistro, jugadorId: playerId, rowKey });
       if (!aliasUpdates.has(playerId)) aliasUpdates.set(playerId, new Set());
       aliasUpdates.get(playerId).add(f.jugadorNombreArchivo);
     });
@@ -1036,7 +1042,7 @@ function renderRegistroSub(container) {
         await crearRegistro({
           evaluacionId: ev.id, temporada: ev.temporada, posicionKey: ev.posicionKey, tipo: ev.tipo || null,
           jugadorId: fila.jugadorId, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
-          puntuaciones: fila.puntuaciones, puntuacionesId: fila.puntuacionesId || {}, textos: fila.textos || {}, rp: fila.rp || {}, fechaRegistro: fila.fechaRegistro || null, rowKey: fila.rowKey, origen: 'csv',
+          puntuaciones: fila.puntuaciones, puntuacionesId: fila.puntuacionesId || {}, textos: fila.textos || {}, rp: fila.rp || {}, extras: fila.extras || {}, fechaRegistro: fila.fechaRegistro || null, rowKey: fila.rowKey, origen: 'csv',
         });
         // Ya guardado: si algo falla después y se reintenta, no se vuelve a crear (evita duplicados).
         r.nuevos = r.nuevos.filter(x => x !== fila);
@@ -1047,7 +1053,7 @@ function renderRegistroSub(container) {
       for (const fila of r.conCambios) {
         if ((regImport.decisiones[fila.rowKey] || 'mantener') === 'reemplazar') {
           await actualizarRegistro(fila.existente.id, {
-            puntuaciones: fila.puntuaciones, puntuacionesId: fila.puntuacionesId || {}, textos: fila.textos || {}, rp: fila.rp || {}, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
+            puntuaciones: fila.puntuaciones, puntuacionesId: fila.puntuacionesId || {}, textos: fila.textos || {}, rp: fila.rp || {}, extras: fila.extras || {}, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
             fechaRegistro: fila.fechaRegistro || null,
           });
           sustituidos++;
@@ -1097,8 +1103,8 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
     if (t === '@jugador') return `<td class="bt-nowrap bt-bold">${safeText(jugadorLabel(r.jugadorId))}</td>`;
     if (!t || t === 'equipo') return `<td class="bt-vacia"></td>`;
     if (t.startsWith('@txt_')) return `<td class="bt-texto">${safeText(r.textos?.[t.slice(5)] ?? '')}</td>`;
-    const valor = t === '@r' || t === '@p' ? r.rp?.[t.slice(1)] : r.puntuaciones?.[t];
-    return `<td class="bt-num"><input class="input" type="text" inputmode="decimal" data-reg-edit="${r.id}" data-clave="${safeText(t)}" value="${safeText(valor ?? '')}" /></td>`;
+    const valor = t === '@r' || t === '@p' ? r.rp?.[t.slice(1)] : t.startsWith('@x_') ? r.extras?.[t.slice(3)] : r.puntuaciones?.[t];
+    return `<td class="bt-num${t.startsWith('@x_') ? ' bt-extra' : ''}"><input class="input" type="text" inputmode="decimal" data-reg-edit="${r.id}" data-clave="${safeText(t)}" value="${safeText(valor ?? '')}" /></td>`;
   };
   // Mismo jugador junto: por nombre del jugador (A→Z) y, dentro, por fecha.
   const ordenados = [...registros].sort((a, b) =>
@@ -1131,6 +1137,8 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
       .bt .bt-texto { width:380px; min-width:380px; max-width:380px; font-size:10px; line-height:1.25; text-align:left; vertical-align:top; padding-top:3px; padding-bottom:3px; }
       .bt .bt-vacia { height:22px; }
       .bt .bt-num { padding:0; }
+      .bt td.bt-extra, .bt tbody tr:nth-child(even) td.bt-extra { background:#e5e7eb; } .bt td.bt-extra input { color:#6b7280; }
+      .bt th.bt-th-extra { background:#9ca3af; }
       .bt .bt-del { padding:0 2px; } .bt .bt-del .btn { padding:0 6px; min-height:0; height:20px; line-height:1; }
       .bt .bt-num input { width:100%; box-sizing:border-box; height:22px; font-size:11px; padding:0 2px; text-align:center; background:transparent; color:#0f1117; border:none; border-radius:0; box-shadow:none; }
       .bt .bt-num input:focus { outline:2px solid var(--blue-500, #3b82f6); outline-offset:-2px; background:#fff; }
@@ -1138,7 +1146,7 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
     <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración › Columnas de la encuesta. <b>Editar:</b> cambia una nota y sal de la celda · <b>Borrar:</b> 🗑 al principio de cada fila.</p>
     <div class="bt-wrap"><table class="bt" style="width:${anchoTabla}px;">
       <colgroup><col style="width:40px">${cols.map(c => `<col style="width:${anchoCol(c)}px">`).join('')}</colgroup>
-      <thead><tr><th class="bt-th-del" title="Borrar un registro">🗑</th>${cols.map(c => `<th class="${String(tipoCol(c) || '').startsWith('@txt_') ? 'bt-th-txt' : ['@fecha', '@evaluador', '@jugador'].includes(tipoCol(c)) ? 'bt-th-fija' : ''}" style="width:${anchoCol(c)}px;min-width:${anchoCol(c)}px;max-width:${anchoCol(c)}px;" title="Columna ${c.num} de la encuesta"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}</tr></thead>
+      <thead><tr><th class="bt-th-del" title="Borrar un registro">🗑</th>${cols.map(c => `<th class="${String(tipoCol(c) || '').startsWith('@txt_') ? 'bt-th-txt' : ['@fecha', '@evaluador', '@jugador'].includes(tipoCol(c)) ? 'bt-th-fija' : String(tipoCol(c) || '').startsWith('@x_') ? 'bt-th-extra' : ''}" style="width:${anchoCol(c)}px;min-width:${anchoCol(c)}px;max-width:${anchoCol(c)}px;" title="Columna ${c.num} de la encuesta${String(tipoCol(c) || '').startsWith('@x_') ? ' — guardada, de momento no cuenta en medias ni fichas' : ''}"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}</tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`;
 }
@@ -1249,6 +1257,13 @@ function wireRegistrosTabla(container, res, rerender) {
       const raw = inp.value.trim();
       const val = raw === '' ? null : parseEsNumber(raw);
       if (raw !== '' && val == null) { showError('La nota debe ser un número.'); inp.value = reg.puntuaciones?.[clave] ?? ''; return; }
+      if (clave.startsWith('@x_')) { // Perfil técnico / Inteligencia táctica / Talento
+        const extras = { ...(res().registros.find(r => r.id === reg.id)?.extras || reg.extras || {}) };
+        if (val == null) delete extras[clave.slice(3)]; else extras[clave.slice(3)] = val;
+        try { await actualizarRegistro(reg.id, { extras }); reg.extras = extras; inp.value = val ?? ''; showSuccess('Nota guardada.'); }
+        catch (err) { showError('No se pudo guardar la nota (revisa las reglas de Firestore).'); inp.value = reg.extras?.[clave.slice(3)] ?? ''; }
+        return;
+      }
       if (clave === '@r' || clave === '@p') { // R / P de la Ficha 1
         const rp = { ...(reg.rp || {}) };
         if (val == null) delete rp[clave.slice(1)]; else rp[clave.slice(1)] = val;
