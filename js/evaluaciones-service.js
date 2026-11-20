@@ -63,3 +63,8 @@ export async function crearRegistro(data) {
 export async function actualizarRegistro(id, patch) {
   return updateDocument('registros', id, patch);
 }
+
+/** Borra UN registro (un evaluador puntuando a un jugador). El resto de la evaluación no se toca. */
+export async function eliminarRegistro(id) {
+  return deleteDocument('registros', id);
+}
