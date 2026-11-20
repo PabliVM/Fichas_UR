@@ -775,12 +775,14 @@ function renderRegistroSub(container) {
     const esExcel = /\.(xlsx|xls)$/i.test(file.name);
     let parsed;
     try {
-      parsed = esExcel ? parseXLSXBuffer(await file.arrayBuffer()) : parseCSV(await file.text());
+      const posSug = state.positions.find(x => x.key === regEvaluaciones.find(v => v.id === regEvalSel)?.posicionKey)?.label || '';
+      parsed = esExcel ? await parseXLSXBuffer(await file.arrayBuffer(), posSug) : parseCSV(await file.text());
     } catch (err) {
       console.error('[Import] No se pudo leer el archivo:', err);
       showError('No se pudo leer el archivo (¿formato correcto?).');
       return;
     }
+    if (parsed.cancelado) { e.target.value = ''; return; }
     if (!parsed.headers.length) { showError('No se pudo leer el archivo (¿está vacío?).'); return; }
     if (parsed.headers.length < 6) { showError('El archivo debe tener al menos 6 columnas: fecha, evaluador, jugador y 3 perfiles.'); return; }
     // Estructura fija de las encuestas: se omiten filas de cabecera (números/aspecto/preguntas),
@@ -2947,6 +2949,7 @@ function renderPanelJugadores(container) {
   const leerJugadores = async origen => {
     try {
       const filas2D = Array.isArray(origen) ? origen : await leerFilas(origen);
+      if (!filas2D) { const fi = container.querySelector('#jug-import-file'); if (fi) fi.value = ''; return; } // pestaña: cancelado
       const { columnas, filas } = await leerTablaJugadores(filas2D, state.positions);
       if (!filas.length) { showError('No hay jugadores con nombre en los datos.'); return; }
       // Columnas de datos condicionales en el mismo Excel (las que ya son un dato personal, p. ej. Edad madurativa, se quedan como dato personal).
@@ -3139,6 +3142,7 @@ function renderPanelJugadores(container) {
       const texto = container.querySelector('#cimp-texto').value;
       if (!file && !texto.trim()) { showError('Elige un archivo o pega la tabla.'); return; }
       const filas2D = file ? await leerFilas(file) : filasDesdeTexto(texto);
+      if (!filas2D) return;
       const { columnas, filas } = leerTablaCondicional(filas2D, state.aspectosComunes.condicional || [], CONDICIONAL_BASE);
       if (!filas.length) { showError('No hay filas con jugador.'); return; }
       filas.forEach(f => {
