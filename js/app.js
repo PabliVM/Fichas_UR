@@ -1105,18 +1105,22 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
     String(jugadorLabel(a.jugadorId) || '').localeCompare(String(jugadorLabel(b.jugadorId) || ''), 'es', { sensitivity: 'base' })
     || String(a.fechaRegistro || '').localeCompare(String(b.fechaRegistro || '')));
   const rows = ordenados.length
-    ? ordenados.map(r => `<tr>${cols.map(c => celda(r, c)).join('')}<td class="bt-del"><button class="btn btn-sm btn-ghost" data-reg-borrar="${r.id}" title="Borrar solo este registro">🗑</button></td></tr>`).join('')
-    : `<tr>${cols.map(() => '<td class="bt-vacia"></td>').join('')}<td class="bt-vacia"></td></tr>`;
+    ? ordenados.map(r => `<tr><td class="bt-del"><button class="btn btn-sm btn-ghost" data-reg-borrar="${r.id}" title="Borrar solo este registro">🗑</button></td>${cols.map(c => celda(r, c)).join('')}</tr>`).join('')
+    : `<tr><td class="bt-vacia"></td>${cols.map(() => '<td class="bt-vacia"></td>').join('')}</tr>`;
+  // Anchos fijos (colgroup + table-layout:fixed): iguales en todos los navegadores.
+  const anchoCol = c => { const t = String(tipoCol(c) || ''); return t.startsWith('@txt_') ? 380 : t === '@fecha' ? 110 : t === '@evaluador' ? 84 : t === '@jugador' ? 190 : 96; };
+  const anchoTabla = 40 + cols.reduce((a, c) => a + anchoCol(c), 0);
   return `
     <style>
       .bt-wrap { overflow:auto; max-height:75vh; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
-      .bt { border-collapse:collapse; width:max-content; min-width:100%; background:#fff; color:#0f1117; font-size:11px; }
+      .bt { border-collapse:collapse; table-layout:fixed; background:#fff; color:#0f1117; font-size:11px; }
       .bt th { background:var(--header-bg, #1d4ed8); color:#fff; font-size:9.5px; font-weight:700; line-height:1.2; text-transform:uppercase; letter-spacing:.1px;
                text-align:center; vertical-align:middle; padding:5px 4px; width:96px; min-width:96px; max-width:96px; border-left:1px solid rgba(255,255,255,.35); overflow-wrap:break-word; word-break:normal; hyphens:manual; position:sticky; top:0; z-index:1; }
       .bt th.bt-th-txt { width:380px; min-width:380px; max-width:380px; }
-      .bt th.bt-th-fija { width:112px; min-width:112px; max-width:112px; white-space:nowrap; }
-      .bt th.bt-th-jug { width:230px; min-width:230px; max-width:230px; }
-      .bt td.bt-bold { max-width:230px; overflow:hidden; text-overflow:ellipsis; }
+      .bt th.bt-th-fija { white-space:nowrap; }
+      .bt th.bt-th-del { width:40px; min-width:40px; max-width:40px; padding:5px 0; }
+      .bt td { overflow:hidden; }
+      .bt td.bt-nowrap { text-overflow:ellipsis; }
       .bt th:first-child { border-left:none; }
       .bt th .bt-n { display:block; font-size:9px; font-weight:600; opacity:.75; margin-bottom:2px; }
       .bt td { background:#fff; color:#0f1117; padding:1px 5px; border-left:1px solid #cbd5e1; border-top:1px solid #cbd5e1; text-align:center; vertical-align:middle; line-height:1.25; height:22px; }
@@ -1131,9 +1135,10 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
       .bt .bt-num input { width:100%; box-sizing:border-box; height:22px; font-size:11px; padding:0 2px; text-align:center; background:transparent; color:#0f1117; border:none; border-radius:0; box-shadow:none; }
       .bt .bt-num input:focus { outline:2px solid var(--blue-500, #3b82f6); outline-offset:-2px; background:#fff; }
     </style>
-    <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración › Columnas de la encuesta. <b>Editar:</b> cambia una nota y sal de la celda · <b>Borrar:</b> 🗑 al final de cada fila (desliza a la derecha).</p>
-    <div class="bt-wrap"><table class="bt">
-      <thead><tr>${cols.map(c => `<th class="${String(tipoCol(c) || '').startsWith('@txt_') ? 'bt-th-txt' : ['@fecha', '@evaluador', '@jugador'].includes(tipoCol(c)) ? 'bt-th-fija' + (tipoCol(c) === '@jugador' ? ' bt-th-jug' : '') : ''}" title="Columna ${c.num} de la encuesta"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}<th title="Borrar un registro">Borrar</th></tr></thead>
+    <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración › Columnas de la encuesta. <b>Editar:</b> cambia una nota y sal de la celda · <b>Borrar:</b> 🗑 al principio de cada fila.</p>
+    <div class="bt-wrap"><table class="bt" style="width:${anchoTabla}px;">
+      <colgroup><col style="width:40px">${cols.map(c => `<col style="width:${anchoCol(c)}px">`).join('')}</colgroup>
+      <thead><tr><th class="bt-th-del" title="Borrar un registro">🗑</th>${cols.map(c => `<th class="${String(tipoCol(c) || '').startsWith('@txt_') ? 'bt-th-txt' : ['@fecha', '@evaluador', '@jugador'].includes(tipoCol(c)) ? 'bt-th-fija' : ''}" style="width:${anchoCol(c)}px;min-width:${anchoCol(c)}px;max-width:${anchoCol(c)}px;" title="Columna ${c.num} de la encuesta"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}</tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`;
 }
