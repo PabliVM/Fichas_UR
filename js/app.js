@@ -5063,7 +5063,8 @@ function plCardJugador(j, f1, x, y, escala) {
     ? `<clipPath id="${id}"><circle cx="${cx}" cy="${cy}" r="${r - 1}"/></clipPath><image xlink:href="${j.fotoUrl}" href="${j.fotoUrl}" x="${cx - r}" y="${cy - r}" width="${r * 2}" height="${r * 2}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>` : '';
   const nota = (txt) => {
     const hex = hexDeNota(notaNum(txt));
-    return hex ? { bg: hex, fg: textoSobre(hex), t: String(txt) } : { bg: '#ffffff', fg: '#111', t: 'X' };
+    const v = notaNum(txt);
+    return hex ? { bg: hex, fg: textoSobre(hex), t: Number.isInteger(v) ? String(v) : (Math.round(v * 10) / 10).toFixed(1).replace('.', ',') } : { bg: '#ffffff', fg: '#111', t: 'X' };
   };
   const D = k(58);
   const circ = (n, left) => `<div style="position:absolute;left:${left}px;top:${-k(84 + 17)}px;width:${D}px;height:${D}px;border-radius:50%;background:${n.bg};color:${n.fg};border:${k(3)}px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:${k(n.t.length > 2 ? 24 : 30)}px;font-family:system-ui,sans-serif;">${safeText(n.t)}</div>`;
@@ -5155,7 +5156,7 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
       const top = y0 + 84 + fila * rowH + Math.max(0, (rowH - D - 44) / 2);
       const cf = conf(it), v = notaDe(it), hex = v != null ? hexDeNota(v) : null;
       const pl = it.f1?.player || {};
-      const txtNota = hex ? String(pl[campoN]) : 'X';
+      const txtNota = hex ? (Number.isInteger(v) ? String(v) : (Math.round(v * 10) / 10).toFixed(1).replace('.', ',')) : 'X'; // 1 decimal como mucho
       const bgN = hex || '#ffffff', fgN = hex ? textoSobre(hex) : '#111';
       const cid = `plmn${++plUid}`, R0 = D / 2, dN = Math.round(D * 0.44);
       const foto = it.j.fotoUrl
@@ -5164,7 +5165,7 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
       const ap = String(it.j.apellidos || it.j.nombre || '').trim().toUpperCase();
       return `<div style="position:absolute;left:${cx - ITEM_W / 2}px;top:${top}px;width:${ITEM_W}px;height:${D + 44}px;">
         ${foto}
-        <div style="position:absolute;left:${(ITEM_W + D) / 2 - dN * 0.6}px;top:${-dN * 0.1}px;width:${dN}px;height:${dN}px;border-radius:50%;background:${bgN};color:${fgN};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${txtNota.length > 3 ? 15 : 20}px;font-family:system-ui,sans-serif;">${safeText(txtNota)}</div>
+        <div style="position:absolute;left:${(ITEM_W + D) / 2 - dN * 0.6}px;top:${-dN * 0.1}px;width:${dN}px;height:${dN}px;border-radius:50%;background:${bgN};color:${fgN};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${Math.max(9, Math.min(20, Math.round((dN - 6) / (txtNota.length > 1 ? txtNota.length * 0.62 : 1.1))))}px;line-height:1;letter-spacing:-0.5px;font-family:system-ui,sans-serif;">${safeText(txtNota)}</div>
         <div style="position:absolute;left:-10px;width:${ITEM_W + 20}px;top:${D + 8}px;text-align:center;"><span style="display:inline-block;background:${cf.bg};color:${cf.fg};font-family:system-ui,sans-serif;font-weight:800;font-size:17px;padding:3px 14px;border-radius:18px;white-space:nowrap;">${safeText(ap)}</span></div></div>`;
     }).join('');
     return { band: `<div style="position:absolute;left:20px;top:${y0}px;width:${PL_W - 40}px;height:${h}px;background:${d.b.bg};border-radius:70px;"></div>`, cont: `${lado(d.izq, 40, MITAD - 10)}${lado(d.der, MITAD + 10, PL_W - 40)}
