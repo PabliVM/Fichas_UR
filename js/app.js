@@ -1119,7 +1119,7 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
   return `
     <style>
       .bt-wrap { overflow:auto; max-height:75vh; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
-      .bt { border-collapse:collapse; table-layout:fixed; background:#fff; color:#0f1117; font-size:11px; }
+      .bt { border-collapse:separate; border-spacing:0; table-layout:fixed; background:#fff; color:#0f1117; font-size:11px; }
       .bt th { background:var(--header-bg, #1d4ed8); color:#fff; font-size:9.5px; font-weight:700; line-height:1.2; text-transform:uppercase; letter-spacing:.1px;
                text-align:center; vertical-align:middle; padding:15px 4px 6px; width:96px; min-width:96px; max-width:96px; border-left:1px solid rgba(255,255,255,.35); overflow-wrap:break-word; word-break:normal; hyphens:manual; position:sticky; top:0; z-index:1; }
       .bt th.bt-th-txt { width:380px; min-width:380px; max-width:380px; }
@@ -1257,6 +1257,20 @@ function buildBBDDPanelHTML() {
 
 /** Edición de notas y 🗑 de la Tabla de la encuesta. res() = { registros, mediasPorJugador } que se muestra. */
 function wireRegistrosTabla(container, res, rerender) {
+  // Columnas fijas (🗑, Fecha, Evaluador, Jugador): su "left" medido de verdad, sin huecos por donde se vea lo que pasa por detrás.
+  container.querySelectorAll('table.bt').forEach(tabla => {
+    if (!tabla.offsetParent) return; // oculta: se quedan los valores del CSS
+    const ths = [...tabla.querySelectorAll('thead th')].slice(0, 4);
+    const wrap = tabla.closest('.bt-wrap'), sl = wrap ? wrap.scrollLeft : 0;
+    if (wrap) wrap.scrollLeft = 0;
+    const x0 = tabla.getBoundingClientRect().left;
+    const lefts = ths.map(th => Math.round(th.getBoundingClientRect().left - x0));
+    if (wrap) wrap.scrollLeft = sl;
+    ths.forEach((th, i) => {
+      const left = lefts[i] + 'px';
+      tabla.querySelectorAll(`tr > :nth-child(${i + 1})`).forEach(cel => { cel.style.left = left; });
+    });
+  });
   container.querySelectorAll('[data-reg-edit]').forEach(inp => {
     inp.addEventListener('change', async () => {
       const reg = (res()?.registros || []).find(r => r.id === inp.dataset.regEdit);
