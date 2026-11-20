@@ -18,6 +18,7 @@ import { calcularMediasPorJugador, calcularMediaGrupo, buildAspectoPorCompetenci
 import { parseCSV, parseXLSXBuffer, parseEsNumber, buildRowKey, clasificarFilas } from './importar-csv.js';
 import { renderHeader }  from './render-header.js';
 import { renderTabs, switchTab } from './render-tabs.js';
+import { preguntasDeCabecera, comprobarPorBloques } from './comprobar-columnas.js';
 import { renderFooter }  from './render-footer.js';
 import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS, PROFILES, CONDICIONAL_BASE, esEquipoBase } from './constants.js';
 import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore, loadPlayersFromFirestore } from './state.js';
@@ -89,11 +90,13 @@ function renderPanelImportar(container) {
 
 function renderPanelSucesion(container) {
   container.innerHTML = `
+    ${puedeVer('plantillas') ? '<button class="btn btn-sm mb-16" id="suc-volver">← Equipos</button>' : ''}
     <div class="card">
       <div class="card-title">Líneas de sucesión</div>
       <div class="card-body">Pendiente de definir — pestaña reservada.</div>
     </div>
   `;
+  container.querySelector('#suc-volver')?.addEventListener('click', () => switchTab('plantillas'));
 }
 
 let registroSubTab = localStorage.getItem('rm-registro-subtab') || 'registro'; // 'registro' | 'bbdd'
@@ -127,6 +130,7 @@ let regEvalFormOpen  = false;
 let regEvalEditId    = null;  // id de la evaluación que se está editando (null = alta nueva)
 let regEvalSel       = null;  // id de la evaluación activa para importar
 let regImport        = null;  // estado del wizard de importación (ver resetRegImport)
+let regVer           = null;  // { evId, res: { registros, mediasPorJugador } | null } registros desplegados en una tarjeta
 
 let bbddFiltros  = { temporada: '', evaluacionId: '', jugadorId: '', posicionKey: '', evaluador: '', vista: 'individuales' };
 let bbddResultado = null;     // { registros, mediasPorJugador } tras pulsar Buscar
@@ -417,29 +421,46 @@ function buildEvaluacionFormHTML() {
 
 function buildEvaluacionesListHTML() {
   if (!regEvaluaciones) return '<p class="text-xs text-muted">Cargando evaluaciones…</p>';
-  if (!regEvaluaciones.length) return '<p class="text-xs text-muted">Sin evaluaciones todavía.</p>';
-  const rows = regEvaluaciones.map(ev => `
-    <tr style="${regEvalSel === ev.id ? 'background:var(--bg-hover);' : ''}">
-      <td>${safeText(ev.temporada)}</td>
-      <td>${safeText(ev.nombre)}</td>
-      <td>${safeText(state.positions.find(p => p.key === ev.posicionKey)?.label || ev.posicionKey)}</td>
-      <td>${safeText(ev.tipo || '-')}</td>
-      <td>${safeText(ev.fechaInicio || '-')}${ev.fechaFin ? ' – ' + safeText(ev.fechaFin) : ''}</td>
-      <td class="flex gap-8">
-        <button class="btn btn-sm" data-ev-importar="${ev.id}">Importar CSV</button>
-        <button class="btn btn-sm" data-ev-editar="${ev.id}">Editar</button>
-        <button class="btn btn-sm" data-ev-borrar="${ev.id}">Borrar</button>
-      </td>
-    </tr>
-  `).join('');
-  return `
-    <div style="overflow-x:auto;">
-      <table class="table table-compact">
-        <thead><tr><th>Temporada</th><th>Nombre</th><th>Posición</th><th>Tipo</th><th>Fechas</th><th></th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-  `;
+  if (!regEvaluaciones.length) return '<p class="text-xs text-muted">Sin evaluaciones todavía. Crea una para empezar a importar encuestas.</p>';
+  const fecha = f => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(f || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
+  const orden = [...regEvaluaciones].sort((x, y) => String(y.fechaInicio || y.fechaFin || '').localeCompare(String(x.fechaInicio || x.fechaFin || '')));
+  return `<div style="display:flex;flex-direction:column;gap:12px;">${orden.map(ev => {
+    const pos = state.positions.find(p => p.key === ev.posicionKey)?.label || ev.posicionKey || '';
+    const activa = regEvalSel === ev.id, viendo = regVer?.evId === ev.id;
+    const fechas = [fecha(ev.fechaInicio), fecha(ev.fechaFin)].filter(Boolean).join(' – ');
+    let registros = '';
+    if (viendo) {
+      const r = regVer.res;
+      registros = !r ? '<p class="text-xs text-muted mt-8">Cargando registros…</p>'
+        : !r.registros.length ? '<p class="text-xs text-muted mt-8">Sin registros todavía en esta evaluación.</p>'
+        : `<div class="mt-8">${buildTablaEncuestaHTML(r.registros, ev.posicionKey, id => { const p = state.players.find(x => x.id === id); return p ? `${p.nombre} ${p.apellidos}` : '(sin identificar)'; })}</div>`;
+    }
+    return `
+    <div class="card" style="margin:0;${activa || viendo ? 'border:2px solid var(--blue-500, #3b82f6);' : ''}">
+      <div class="card-body">
+        <div class="flex gap-8" style="align-items:center;flex-wrap:wrap;">
+          <div style="flex:1 1 260px;min-width:0;">
+            <div style="font-size:16px;font-weight:800;">${safeText(ev.nombre)} · ${safeText(pos)}</div>
+            <div class="text-xs text-muted">${safeText(ev.temporada)}${ev.tipo ? ' · ' + safeText(ev.tipo) : ''}${fechas ? ' · ' + fechas : ''}</div>
+          </div>
+          <button class="btn btn-sm btn-primary" data-ev-importar="${ev.id}">📥 Importar encuesta</button>
+          <button class="btn btn-sm" data-ev-ver="${ev.id}">${viendo ? 'Ocultar registros' : 'Ver registros'}</button>
+          <button class="btn btn-sm" data-ev-editar="${ev.id}">Editar</button>
+          <button class="btn btn-sm" data-ev-borrar="${ev.id}" style="color:#b91c1c;">Borrar</button>
+        </div>
+        ${registros}
+        ${activa ? `<div class="mt-16">${buildImportWizardHTML()}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/** Criterios de una posición por bloque, para comparar cada columna solo con los de su bloque. */
+function bloquesCriterios(posicionKey) {
+  const apc = buildAspectoPorCompetencia(state, posicionKey);
+  const bloques = { perfiles: (state.criteriaSchemas[posicionKey]?.perfiles || []).filter(Boolean) };
+  Object.entries(apc).forEach(([c, a]) => { if (a !== 'condicional') (bloques[a] = bloques[a] || []).push(c); });
+  return bloques;
 }
 
 // ── Registro: wizard de importación CSV ───────────
@@ -477,17 +498,35 @@ function buildImportWizardHTML() {
         ]),
       ].join('');
     };
+    const preguntas = regImport.preguntas || {};
+    const hayPreguntas = Object.keys(preguntas).length > 0;
+    const chk = hayPreguntas ? comprobarPorBloques(preguntas, regImport.mapping, bloquesCriterios(ev.posicionKey)) : { porColumna: {}, avisos: 0 };
+    const estadoHTML = h => {
+      const e = chk.porColumna[h];
+      if (!e) return '';
+      if (e.estado === 'ok') return '<span style="color:#15803d;font-weight:700;">✓ Cuadra</span>';
+      if (e.estado === 'aviso') return `<span style="color:#b45309;font-weight:700;">⚠ ¿${safeText(e.sugerido)}?</span>`;
+      return '<span class="text-muted" title="No hay un criterio con nombre parecido: revísala tú">? Revisar</span>';
+    };
+    const aviso = !hayPreguntas ? ''
+      : chk.avisos ? `<div class="mb-16" style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <div style="flex:1 1 300px;color:#78350f;"><b>⚠ ${chk.avisos} columna${chk.avisos === 1 ? '' : 's'} no cuadra${chk.avisos === 1 ? '' : 'n'} con la pregunta del Excel.</b><div class="text-xs">Si importas así, esas notas se guardarían en otro criterio.</div></div>
+          <button class="btn btn-primary" id="import-auto">Colocar según el Excel</button>
+        </div>`
+      : '<div class="mb-16" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;color:#166534;"><b>✓ Las columnas cuadran con las preguntas del Excel.</b></div>';
     body = `
-      <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas${regImport.omitidas ? ` (${regImport.omitidas} filas de cabecera omitidas)` : ''}${regImport.precargado ? '. Mapeo precargado desde Configuración → Columnas encuesta' : ''}. Indica qué es cada columna (obligatorio: Jugador y Evaluador). Posición: ${safeText(posLabel)}.</p>
+      ${aviso}
+      <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas${regImport.omitidas ? ` (${regImport.omitidas} filas de cabecera omitidas)` : ''}${regImport.precargado ? '. Mapeo precargado desde Configuración › Columnas de la encuesta' : ''}. Indica qué es cada columna (obligatorio: Jugador y Evaluador). Posición: ${safeText(posLabel)}.</p>
       <div style="overflow-x:auto;">
         <table class="table table-compact">
-          <thead><tr><th>Columna del archivo</th><th>Ejemplo</th><th>Se importa como</th></tr></thead>
+          <thead><tr><th>Columna del archivo</th><th>${hayPreguntas ? 'Pregunta del Excel' : 'Ejemplo'}</th><th>Se importa como</th>${hayPreguntas ? '<th>Estado</th>' : ''}</tr></thead>
           <tbody>
             ${regImport.headers.map(h => `
-              <tr>
+              <tr style="${chk.porColumna[h]?.estado === 'aviso' ? 'background:#fffbeb;' : ''}">
                 <td>${safeText(h)}</td>
-                <td class="text-muted">${safeText(String(regImport.rows[0]?.[h] ?? '').slice(0, 40))}</td>
+                <td class="text-muted" style="max-width:420px;">${safeText(preguntas[h] || String(regImport.rows[0]?.[h] ?? '').slice(0, 40))}</td>
                 <td><select class="select" data-map-col="${safeText(h)}">${optionsFor(h)}</select></td>
+                ${hayPreguntas ? `<td class="text-xs" style="white-space:nowrap;">${estadoHTML(h)}</td>` : ''}
               </tr>
             `).join('')}
           </tbody>
@@ -502,7 +541,7 @@ function buildImportWizardHTML() {
     body = buildResumenImportHTML(regImport.resultado);
   }
 
-  return `<div class="card mb-16"><div class="card-title">Importar CSV — ${safeText(ev.nombre)} (${safeText(posLabel)}, ${safeText(ev.temporada)})</div><div class="card-body">${body}</div></div>`;
+  return `<div style="border-top:1px solid var(--border-default);padding-top:12px;"><div style="font-weight:800;margin-bottom:8px;">📥 Importar encuesta — ${safeText(ev.nombre)} (${safeText(posLabel)}, ${safeText(ev.temporada)})</div>${body}</div>`;
 }
 
 /** Pendientes agrupados por nombre (sin tildes/mayúsculas): una decisión por nombre vale para todas sus filas. */
@@ -679,17 +718,37 @@ async function procesarImport(container) {
 }
 
 function renderRegistroSub(container) {
-  const wizard = regEvalSel ? buildImportWizardHTML() : '';
   container.innerHTML = `
-    <div class="card mb-16">
-      <div class="card-title">Evaluaciones (contexto de importación)</div>
-      <div class="card-body">
-        ${regEvalFormOpen ? buildEvaluacionFormHTML() : `<button class="btn btn-primary mb-16" id="reg-nueva-ev">+ Nueva evaluación</button>`}
-        ${buildEvaluacionesListHTML()}
-      </div>
+    <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
+      <p class="text-sm text-muted" style="margin:0;flex:1 1 300px;">Cada evaluación agrupa las encuestas de un periodo y una posición: impórtalas y revisa sus registros aquí mismo.</p>
+      ${regEvalFormOpen ? '' : '<button class="btn btn-primary" id="reg-nueva-ev">+ Nueva evaluación</button>'}
     </div>
-    ${wizard}
+    ${regEvalFormOpen ? `<div class="mb-16">${buildEvaluacionFormHTML()}</div>` : ''}
+    ${buildEvaluacionesListHTML()}
   `;
+
+  container.querySelectorAll('[data-ev-ver]').forEach(btn => btn.addEventListener('click', async () => {
+    const evId = btn.dataset.evVer;
+    if (regVer?.evId === evId) { regVer = null; renderRegistroSub(container); return; }
+    if (isFirebaseUnconfigured()) { showError('Configura Firebase para ver los registros.'); return; }
+    regVer = { evId, res: null };
+    renderRegistroSub(container);
+    try {
+      const registros = await queryRegistros({ evaluacionId: evId });
+      const ev = regEvaluaciones.find(e => e.id === evId);
+      const medias = {};
+      const porPosicion = {};
+      registros.forEach(r => { (porPosicion[r.posicionKey] = porPosicion[r.posicionKey] || []).push(r); });
+      Object.entries(porPosicion).forEach(([pk, regs]) => Object.assign(medias, calcularMediasPorJugador(regs, buildAspectoPorCompetencia(state, pk))));
+      if (regVer?.evId === evId) regVer.res = { registros: registros.map(r => ({ ...r, posicionKey: r.posicionKey || ev?.posicionKey })), mediasPorJugador: medias };
+    } catch (err) {
+      console.error('[Firestore] No se pudieron leer los registros:', err);
+      showError('No se pudieron leer los registros (revisa reglas/índices de Firestore).');
+      regVer = null;
+    }
+    if (container.isConnected) renderRegistroSub(container);
+  }));
+  wireRegistrosTabla(container, () => regVer?.res, () => renderRegistroSub(container));
 
   container.querySelector('#reg-nueva-ev')?.addEventListener('click', () => {
     regEvalFormOpen = true;
@@ -760,6 +819,7 @@ function renderRegistroSub(container) {
         await eliminarEvaluacion(id);
         regEvaluaciones = regEvaluaciones.filter(e => e.id !== id);
         if (regEvalSel === id) { regEvalSel = null; resetRegImport(); }
+        if (regVer?.evId === id) regVer = null;
         showSuccess('Evaluación borrada.');
         renderRegistroSub(container);
       } catch (err) {
@@ -794,6 +854,7 @@ function renderRegistroSub(container) {
     regImport.headers = parsed.headers;
     regImport.rows = normalizarFechas(limpio.rows, colFechaImp);
     regImport.omitidas = limpio.omitidas;
+    regImport.preguntas = preguntasDeCabecera(parsed.rows.slice(0, limpio.omitidas), parsed.headers);
     regImport.mapping = mapeoInicial;
     regImport.precargado = Object.keys(regImport.mapping).length > 0;
     regImport.step = 'mapeo';
@@ -807,7 +868,19 @@ function renderRegistroSub(container) {
   });
 
   container.querySelectorAll('[data-map-col]').forEach(sel => {
-    sel.addEventListener('change', () => { regImport.mapping[sel.dataset.mapCol] = sel.value; });
+    sel.addEventListener('change', () => { regImport.mapping[sel.dataset.mapCol] = sel.value; if (regImport.preguntas && Object.keys(regImport.preguntas).length) renderRegistroSub(container); });
+  });
+
+  container.querySelector('#import-auto')?.addEventListener('click', () => {
+    const ev = regEvaluaciones.find(e => e.id === regEvalSel);
+    const { porColumna, propuesta } = comprobarPorBloques(regImport.preguntas || {}, regImport.mapping, bloquesCriterios(ev?.posicionKey));
+    Object.entries(porColumna).forEach(([h, e]) => { if (e.estado === 'aviso') regImport.mapping[h] = e.sugerido; });
+    // Una columna sin criterio claro que se quede con uno ya colocado en otra → se ignora (no se duplica).
+    const tomados = new Set(Object.values(propuesta));
+    let dudosas = 0;
+    Object.entries(porColumna).forEach(([h, e]) => { if (e.estado === '?' && tomados.has(regImport.mapping[h])) { regImport.mapping[h] = ''; dudosas++; } });
+    showSuccess('Columnas colocadas según el Excel.' + (dudosas ? ` ${dudosas} quedan sin criterio: elige tú (marcadas "? Revisar").` : ''));
+    renderRegistroSub(container);
   });
 
   container.querySelector('#import-validar')?.addEventListener('click', () => {
@@ -972,7 +1045,7 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
       .bt .bt-num input { width:100%; box-sizing:border-box; height:22px; font-size:11px; padding:0 2px; text-align:center; background:transparent; color:#0f1117; border:none; border-radius:0; box-shadow:none; }
       .bt .bt-num input:focus { outline:2px solid var(--blue-500, #3b82f6); outline-offset:-2px; background:#fff; }
     </style>
-    <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración → Columnas encuesta. Edita una nota y sal de la celda para guardar.</p>
+    <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración › Columnas de la encuesta. Edita una nota y sal de la celda para guardar.</p>
     <div class="bt-wrap"><table class="bt">
       <thead><tr>${cols.map(c => `<th class="${String(tipoCol(c) || '').startsWith('@txt_') ? 'bt-th-txt' : ['@fecha', '@evaluador', '@jugador'].includes(tipoCol(c)) ? 'bt-th-fija' + (tipoCol(c) === '@jugador' ? ' bt-th-jug' : '') : ''}" title="Columna ${c.num} de la encuesta"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}<th title="Borrar un registro">Borrar</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -1074,6 +1147,71 @@ function buildBBDDPanelHTML() {
   `;
 }
 
+/** Edición de notas y 🗑 de la Tabla de la encuesta. res() = { registros, mediasPorJugador } que se muestra. */
+function wireRegistrosTabla(container, res, rerender) {
+  container.querySelectorAll('[data-reg-edit]').forEach(inp => {
+    inp.addEventListener('change', async () => {
+      const reg = (res()?.registros || []).find(r => r.id === inp.dataset.regEdit);
+      if (!reg) return;
+      const clave = inp.dataset.clave;
+      const raw = inp.value.trim();
+      const val = raw === '' ? null : parseEsNumber(raw);
+      if (raw !== '' && val == null) { showError('La nota debe ser un número.'); inp.value = reg.puntuaciones?.[clave] ?? ''; return; }
+      if (clave === '@r' || clave === '@p') { // R / P de la Ficha 1
+        const rp = { ...(reg.rp || {}) };
+        if (val == null) delete rp[clave.slice(1)]; else rp[clave.slice(1)] = val;
+        try { await actualizarRegistro(reg.id, { rp }); reg.rp = rp; inp.value = val ?? ''; showSuccess('Nota guardada.'); }
+        catch (err) { showError('No se pudo guardar la nota (revisa las reglas de Firestore).'); inp.value = reg.rp?.[clave.slice(1)] ?? ''; }
+        return;
+      }
+      const puntuaciones = { ...(reg.puntuaciones || {}) };
+      const puntuacionesId = { ...(reg.puntuacionesId || {}) };
+      const idClave = buildCatalogo(state, reg.posicionKey).lista.find(c => c.clave === clave)?.id;
+      if (val == null) { delete puntuaciones[clave]; if (idClave) delete puntuacionesId[idClave]; }
+      else { puntuaciones[clave] = val; if (idClave) puntuacionesId[idClave] = val; }
+      try {
+        await actualizarRegistro(reg.id, { puntuaciones, puntuacionesId });
+        reg.puntuaciones = puntuaciones; reg.puntuacionesId = puntuacionesId;
+        const porPosicion = {};
+        res().registros.forEach(r => { (porPosicion[r.posicionKey] = porPosicion[r.posicionKey] || []).push(r); });
+        const medias = {};
+        Object.entries(porPosicion).forEach(([pk, regs]) => Object.assign(medias, calcularMediasPorJugador(regs, buildAspectoPorCompetencia(state, pk))));
+        res().mediasPorJugador = medias;
+        inp.value = val ?? '';
+        showSuccess('Nota guardada.');
+      } catch (err) {
+        console.error('[Firestore] No se pudo guardar la nota:', err);
+        showError('No se pudo guardar la nota (revisa las reglas de Firestore).');
+        inp.value = reg.puntuaciones?.[clave] ?? '';
+      }
+    });
+  });
+
+  container.querySelectorAll('[data-reg-borrar]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const reg = (res()?.registros || []).find(r => r.id === btn.dataset.regBorrar);
+      if (!reg) return;
+      const p = state.players.find(x => x.id === reg.jugadorId);
+      const quien = p ? `${p.nombre} ${p.apellidos}` : '(sin identificar)';
+      if (!confirm(`¿Borrar solo este registro?\n\nJugador: ${quien}\nEvaluador: ${reg.evaluador || '—'}\n\nEl resto de la evaluación no se toca.`)) return;
+      try {
+        await eliminarRegistro(reg.id);
+        res().registros = res().registros.filter(r => r.id !== reg.id);
+        const porPosicion = {};
+        res().registros.forEach(r => { (porPosicion[r.posicionKey] = porPosicion[r.posicionKey] || []).push(r); });
+        const medias = {};
+        Object.entries(porPosicion).forEach(([pk, regs]) => Object.assign(medias, calcularMediasPorJugador(regs, buildAspectoPorCompetencia(state, pk))));
+        res().mediasPorJugador = medias;
+        showSuccess('Registro borrado.');
+        rerender();
+      } catch (err) {
+        console.error('[Firestore] No se pudo borrar el registro:', err);
+        showError('No se pudo borrar el registro (revisa permisos o reglas de Firestore).');
+      }
+    });
+  });
+}
+
 function renderBBDDSub(container) {
   if (fichaRealView) { renderFichaRealView(container); return; }
 
@@ -1103,67 +1241,7 @@ function renderBBDDSub(container) {
     renderBBDDSub(container);
   }));
 
-  container.querySelectorAll('[data-reg-edit]').forEach(inp => {
-    inp.addEventListener('change', async () => {
-      const reg = (bbddResultado?.registros || []).find(r => r.id === inp.dataset.regEdit);
-      if (!reg) return;
-      const clave = inp.dataset.clave;
-      const raw = inp.value.trim();
-      const val = raw === '' ? null : parseEsNumber(raw);
-      if (raw !== '' && val == null) { showError('La nota debe ser un número.'); inp.value = reg.puntuaciones?.[clave] ?? ''; return; }
-      if (clave === '@r' || clave === '@p') { // R / P de la Ficha 1
-        const rp = { ...(reg.rp || {}) };
-        if (val == null) delete rp[clave.slice(1)]; else rp[clave.slice(1)] = val;
-        try { await actualizarRegistro(reg.id, { rp }); reg.rp = rp; inp.value = val ?? ''; showSuccess('Nota guardada.'); }
-        catch (err) { showError('No se pudo guardar la nota (revisa las reglas de Firestore).'); inp.value = reg.rp?.[clave.slice(1)] ?? ''; }
-        return;
-      }
-      const puntuaciones = { ...(reg.puntuaciones || {}) };
-      const puntuacionesId = { ...(reg.puntuacionesId || {}) };
-      const idClave = buildCatalogo(state, reg.posicionKey).lista.find(c => c.clave === clave)?.id;
-      if (val == null) { delete puntuaciones[clave]; if (idClave) delete puntuacionesId[idClave]; }
-      else { puntuaciones[clave] = val; if (idClave) puntuacionesId[idClave] = val; }
-      try {
-        await actualizarRegistro(reg.id, { puntuaciones, puntuacionesId });
-        reg.puntuaciones = puntuaciones; reg.puntuacionesId = puntuacionesId;
-        const porPosicion = {};
-        bbddResultado.registros.forEach(r => { (porPosicion[r.posicionKey] = porPosicion[r.posicionKey] || []).push(r); });
-        const medias = {};
-        Object.entries(porPosicion).forEach(([pk, regs]) => Object.assign(medias, calcularMediasPorJugador(regs, buildAspectoPorCompetencia(state, pk))));
-        bbddResultado.mediasPorJugador = medias;
-        inp.value = val ?? '';
-        showSuccess('Nota guardada.');
-      } catch (err) {
-        console.error('[Firestore] No se pudo guardar la nota:', err);
-        showError('No se pudo guardar la nota (revisa las reglas de Firestore).');
-        inp.value = reg.puntuaciones?.[clave] ?? '';
-      }
-    });
-  });
-
-  container.querySelectorAll('[data-reg-borrar]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const reg = (bbddResultado?.registros || []).find(r => r.id === btn.dataset.regBorrar);
-      if (!reg) return;
-      const p = state.players.find(x => x.id === reg.jugadorId);
-      const quien = p ? `${p.nombre} ${p.apellidos}` : '(sin identificar)';
-      if (!confirm(`¿Borrar solo este registro?\n\nJugador: ${quien}\nEvaluador: ${reg.evaluador || '—'}\n\nEl resto de la evaluación no se toca.`)) return;
-      try {
-        await eliminarRegistro(reg.id);
-        bbddResultado.registros = bbddResultado.registros.filter(r => r.id !== reg.id);
-        const porPosicion = {};
-        bbddResultado.registros.forEach(r => { (porPosicion[r.posicionKey] = porPosicion[r.posicionKey] || []).push(r); });
-        const medias = {};
-        Object.entries(porPosicion).forEach(([pk, regs]) => Object.assign(medias, calcularMediasPorJugador(regs, buildAspectoPorCompetencia(state, pk))));
-        bbddResultado.mediasPorJugador = medias;
-        showSuccess('Registro borrado.');
-        renderBBDDSub(container);
-      } catch (err) {
-        console.error('[Firestore] No se pudo borrar el registro:', err);
-        showError('No se pudo borrar el registro (revisa permisos o reglas de Firestore).');
-      }
-    });
-  });
+  wireRegistrosTabla(container, () => bbddResultado, () => renderBBDDSub(container));
 
   container.querySelector('#bbdd-buscar')?.addEventListener('click', async () => {
     bbddFiltros = {
@@ -1326,8 +1404,8 @@ function renderPanelRegistro(container) {
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="rm-sticky mb-16 flex gap-8" style="padding:6px 0;">
-      ${puedeVer('registro.registro') ? `<button class="btn ${registroSubTab === 'registro' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="registro">Registro</button>` : ''}
-      ${puedeVer('registro.bbdd') ? `<button class="btn ${registroSubTab === 'bbdd' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="bbdd">BBDD</button>` : ''}
+      ${puedeVer('registro.registro') ? `<button class="btn ${registroSubTab === 'registro' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="registro">Evaluaciones</button>` : ''}
+      ${puedeVer('registro.bbdd') ? `<button class="btn ${registroSubTab === 'bbdd' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="bbdd">Buscar registros</button>` : ''}
       ${puedeVer('registro.comparativas') ? `<button class="btn ${registroSubTab === 'comparativas' ? 'btn-primary' : 'btn-sm'}" data-registro-subtab="comparativas">Comparativas</button>` : ''}
     </div>
     <div id="registro-sub-content"></div>
@@ -1364,38 +1442,33 @@ let configSubTab = localStorage.getItem('rm-config-subtab') || 'posiciones'; // 
 
 const CONFIG_GROUPS = [
   {
-    label: 'Contenido',
+    label: 'Encuesta y criterios',
     tabs: [
-      { key: 'posiciones',       label: 'Posiciones' },
-      { key: 'items',            label: 'Aspectos' },
-      { key: 'colores',          label: 'Rango de colores' },
-      { key: 'condicional-refs', label: 'Datos condicionales' },
+      { key: 'posiciones',        label: 'Posiciones' },
+      { key: 'items',             label: 'Aspectos por posición' },
+      { key: 'columnas-encuesta', label: 'Columnas de la encuesta' },
+      { key: 'condicional-refs',  label: 'Datos condicionales' },
+      { key: 'frases',            label: 'Frases modelo' },
     ],
   },
   {
-    label: 'Fichas tipo',
+    label: 'Fichas',
     tabs: [
-      { key: 'fichas-individual',  label: 'Individual' },
-      { key: 'columnas-encuesta',  label: 'Columnas encuesta' },
-      { key: 'fichas-espejo',      label: 'Fichas Espejo' },
-      { key: 'fichas-campograma',  label: 'Campograma' },
-      { key: 'fichas-mapa-nivel',  label: 'Mapa de nivel' },
+      { key: 'fichas-individual', label: 'Ficha individual' },
+      { key: 'fichas-espejo',     label: 'Fichas espejo' },
+      { key: 'fichas-campograma', label: 'Campograma' },
+      { key: 'fichas-mapa-nivel', label: 'Mapa de nivel' },
+      { key: 'ficha-colores',     label: 'Colores de la ficha' },
+      { key: 'colores',           label: 'Rango de colores' },
+      { key: 'ficha-matriz',      label: 'Matriz' },
+      { key: 'dimensiones',       label: 'Dimensiones' },
     ],
   },
   {
-    label: 'Diseño',
+    label: 'Datos y ayuda',
     tabs: [
-      { key: 'ficha-colores', label: 'Colores de la ficha' },
-      { key: 'ficha-matriz',  label: 'Matriz' },
-      { key: 'dimensiones',   label: 'Dimensiones' },
-    ],
-  },
-  {
-    label: 'Ayuda',
-    tabs: [
-      { key: 'flujo',   label: 'Flujo de evaluaciones' },
-      { key: 'frases',  label: 'Frases modelo' },
       { key: 'copia-seguridad', label: 'Copia de seguridad' },
+      { key: 'flujo',           label: 'Cómo funciona (flujo)' },
     ],
   },
 ];
@@ -1895,7 +1968,7 @@ function buildJugadorFormHTML(player) {
                 <option value="">—</option><option value="ok">✔ Bien</option><option value="dash">▬ Regular</option><option value="fail">✘ Mal</option>
               </select></td>
             </tr>`).join('')}</tbody>
-        </table></div>` : '<p class="text-xs text-muted">Crea primero una evaluación (Registro de datos) para poder guardar datos condicionales.</p>'}`
+        </table></div>` : '<p class="text-xs text-muted">Crea primero una evaluación (Evaluaciones) para poder guardar datos condicionales.</p>'}`
         : (state.aspectosComunes.condicional || []).length ? `
         <div class="text-xs text-muted mt-16 mb-8" style="font-weight:700;text-transform:uppercase;">Datos condicionales del jugador (media y máxima por evaluación → Ficha 2, columnas 1 y 2)</div>
         ${(regEvaluaciones || []).length ? `
@@ -1910,7 +1983,7 @@ function buildJugadorFormHTML(player) {
               <td><input class="input" type="text" inputmode="decimal" style="width:90px;" data-jug-cond="${safeText(slugify(item))}" value="" /></td>
               <td><input class="input" type="text" inputmode="decimal" style="width:90px;" data-jug-condmax="${safeText(slugify(item))}" value="" /></td>
             </tr>`).join('')}</tbody>
-        </table></div>` : '<p class="text-xs text-muted">Crea primero una evaluación (Registro de datos) para poder guardar datos condicionales.</p>'}` : ''}
+        </table></div>` : '<p class="text-xs text-muted">Crea primero una evaluación (Evaluaciones) para poder guardar datos condicionales.</p>'}` : ''}
         <div class="flex gap-8 mt-16">
           <button class="btn btn-primary" id="jug-save">${player ? 'Guardar cambios' : 'Añadir jugador'}</button>
           <button class="btn btn-ghost" id="jug-cancel">Cancelar</button>
@@ -1967,6 +2040,7 @@ let jugFichaId = null;             // null = lista; <id> = ficha de ese jugador 
 const jugFichaRegs = {};           // { [playerId]: registros[] } — evaluaciones recibidas
 const jugFichaLoading = new Set(); // evita lanzar la misma carga dos veces
 
+let jugMasCierreGlobal = false; // listener único para cerrar el menú ⋯ al pulsar fuera
 const normalizeTxt = str => String(str || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 function jugadorPasaFiltros(p) {
@@ -1984,20 +2058,24 @@ function jugadorPasaFiltros(p) {
 
 function buildJugadoresFiltrosHTML() {
   const years = [...new Set(state.players.map(p => calcAgeAndYear(p.birthDate).year).filter(Boolean))].sort((a, b) => b - a);
-  const sel = (id, label, opts, val) => `
-    <div class="field-group" style="min-width:140px;"><label class="label">${label}</label>
-      <select class="select" id="${id}"><option value="">Todos</option>${opts.map(([v, l]) => `<option value="${safeText(String(v))}" ${String(val) === String(v) ? 'selected' : ''}>${safeText(l)}</option>`).join('')}</select>
-    </div>`;
+  const sel = (id, label, opts, val, ancho = 170) => `
+    <select class="select" id="${id}" aria-label="${label}" style="width:auto;min-width:${ancho}px;${val ? 'border-color:var(--blue-500, #3b82f6);font-weight:600;' : ''}"><option value="">${label}: todos</option>${opts.map(([v, l]) => `<option value="${safeText(String(v))}" ${String(val) === String(v) ? 'selected' : ''}>${safeText(l)}</option>`).join('')}</select>`;
+  const masActivos = [jugFiltros.year, jugFiltros.foot].filter(Boolean).length;
+  const hayFiltros = jugFiltros.q || jugFiltros.teamKey || jugFiltros.positionKey || masActivos;
   return `
-    <div class="card mb-16 rm-sticky"><div class="card-body">
-      <div class="flex gap-12" style="flex-wrap:wrap;align-items:flex-end;">
-        <div class="field-group" style="min-width:220px;"><label class="label">Buscar (nombre o apellidos)</label>
-          <input class="input" type="text" id="jug-f-q" value="${safeText(jugFiltros.q)}" placeholder="Ej. Pérez" /></div>
+    <div class="card mb-16 rm-sticky"><div class="card-body" style="padding-top:12px;padding-bottom:12px;">
+      <div class="flex gap-8" style="flex-wrap:wrap;align-items:center;">
+        <input class="input" type="text" id="jug-f-q" value="${safeText(jugFiltros.q)}" placeholder="🔎 Buscar por nombre o apellidos" aria-label="Buscar por nombre o apellidos" style="flex:1 1 240px;min-width:200px;" />
         ${sel('jug-f-team', 'Equipo', TEAMS.map(t => [t.key, t.label]), jugFiltros.teamKey)}
         ${sel('jug-f-pos', 'Posición', state.positions.map(p => [p.key, p.label]), jugFiltros.positionKey)}
-        ${sel('jug-f-year', 'Año nacimiento', years.map(y => [y, String(y)]), jugFiltros.year)}
-        ${sel('jug-f-foot', 'Lateralidad', ['Diestro', 'Zurdo', 'Ambidiestro'].map(x => [x, x]), jugFiltros.foot)}
-        <button class="btn btn-sm" id="jug-f-clear">Limpiar filtros</button>
+        <details ${masActivos ? 'open' : ''} style="position:relative;">
+          <summary class="btn btn-sm" style="list-style:none;cursor:pointer;">Más filtros${masActivos ? ` (${masActivos})` : ''} ▾</summary>
+          <div class="flex gap-8" style="margin-top:8px;flex-wrap:wrap;">
+            ${sel('jug-f-year', 'Año nacimiento', years.map(y => [y, String(y)]), jugFiltros.year, 150)}
+            ${sel('jug-f-foot', 'Lateralidad', ['Diestro', 'Zurdo', 'Ambidiestro'].map(x => [x, x]), jugFiltros.foot, 150)}
+          </div>
+        </details>
+        ${hayFiltros ? '<button class="btn btn-sm btn-ghost" id="jug-f-clear">Limpiar filtros</button>' : ''}
       </div>
     </div></div>`;
 }
@@ -2406,7 +2484,7 @@ function buildJugImportHTML() {
         <p class="text-sm mb-16">Un solo Excel con todos los datos del jugador (personales, años en el club y condicionales). Al subirlo: <b>jugador nuevo</b> → se crea; <b>celda con dato</b> → se guarda o, si es distinto, se actualiza; <b>celda vacía</b> → no se toca lo que ya tiene.</p>
         ${evs.length ? `<div class="field-group mb-16" style="max-width:420px;"><label class="label">1 · Evaluación de los datos condicionales</label>
           <select class="select" id="jimp-eval0">${evs.map(e => `<option value="${e.id}" ${e.id === (jugImport.evalInicial || evalPorDefecto()) ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select></div>`
-        : '<p class="text-xs text-muted mb-16">No hay evaluaciones: los datos condicionales no se podrán guardar hasta crear una en Registro de datos.</p>'}
+        : '<p class="text-xs text-muted mb-16">No hay evaluaciones: los datos condicionales no se podrán guardar hasta crear una en Evaluaciones.</p>'}
         <div class="label">${evs.length ? '2' : '1'} · Descarga el Excel</div>
         <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
           <button class="btn btn-primary" id="jimp-exportar" title="Los jugadores del listado (con los filtros que tengas puestos) y sus datos actuales: edítalo y vuelve a subirlo">⬇ Excel con los datos actuales (${jugadoresListado().length} jugadores)</button>
@@ -2447,7 +2525,7 @@ function buildJugImportHTML() {
           <span class="text-xs"><strong>Datos condicionales</strong> (${condCols.map(c => safeText(c.titulo)).join(', ')}) →</span>
           ${evs.length ? `<select class="select" id="jimp-eval" style="max-width:320px;min-height:30px;font-size:12px;">${evs.map(e => `<option value="${e.id}" ${e.id === jugImport.evalId ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>
             <span class="text-xs text-muted">alevín/infantil: ✔ ▬ ✘; resto: números. Solo se rellenan los que falten en esa evaluación.</span>`
-          : '<span class="text-xs" style="color:#f59e0b;">no hay evaluaciones: crea una en Registro de datos para guardarlos (los demás datos sí se guardan).</span>'}
+          : '<span class="text-xs" style="color:#f59e0b;">no hay evaluaciones: crea una en Evaluaciones para guardarlos (los demás datos sí se guardan).</span>'}
         </div>`;
   const resumenCond = f => {
     const cp = f.condPend; if (!cp) return '';
@@ -2545,7 +2623,7 @@ function buildCondImportHTML() {
     <div class="card mb-16">
       <div class="card-title">Cargar datos condicionales</div>
       <div class="card-body">
-        ${!evs.length ? '<p class="text-sm text-muted">Crea primero una evaluación en Registro de datos.</p>' : !items.length ? '<p class="text-sm text-muted">No hay ítems condicionales en Configuración › Aspectos.</p>' : `
+        ${!evs.length ? '<p class="text-sm text-muted">Crea primero una evaluación en Evaluaciones.</p>' : !items.length ? '<p class="text-sm text-muted">No hay ítems condicionales en Configuración › Aspectos.</p>' : `
         <div class="field-group mb-8"><label class="label">Evaluación</label>${evSelect}</div>
         ${formatoImportHTML(columnasPlantillaCondicional(), 'una fila por jugador; la fila 1 con estos títulos (el orden da igual y puedes quitar los que no midas). Todos los jugadores en el mismo archivo: a los de <b>alevín e infantil</b> se les guardan las capacidades con ✔ / ▬ / ✘ y al resto los datos numéricos. Las celdas vacías no borran nada. Decimales con coma o punto.')}
         <div class="flex gap-8 mb-8" style="flex-wrap:wrap;align-items:center;">
@@ -2662,10 +2740,18 @@ function renderPanelJugadores(container) {
         <td>${p.weight != null ? p.weight + ' kg' : '-'}</td>
         <td>${p.height != null ? p.height + ' m' : '-'}</td>
         <td>
-          <button class="btn btn-sm" data-jug-ficha="${p.id}">Ficha</button>
+          <div class="flex gap-8" style="align-items:center;justify-content:flex-end;">
+          <button class="btn btn-sm btn-primary" data-jug-ficha="${p.id}">Ficha</button>
           <button class="btn btn-sm" data-jug-edit="${p.id}">Editar</button>
-          <button class="btn btn-sm" data-jug-hist="${p.id}">${jugadorHistoricoOpenId === p.id ? 'Ocultar histórico' : 'Histórico'}</button>
-          <button class="btn btn-sm" data-jug-del="${p.id}">Borrar</button>
+          <details class="jug-mas" style="position:relative;">
+            <summary class="btn btn-sm" style="list-style:none;cursor:pointer;" aria-label="Más acciones" title="Más acciones">⋯</summary>
+            <div class="card" style="position:absolute;right:0;top:calc(100% + 4px);z-index:30;margin:0;padding:6px;min-width:170px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(15,23,42,.18);">
+              <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;" data-jug-hist="${p.id}">${jugadorHistoricoOpenId === p.id ? 'Ocultar histórico' : 'Histórico'}</button>
+              <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;" data-jug-foto="${p.id}">Cambiar foto</button>
+              <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;color:#b91c1c;" data-jug-del="${p.id}">Borrar</button>
+            </div>
+          </details>
+          </div>
         </td>
       </tr>
       ${historicoRow}
@@ -2716,6 +2802,22 @@ function renderPanelJugadores(container) {
     jugFiltros = { q: '', teamKey: '', positionKey: '', year: '', foot: '' };
     refiltrar(false);
   });
+  // Menú ⋯ de cada jugador: flotante (la tabla tiene scroll y lo recortaría); uno abierto a la vez.
+  container.querySelectorAll('details.jug-mas').forEach(d => d.addEventListener('toggle', () => {
+    if (!d.open) return;
+    container.querySelectorAll('details.jug-mas[open]').forEach(o => { if (o !== d) o.open = false; });
+    const r = d.querySelector('summary').getBoundingClientRect(), menu = d.querySelector('.card');
+    menu.style.position = 'fixed';
+    menu.style.right = 'auto';
+    menu.style.left = Math.max(8, r.right - 170) + 'px';
+    const alto = menu.offsetHeight || 120;
+    menu.style.top = (r.bottom + 4 + alto > window.innerHeight ? r.top - alto - 4 : r.bottom + 4) + 'px';
+  }));
+  if (!jugMasCierreGlobal) {
+    jugMasCierreGlobal = true;
+    document.addEventListener('click', e => { if (!e.target.closest('details.jug-mas')) document.querySelectorAll('details.jug-mas[open]').forEach(o => { o.open = false; }); });
+    window.addEventListener('scroll', () => document.querySelectorAll('details.jug-mas[open]').forEach(o => { o.open = false; }), true);
+  }
   container.querySelectorAll('[data-jug-ficha]').forEach(btn => {
     btn.addEventListener('click', async ev => {
       ev.preventDefault();
@@ -3546,17 +3648,16 @@ function renderPanelConfig(container) {
 
   configSubTab = subVisible('config', configSubTab);
   const gruposVis = CONFIG_GROUPS.map(g => ({ ...g, tabs: g.tabs.filter(t => puedeVer(`config.${t.key}`)) })).filter(g => g.tabs.length);
-  const grupoCfg = gruposVis.find(g => g.tabs.some(t => t.key === configSubTab)) || gruposVis[0] || CONFIG_GROUPS[0];
-  container.innerHTML = `
+    container.innerHTML = `
     ${firebaseNotice()}
-    <div class="rm-sticky mb-16" style="border-bottom:1px solid var(--border-default);padding-bottom:8px;">
-      <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
-        ${gruposVis.map(g => `<button class="btn ${g === grupoCfg ? 'btn-primary' : 'btn-sm'}" data-config-group="${g.label}" style="font-weight:700;">${g.label}</button>`).join('')}
-      </div>
-      <div class="flex gap-8" style="align-items:center;flex-wrap:wrap;">
-        ${grupoCfg.tabs.map(t => `<button class="btn ${t.key === configSubTab ? 'btn-secondary' : 'btn-sm'}" ${t.key === configSubTab ? 'style="background:var(--bg-hover);border-color:var(--border-strong,var(--border-default));font-weight:700;"' : ''} data-config-subtab="${t.key}">${t.label}</button>`).join('')}
-      </div>
-    </div>
+    <div class="cfg-layout" style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;">
+    <nav class="card cfg-side" style="flex:1 1 220px;max-width:270px;margin:0;padding:12px 10px;position:sticky;top:8px;">
+      ${gruposVis.map(g => `
+        <div class="text-xs" style="font-weight:700;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;padding:10px 10px 4px;">${g.label}</div>
+        ${g.tabs.map(t => `<button class="btn btn-ghost" data-config-subtab="${t.key}" style="display:block;width:100%;text-align:left;justify-content:flex-start;padding:7px 10px;margin:1px 0;border-radius:8px;${t.key === configSubTab ? 'background:var(--blue-50, #eff6ff);color:var(--blue-600, #1d4ed8);font-weight:700;' : 'font-weight:500;'}">${t.label}</button>`).join('')}
+      `).join('')}
+    </nav>
+    <div class="cfg-main" style="flex:999 1 560px;min-width:0;">
 
     ${configSubTab !== 'posiciones' ? '' : `
     <div class="card mb-16">
@@ -3788,7 +3889,7 @@ function renderPanelConfig(container) {
 
     ${configSubTab !== 'fichas-individual' ? '' : `
     <div class="card mb-16">
-      <div class="card-title">Fichas tipo — Individual</div>
+      <div class="card-title">Ficha individual</div>
       <div class="card-body">
         <p class="text-sm text-muted mb-16">Vista previa de la Ficha 1 y Ficha 2 de cada posición, generadas desde Aspectos.</p>
         ${state.positions.length === 0 ? '<p class="text-xs text-muted">Define primero al menos una posición en la pestaña Posiciones.</p>' : `
@@ -3823,14 +3924,14 @@ function renderPanelConfig(container) {
 
     ${configSubTab !== 'fichas-campograma' ? '' : `
     <div class="card mb-16">
-      <div class="card-title">Fichas tipo — Campograma</div>
+      <div class="card-title">Campograma</div>
       <div class="card-body"><p class="text-xs text-muted">Pendiente de implementar.</p></div>
     </div>
     `}
 
     ${configSubTab !== 'fichas-mapa-nivel' ? '' : `
     <div class="card mb-16">
-      <div class="card-title">Fichas tipo — Mapa de nivel</div>
+      <div class="card-title">Mapa de nivel</div>
       <div class="card-body"><p class="text-xs text-muted">Pendiente de implementar.</p></div>
     </div>
     `}
@@ -3876,6 +3977,7 @@ function renderPanelConfig(container) {
       </div>
     </div>
     `}
+    </div></div>
   `;
 
   container.querySelector('#copia-seg-btn')?.addEventListener('click', async e => {
@@ -4494,6 +4596,7 @@ function renderPanelPlantillas(container) {
       <label class="text-xs text-muted" for="pl-temporada">Temporada</label>
       <select class="select" id="pl-temporada" style="max-width:200px;">${state.seasons.map(t => `<option value="${safeText(t)}" ${t === plantillaTemporada ? 'selected' : ''}>${safeText(t)}</option>`).join('')}</select>
       <label class="btn btn-sm" style="cursor:pointer;" title="Una sola vez para todos los equipos de esta temporada. En cada equipo puedes cambiarla.">📷 Foto de portada (todos los equipos)<input type="file" accept="image/*" id="pl-foto-global" hidden /></label>
+      ${puedeVer('sucesion') ? '<button class="btn btn-sm" id="pl-sucesion">Líneas de sucesión</button>' : ''}
       <span class="text-xs text-muted">Un jugador puede estar en varios equipos. Los jugadores nuevos con equipo se añaden aquí solos (temporada activa).</span>
     </div>
     <div style="display:flex;flex-direction:column;gap:10px;">
@@ -4548,6 +4651,7 @@ function renderPanelPlantillas(container) {
     }
   };
   container.querySelector('#pl-temporada')?.addEventListener('change', e => { plantillaTemporada = e.target.value; renderPanelPlantillas(container); });
+  container.querySelector('#pl-sucesion')?.addEventListener('click', () => switchTab('sucesion'));
   container.querySelector('#pl-foto-global')?.addEventListener('change', async e => {
     const f = e.target.files[0]; if (!f) return;
     try { await guardarPlantilla(plantillaTemporada, '_portada', { fotoPortada: await fotoADataUrl(f) }); showSuccess('Foto de portada guardada para todos los equipos.'); }
@@ -4601,7 +4705,7 @@ function renderPlantillaDatos(container) {
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
-      <button class="btn btn-ghost" id="pl-volver">← Plantillas</button>
+      <button class="btn btn-ghost" id="pl-volver">← Equipos</button>
       <b>${safeText(t?.label || '')} · ${safeText(plantillaTemporada)}</b>
       <span class="text-xs text-muted">Los cambios se guardan al salir de la casilla y son los mismos de la ficha del jugador.</span>
     </div>
@@ -5092,7 +5196,7 @@ async function renderPlantillaPresentacion(container) {
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="pl-barra flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
-      <button class="btn btn-ghost" id="pl-volver">← Plantillas</button>
+      <button class="btn btn-ghost" id="pl-volver">← Equipos</button>
       <b>${safeText(t?.label || '')} · ${safeText(temporada)} · ${jugs.length} jugadores</b>
       <label class="btn btn-sm" style="cursor:pointer;" title="Se usa en todos los equipos de la temporada salvo los que tengan una propia">Foto portada (todos los equipos)<input type="file" accept="image/*" id="pl-foto-portada" hidden /></label>
       <label class="btn btn-sm" style="cursor:pointer;" title="Solo para este equipo">Foto portada (solo este equipo)<input type="file" accept="image/*" id="pl-foto-portada-eq" hidden /></label>

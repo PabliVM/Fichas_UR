@@ -38,8 +38,8 @@ export const perfilActual = () => _perfil;
 // jugFichaTab, plVista.modo y CONFIG_GROUPS). La primera de Jugadores y Plantillas es la de entrada.
 export const SUBPANTALLAS = {
   registro: [
-    { key: 'registro', label: 'Registro' },
-    { key: 'bbdd', label: 'BBDD' },
+    { key: 'registro', label: 'Evaluaciones (crear, importar)' },
+    { key: 'bbdd', label: 'Buscar registros (BBDD)' },
     { key: 'comparativas', label: 'Comparativas' },
   ],
   jugadores: [
@@ -54,21 +54,21 @@ export const SUBPANTALLAS = {
   ],
   sucesion: [],
   config: [
-    { key: 'posiciones', label: 'Contenido › Posiciones' },
-    { key: 'items', label: 'Contenido › Aspectos' },
-    { key: 'colores', label: 'Contenido › Rango de colores' },
-    { key: 'condicional-refs', label: 'Contenido › Datos condicionales' },
-    { key: 'fichas-individual', label: 'Fichas tipo › Individual' },
-    { key: 'columnas-encuesta', label: 'Fichas tipo › Columnas encuesta' },
-    { key: 'fichas-espejo', label: 'Fichas tipo › Fichas Espejo' },
-    { key: 'fichas-campograma', label: 'Fichas tipo › Campograma' },
-    { key: 'fichas-mapa-nivel', label: 'Fichas tipo › Mapa de nivel' },
-    { key: 'ficha-colores', label: 'Diseño › Colores de la ficha' },
-    { key: 'ficha-matriz', label: 'Diseño › Matriz' },
-    { key: 'dimensiones', label: 'Diseño › Dimensiones' },
-    { key: 'flujo', label: 'Ayuda › Flujo de evaluaciones' },
-    { key: 'frases', label: 'Ayuda › Frases modelo' },
-    { key: 'copia-seguridad', label: 'Ayuda › Copia de seguridad' },
+    { key: 'posiciones', label: 'Encuesta y criterios › Posiciones' },
+    { key: 'items', label: 'Encuesta y criterios › Aspectos' },
+    { key: 'colores', label: 'Fichas › Rango de colores' },
+    { key: 'condicional-refs', label: 'Encuesta y criterios › Datos condicionales' },
+    { key: 'fichas-individual', label: 'Fichas › Ficha individual' },
+    { key: 'columnas-encuesta', label: 'Encuesta y criterios › Columnas de la encuesta' },
+    { key: 'fichas-espejo', label: 'Fichas › Fichas espejo' },
+    { key: 'fichas-campograma', label: 'Fichas › Campograma' },
+    { key: 'fichas-mapa-nivel', label: 'Fichas › Mapa de nivel' },
+    { key: 'ficha-colores', label: 'Fichas › Colores de la ficha' },
+    { key: 'ficha-matriz', label: 'Fichas › Matriz' },
+    { key: 'dimensiones', label: 'Fichas › Dimensiones' },
+    { key: 'flujo', label: 'Datos y ayuda › Flujo de evaluaciones' },
+    { key: 'frases', label: 'Encuesta y criterios › Frases modelo' },
+    { key: 'copia-seguridad', label: 'Datos y ayuda › Copia de seguridad' },
   ],
 };
 

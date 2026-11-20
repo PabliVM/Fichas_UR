@@ -4,14 +4,18 @@
 
 import { state, setState } from './state.js';
 import { tabsVisibles, puedeVer } from './permisos-service.js';
+import { TABS } from './constants.js';
+
+// Pestaña de la barra que se marca (una pestaña fuera de la barra marca la suya: Líneas de sucesión → Equipos).
+const tabDeBarra = key => TABS.find(t => t.key === key)?.dentroDe || key;
 
 export function renderTabs() {
   const nav = document.getElementById('rm-tabs');
   if (!nav) return;
 
-  nav.innerHTML = tabsVisibles().map(tab => `
+  nav.innerHTML = tabsVisibles().filter(tab => tab.enBarra !== false).map(tab => `
     <button
-      class="tab-btn ${state.activeTab === tab.key ? 'active' : ''}"
+      class="tab-btn ${tabDeBarra(state.activeTab) === tab.key ? 'active' : ''}"
       data-tab="${tab.key}">
       ${tab.label}
     </button>
@@ -31,7 +35,7 @@ export function switchTab(tabKey) {
 
   // Actualizar botones
   document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === tabKey);
+    btn.classList.toggle('active', btn.dataset.tab === tabDeBarra(tabKey));
   });
 
   // Mostrar/ocultar paneles

@@ -45,7 +45,7 @@ export async function borrarJugadorCompleto(id) {
   try {
     const regs = await queryRegistros({ jugadorId: id });
     for (const r of regs) await deleteDocument('registros', r.id);
-  } catch (err) { console.error('[RGPD] Registros:', err); avisos.push('registros de evaluaciones (hace falta permiso de edición en Registro de datos)'); }
+  } catch (err) { console.error('[RGPD] Registros:', err); avisos.push('registros de evaluaciones (hace falta permiso de edición en Evaluaciones)'); }
   try {
     const plantillas = (await readCollection('plantillas')).filter(p => (p.jugadorIds || []).includes(id));
     for (const p of plantillas) await updateDocument('plantillas', p.id, { jugadorIds: arrayRemove(id) });
