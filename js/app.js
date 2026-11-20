@@ -2040,6 +2040,7 @@ let jugFichaId = null;             // null = lista; <id> = ficha de ese jugador 
 const jugFichaRegs = {};           // { [playerId]: registros[] } — evaluaciones recibidas
 const jugFichaLoading = new Set(); // evita lanzar la misma carga dos veces
 
+let jugMasCierreGlobal = false; // listener único para cerrar el menú ⋯ al pulsar fuera
 const normalizeTxt = str => String(str || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 function jugadorPasaFiltros(p) {
@@ -2057,20 +2058,24 @@ function jugadorPasaFiltros(p) {
 
 function buildJugadoresFiltrosHTML() {
   const years = [...new Set(state.players.map(p => calcAgeAndYear(p.birthDate).year).filter(Boolean))].sort((a, b) => b - a);
-  const sel = (id, label, opts, val) => `
-    <div class="field-group" style="min-width:140px;"><label class="label">${label}</label>
-      <select class="select" id="${id}"><option value="">Todos</option>${opts.map(([v, l]) => `<option value="${safeText(String(v))}" ${String(val) === String(v) ? 'selected' : ''}>${safeText(l)}</option>`).join('')}</select>
-    </div>`;
+  const sel = (id, label, opts, val, ancho = 170) => `
+    <select class="select" id="${id}" aria-label="${label}" style="width:auto;min-width:${ancho}px;${val ? 'border-color:var(--blue-500, #3b82f6);font-weight:600;' : ''}"><option value="">${label}: todos</option>${opts.map(([v, l]) => `<option value="${safeText(String(v))}" ${String(val) === String(v) ? 'selected' : ''}>${safeText(l)}</option>`).join('')}</select>`;
+  const masActivos = [jugFiltros.year, jugFiltros.foot].filter(Boolean).length;
+  const hayFiltros = jugFiltros.q || jugFiltros.teamKey || jugFiltros.positionKey || masActivos;
   return `
-    <div class="card mb-16 rm-sticky"><div class="card-body">
-      <div class="flex gap-12" style="flex-wrap:wrap;align-items:flex-end;">
-        <div class="field-group" style="min-width:220px;"><label class="label">Buscar (nombre o apellidos)</label>
-          <input class="input" type="text" id="jug-f-q" value="${safeText(jugFiltros.q)}" placeholder="Ej. Pérez" /></div>
+    <div class="card mb-16 rm-sticky"><div class="card-body" style="padding-top:12px;padding-bottom:12px;">
+      <div class="flex gap-8" style="flex-wrap:wrap;align-items:center;">
+        <input class="input" type="text" id="jug-f-q" value="${safeText(jugFiltros.q)}" placeholder="🔎 Buscar por nombre o apellidos" aria-label="Buscar por nombre o apellidos" style="flex:1 1 240px;min-width:200px;" />
         ${sel('jug-f-team', 'Equipo', TEAMS.map(t => [t.key, t.label]), jugFiltros.teamKey)}
         ${sel('jug-f-pos', 'Posición', state.positions.map(p => [p.key, p.label]), jugFiltros.positionKey)}
-        ${sel('jug-f-year', 'Año nacimiento', years.map(y => [y, String(y)]), jugFiltros.year)}
-        ${sel('jug-f-foot', 'Lateralidad', ['Diestro', 'Zurdo', 'Ambidiestro'].map(x => [x, x]), jugFiltros.foot)}
-        <button class="btn btn-sm" id="jug-f-clear">Limpiar filtros</button>
+        <details ${masActivos ? 'open' : ''} style="position:relative;">
+          <summary class="btn btn-sm" style="list-style:none;cursor:pointer;">Más filtros${masActivos ? ` (${masActivos})` : ''} ▾</summary>
+          <div class="flex gap-8" style="margin-top:8px;flex-wrap:wrap;">
+            ${sel('jug-f-year', 'Año nacimiento', years.map(y => [y, String(y)]), jugFiltros.year, 150)}
+            ${sel('jug-f-foot', 'Lateralidad', ['Diestro', 'Zurdo', 'Ambidiestro'].map(x => [x, x]), jugFiltros.foot, 150)}
+          </div>
+        </details>
+        ${hayFiltros ? '<button class="btn btn-sm btn-ghost" id="jug-f-clear">Limpiar filtros</button>' : ''}
       </div>
     </div></div>`;
 }
@@ -2735,10 +2740,18 @@ function renderPanelJugadores(container) {
         <td>${p.weight != null ? p.weight + ' kg' : '-'}</td>
         <td>${p.height != null ? p.height + ' m' : '-'}</td>
         <td>
-          <button class="btn btn-sm" data-jug-ficha="${p.id}">Ficha</button>
+          <div class="flex gap-8" style="align-items:center;justify-content:flex-end;">
+          <button class="btn btn-sm btn-primary" data-jug-ficha="${p.id}">Ficha</button>
           <button class="btn btn-sm" data-jug-edit="${p.id}">Editar</button>
-          <button class="btn btn-sm" data-jug-hist="${p.id}">${jugadorHistoricoOpenId === p.id ? 'Ocultar histórico' : 'Histórico'}</button>
-          <button class="btn btn-sm" data-jug-del="${p.id}">Borrar</button>
+          <details class="jug-mas" style="position:relative;">
+            <summary class="btn btn-sm" style="list-style:none;cursor:pointer;" aria-label="Más acciones" title="Más acciones">⋯</summary>
+            <div class="card" style="position:absolute;right:0;top:calc(100% + 4px);z-index:30;margin:0;padding:6px;min-width:170px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(15,23,42,.18);">
+              <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;" data-jug-hist="${p.id}">${jugadorHistoricoOpenId === p.id ? 'Ocultar histórico' : 'Histórico'}</button>
+              <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;" data-jug-foto="${p.id}">Cambiar foto</button>
+              <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;color:#b91c1c;" data-jug-del="${p.id}">Borrar</button>
+            </div>
+          </details>
+          </div>
         </td>
       </tr>
       ${historicoRow}
@@ -2789,6 +2802,22 @@ function renderPanelJugadores(container) {
     jugFiltros = { q: '', teamKey: '', positionKey: '', year: '', foot: '' };
     refiltrar(false);
   });
+  // Menú ⋯ de cada jugador: flotante (la tabla tiene scroll y lo recortaría); uno abierto a la vez.
+  container.querySelectorAll('details.jug-mas').forEach(d => d.addEventListener('toggle', () => {
+    if (!d.open) return;
+    container.querySelectorAll('details.jug-mas[open]').forEach(o => { if (o !== d) o.open = false; });
+    const r = d.querySelector('summary').getBoundingClientRect(), menu = d.querySelector('.card');
+    menu.style.position = 'fixed';
+    menu.style.right = 'auto';
+    menu.style.left = Math.max(8, r.right - 170) + 'px';
+    const alto = menu.offsetHeight || 120;
+    menu.style.top = (r.bottom + 4 + alto > window.innerHeight ? r.top - alto - 4 : r.bottom + 4) + 'px';
+  }));
+  if (!jugMasCierreGlobal) {
+    jugMasCierreGlobal = true;
+    document.addEventListener('click', e => { if (!e.target.closest('details.jug-mas')) document.querySelectorAll('details.jug-mas[open]').forEach(o => { o.open = false; }); });
+    window.addEventListener('scroll', () => document.querySelectorAll('details.jug-mas[open]').forEach(o => { o.open = false; }), true);
+  }
   container.querySelectorAll('[data-jug-ficha]').forEach(btn => {
     btn.addEventListener('click', async ev => {
       ev.preventDefault();
