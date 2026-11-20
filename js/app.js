@@ -130,6 +130,7 @@ let regEvalFormOpen  = false;
 let regEvalEditId    = null;  // id de la evaluación que se está editando (null = alta nueva)
 let regEvalSel       = null;  // id de la evaluación activa para importar
 let regImport        = null;  // estado del wizard de importación (ver resetRegImport)
+let regHuerfanos     = null;  // { res: {registros, mediasPorJugador} } registros cuya evaluación ya no existe
 let regVer           = null;  // { evId, res: { registros, mediasPorJugador } | null } registros desplegados en una tarjeta
 
 let bbddFiltros  = { temporada: '', evaluacionId: '', jugadorId: '', posicionKey: '', evaluador: '', vista: 'individuales' };
@@ -455,6 +456,34 @@ function buildEvaluacionesListHTML() {
   }).join('')}</div>`;
 }
 
+/** Registros cuya evaluación se borró: verlos, editarlos, borrarlos o pasarlos a otra evaluación de su posición. */
+function buildHuerfanosHTML() {
+  if (!regEvaluaciones) return '';
+  const cab = `<div class="flex gap-8" style="align-items:center;flex-wrap:wrap;">
+      <div style="flex:1 1 260px;"><b>Registros sin evaluación</b><div class="text-xs text-muted">Los de evaluaciones borradas. Puedes revisarlos, borrarlos o pasarlos a otra evaluación.</div></div>
+      <button class="btn btn-sm" id="reg-huerfanos">${regHuerfanos ? 'Ocultar' : '🔍 Buscar'}</button></div>`;
+  if (!regHuerfanos) return `<div class="card" style="margin-top:12px;"><div class="card-body">${cab}</div></div>`;
+  const regs = regHuerfanos.res.registros;
+  if (!regs.length) return `<div class="card" style="margin-top:12px;"><div class="card-body">${cab}<p class="text-xs text-muted mt-8">✓ No hay registros sin evaluación.</p></div></div>`;
+  const label = id => { const p = state.players.find(x => x.id === id); return p ? `${p.nombre} ${p.apellidos}` : '(sin identificar)'; };
+  const bloques = [...new Set(regs.map(r => r.posicionKey || ''))].map(pk => {
+    const rs = regs.filter(r => (r.posicionKey || '') === pk);
+    const pos = state.positions.find(p => p.key === pk)?.label || pk || 'Sin posición';
+    const temps = [...new Set(rs.map(r => r.temporada).filter(Boolean))].join(', ');
+    const evs = (regEvaluaciones || []).filter(e => e.posicionKey === pk);
+    return `<div class="mt-16" style="border-top:1px solid var(--border-default);padding-top:12px;">
+      <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
+        <b style="flex:1 1 220px;">${safeText(pos)} · ${rs.length} registro(s)${temps ? ' · ' + safeText(temps) : ''}</b>
+        ${evs.length ? `<select class="select" data-huer-dest="${safeText(pk)}" style="width:auto;"><option value="">Pasar a la evaluación…</option>${evs.map(e => `<option value="${e.id}">${safeText(e.nombre)} (${safeText(e.temporada)})</option>`).join('')}</select>
+        <button class="btn btn-sm" data-huer-mover="${safeText(pk)}">Pasar</button>` : `<span class="text-xs text-muted">No hay evaluaciones de ${safeText(pos)} para pasarlos.</span>`}
+        <button class="btn btn-sm" data-huer-borrar="${safeText(pk)}" style="color:#b91c1c;">🗑 Borrar estos ${rs.length}</button>
+      </div>
+      ${pk ? buildTablaEncuestaHTML(rs, pk, label) : ''}
+    </div>`;
+  }).join('');
+  return `<div class="card" style="margin-top:12px;border:2px solid #f59e0b;"><div class="card-body">${cab}${bloques}</div></div>`;
+}
+
 /** Criterios de una posición por bloque, para comparar cada columna solo con los de su bloque. */
 function bloquesCriterios(posicionKey) {
   const apc = buildAspectoPorCompetencia(state, posicionKey);
@@ -725,6 +754,7 @@ function renderRegistroSub(container) {
     </div>
     ${regEvalFormOpen ? `<div class="mb-16">${buildEvaluacionFormHTML()}</div>` : ''}
     ${buildEvaluacionesListHTML()}
+    ${buildHuerfanosHTML()}
   `;
 
   container.querySelectorAll('[data-ev-ver]').forEach(btn => btn.addEventListener('click', async () => {
@@ -749,6 +779,51 @@ function renderRegistroSub(container) {
     if (container.isConnected) renderRegistroSub(container);
   }));
   wireRegistrosTabla(container, () => regVer?.res, () => renderRegistroSub(container));
+  wireRegistrosTabla(container, () => regHuerfanos?.res, () => renderRegistroSub(container));
+
+  container.querySelector('#reg-huerfanos')?.addEventListener('click', async () => {
+    if (regHuerfanos) { regHuerfanos = null; renderRegistroSub(container); return; }
+    if (isFirebaseUnconfigured()) { showError('Configura Firebase para buscar registros.'); return; }
+    try {
+      const ids = new Set((regEvaluaciones || []).map(e => e.id));
+      const registros = (await queryRegistros({})).filter(r => !ids.has(r.evaluacionId));
+      regHuerfanos = { res: { registros, mediasPorJugador: {} } };
+    } catch (err) {
+      console.error('[Firestore] Registros sin evaluación:', err);
+      showError('No se pudieron leer los registros (revisa las reglas de Firestore).');
+    }
+    renderRegistroSub(container);
+  });
+  container.querySelectorAll('[data-huer-borrar]').forEach(btn => btn.addEventListener('click', async () => {
+    const pk = btn.dataset.huerBorrar;
+    const regs = (regHuerfanos?.res.registros || []).filter(r => (r.posicionKey || '') === pk);
+    if (!regs.length || !confirm(`¿Borrar ${regs.length} registro(s) sin evaluación? No se puede deshacer.`)) return;
+    let n = 0;
+    try { for (const r of regs) { await eliminarRegistro(r.id); n++; } showSuccess(`${n} registro(s) borrados.`); }
+    catch (err) { console.error('[Firestore]', err); showError(`Se borraron ${n}; el resto no (revisa permisos).`); }
+    regHuerfanos.res.registros = regHuerfanos.res.registros.filter(r => !regs.slice(0, n).includes(r));
+    renderRegistroSub(container);
+  }));
+  container.querySelectorAll('[data-huer-mover]').forEach(btn => btn.addEventListener('click', async () => {
+    const pk = btn.dataset.huerMover;
+    const evId = container.querySelector(`[data-huer-dest="${pk}"]`)?.value;
+    const ev = (regEvaluaciones || []).find(e => e.id === evId);
+    if (!ev) { showError('Elige la evaluación a la que pasarlos.'); return; }
+    const regs = (regHuerfanos?.res.registros || []).filter(r => (r.posicionKey || '') === pk);
+    if (!regs.length || !confirm(`¿Pasar ${regs.length} registro(s) a «${ev.nombre}» (${ev.temporada})?`)) return;
+    let n = 0;
+    try {
+      for (const r of regs) {
+        await actualizarRegistro(r.id, { evaluacionId: ev.id, temporada: ev.temporada, tipo: ev.tipo || null,
+          rowKey: buildRowKey({ evaluacionId: ev.id, jugadorId: r.jugadorId, jugadorNombreArchivo: r.jugadorNombreArchivo, evaluador: r.evaluador }) });
+        n++;
+      }
+      showSuccess(`${n} registro(s) pasados a ${ev.nombre}.`);
+    } catch (err) { console.error('[Firestore]', err); showError(`Se pasaron ${n}; el resto no (revisa permisos).`); }
+    regHuerfanos.res.registros = regHuerfanos.res.registros.filter(r => !regs.slice(0, n).includes(r));
+    if (regVer?.evId === ev.id) regVer = null;
+    renderRegistroSub(container);
+  }));
 
   container.querySelector('#reg-nueva-ev')?.addEventListener('click', () => {
     regEvalFormOpen = true;
@@ -812,11 +887,14 @@ function renderRegistroSub(container) {
       if (isFirebaseUnconfigured()) { showError('Configura Firebase para borrar evaluaciones.'); return; }
       try {
         const registrosDeEsta = await queryRegistros({ evaluacionId: id });
-        const aviso = registrosDeEsta.length
-          ? `Esta evaluación tiene ${registrosDeEsta.length} registro(s) importado(s). Se borrará el CONTEXTO (temporada/posición/tipo), pero los registros individuales NO se borran — quedarán sin evaluación asociada. ¿Seguro?`
-          : '¿Borrar esta evaluación?';
-        if (!confirm(aviso)) return;
+        if (!confirm('¿Borrar esta evaluación?')) return;
+        let conRegistros = false;
+        if (registrosDeEsta.length) {
+          conRegistros = confirm(`Tiene ${registrosDeEsta.length} registro(s).\n\nAceptar → borrar también sus registros.\nCancelar → dejarlos (saldrán en «Registros sin evaluación», abajo del todo).`);
+        }
+        if (conRegistros) for (const r of registrosDeEsta) await eliminarRegistro(r.id);
         await eliminarEvaluacion(id);
+        if (regHuerfanos) regHuerfanos = null; // se vuelve a buscar
         regEvaluaciones = regEvaluaciones.filter(e => e.id !== id);
         if (regEvalSel === id) { regEvalSel = null; resetRegImport(); }
         if (regVer?.evId === id) regVer = null;
@@ -1053,7 +1131,7 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
       .bt .bt-num input { width:100%; box-sizing:border-box; height:22px; font-size:11px; padding:0 2px; text-align:center; background:transparent; color:#0f1117; border:none; border-radius:0; box-shadow:none; }
       .bt .bt-num input:focus { outline:2px solid var(--blue-500, #3b82f6); outline-offset:-2px; background:#fff; }
     </style>
-    <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración › Columnas de la encuesta. Edita una nota y sal de la celda para guardar.</p>
+    <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración › Columnas de la encuesta. <b>Editar:</b> cambia una nota y sal de la celda · <b>Borrar:</b> 🗑 al final de cada fila (desliza a la derecha).</p>
     <div class="bt-wrap"><table class="bt">
       <thead><tr>${cols.map(c => `<th class="${String(tipoCol(c) || '').startsWith('@txt_') ? 'bt-th-txt' : ['@fecha', '@evaluador', '@jugador'].includes(tipoCol(c)) ? 'bt-th-fija' + (tipoCol(c) === '@jugador' ? ' bt-th-jug' : '') : ''}" title="Columna ${c.num} de la encuesta"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}<th title="Borrar un registro">Borrar</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -1106,7 +1184,8 @@ function buildBBDDResultadosHTML() {
     `;
   }).join('');
 
-  return `<table class="table table-compact"><thead><tr><th>Jugador</th><th></th><th>Media general</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  // Ancho fijo: la tabla de la encuesta de dentro hace scroll en su caja en vez de ensanchar la página (y esconder 🗑).
+  return `<table class="table table-compact" style="table-layout:fixed;width:100%;"><colgroup><col style="width:40%"><col style="width:15%"><col style="width:20%"><col style="width:25%"></colgroup><thead><tr><th>Jugador</th><th></th><th>Media general</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function buildBBDDPanelHTML() {
