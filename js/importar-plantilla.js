@@ -9,7 +9,7 @@
 //  23-31 9 competencias mentales (Ficha 2)     → aspectosComunes.mental[0..8]
 //  32    "Perfil técnico" → se guarda aparte (registro.extras.ptec), sin tocar medias ni fichas
 //  33-44 12 competencias técnicas (Ficha 2)    → schema.tecnico[0..11]
-//  45 Inteligencia táctica · 46 Talento → registro.extras (intel / talento) · 47-49 "NO BBDD" → se ignoran
+//  45-49 Inteligencia táctica, Talento, Perfil físico, Perfil condicional, Maduración → registro.extras (gris en la tabla; no cuentan)
 //  50-51 R / P individual (Ficha 1) → sin destino definido, se ignoran
 // ================================================
 
@@ -52,8 +52,7 @@ export function tipoColumna(n) {
   if (n <= 31) return 'Mental (Ficha 2)';
   if (n === 32) return 'Perfil técnico';
   if (n <= 44) return 'Técnico (Ficha 2)';
-  if (n === 45 || n === 46) return 'Extra (se guarda)';
-  if (n <= 49) return 'NO BBDD';
+  if (n <= 49) return 'Extra (se guarda, no cuenta)';
   return n === 50 ? 'R (Ficha 1)' : 'P (Ficha 1)';
 }
 const TEXTOS = { 19: 'Ofensivos a potenciar', 20: 'Ofensivos a mejorar', 21: 'Defensivos a potenciar', 22: 'Defensivos a mejorar' };
@@ -65,7 +64,7 @@ export const TEXTOS_DESTINOS = {
 /** Destinos R / P de la Ficha 1 (valoración del rendimiento actual / proyección). El registro los guarda en `rp`. */
 export const RP_DESTINOS = { '@r': 'Ficha 1: R (rendimiento)', '@p': 'Ficha 1: P (proyección)' };
 /** Notas que se guardan aparte (registro.extras): se ven y editan en la tabla, no cuentan en medias ni fichas. */
-export const EXTRAS_DESTINOS = { '@x_ptec': 'Extra: Perfil técnico', '@x_intel': 'Extra: Inteligencia táctica', '@x_talento': 'Extra: Talento' };
+export const EXTRAS_DESTINOS = { '@x_ptec': 'Extra: Perfil técnico', '@x_intel': 'Extra: Inteligencia táctica', '@x_talento': 'Extra: Talento', '@x_pfis': 'Extra: Perfil físico', '@x_pcond': 'Extra: Perfil condicional', '@x_madur': 'Extra: Maduración biológica' };
 const TEXTO_POR_COL = { 19: '@txt_of_pot', 20: '@txt_of_mej', 21: '@txt_def_pot', 22: '@txt_def_mej' };
 
 /**
@@ -96,7 +95,9 @@ export function columnasEfectivas(state, positionKey) {
     else if (n <= 44) nombre = destino = tec[n - 33] || '';
     else if (n === 45) { nombre = 'Inteligencia táctica'; destino = '@x_intel'; }
     else if (n === 46) { nombre = 'Talento'; destino = '@x_talento'; }
-    else if (n <= 49) nombre = 'NO BBDD';
+    else if (n === 47) { nombre = 'Perfil físico'; destino = '@x_pfis'; }
+    else if (n === 48) { nombre = 'Perfil condicional'; destino = '@x_pcond'; }
+    else if (n === 49) { nombre = 'Maduración biológica'; destino = '@x_madur'; }
     else { nombre = n === 50 ? 'R' : 'P'; destino = n === 50 ? '@r' : '@p'; }
     const o = over[n];
     if (o) {

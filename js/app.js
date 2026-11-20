@@ -1104,7 +1104,7 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
     if (!t || t === 'equipo') return `<td class="bt-vacia"></td>`;
     if (t.startsWith('@txt_')) return `<td class="bt-texto">${safeText(r.textos?.[t.slice(5)] ?? '')}</td>`;
     const valor = t === '@r' || t === '@p' ? r.rp?.[t.slice(1)] : t.startsWith('@x_') ? r.extras?.[t.slice(3)] : r.puntuaciones?.[t];
-    return `<td class="bt-num"><input class="input" type="text" inputmode="decimal" data-reg-edit="${r.id}" data-clave="${safeText(t)}" value="${safeText(valor ?? '')}" /></td>`;
+    return `<td class="bt-num${t.startsWith('@x_') ? ' bt-extra' : ''}"><input class="input" type="text" inputmode="decimal" data-reg-edit="${r.id}" data-clave="${safeText(t)}" value="${safeText(valor ?? '')}" /></td>`;
   };
   // Mismo jugador junto: por nombre del jugador (A→Z) y, dentro, por fecha.
   const ordenados = [...registros].sort((a, b) =>
@@ -1137,6 +1137,8 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
       .bt .bt-texto { width:380px; min-width:380px; max-width:380px; font-size:10px; line-height:1.25; text-align:left; vertical-align:top; padding-top:3px; padding-bottom:3px; }
       .bt .bt-vacia { height:22px; }
       .bt .bt-num { padding:0; }
+      .bt td.bt-extra, .bt tbody tr:nth-child(even) td.bt-extra { background:#e5e7eb; } .bt td.bt-extra input { color:#6b7280; }
+      .bt th.bt-th-extra { background:#9ca3af; }
       .bt .bt-del { padding:0 2px; } .bt .bt-del .btn { padding:0 6px; min-height:0; height:20px; line-height:1; }
       .bt .bt-num input { width:100%; box-sizing:border-box; height:22px; font-size:11px; padding:0 2px; text-align:center; background:transparent; color:#0f1117; border:none; border-radius:0; box-shadow:none; }
       .bt .bt-num input:focus { outline:2px solid var(--blue-500, #3b82f6); outline-offset:-2px; background:#fff; }
@@ -1144,7 +1146,7 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
     <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración › Columnas de la encuesta. <b>Editar:</b> cambia una nota y sal de la celda · <b>Borrar:</b> 🗑 al principio de cada fila.</p>
     <div class="bt-wrap"><table class="bt" style="width:${anchoTabla}px;">
       <colgroup><col style="width:40px">${cols.map(c => `<col style="width:${anchoCol(c)}px">`).join('')}</colgroup>
-      <thead><tr><th class="bt-th-del" title="Borrar un registro">🗑</th>${cols.map(c => `<th class="${String(tipoCol(c) || '').startsWith('@txt_') ? 'bt-th-txt' : ['@fecha', '@evaluador', '@jugador'].includes(tipoCol(c)) ? 'bt-th-fija' : ''}" style="width:${anchoCol(c)}px;min-width:${anchoCol(c)}px;max-width:${anchoCol(c)}px;" title="Columna ${c.num} de la encuesta"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}</tr></thead>
+      <thead><tr><th class="bt-th-del" title="Borrar un registro">🗑</th>${cols.map(c => `<th class="${String(tipoCol(c) || '').startsWith('@txt_') ? 'bt-th-txt' : ['@fecha', '@evaluador', '@jugador'].includes(tipoCol(c)) ? 'bt-th-fija' : String(tipoCol(c) || '').startsWith('@x_') ? 'bt-th-extra' : ''}" style="width:${anchoCol(c)}px;min-width:${anchoCol(c)}px;max-width:${anchoCol(c)}px;" title="Columna ${c.num} de la encuesta${String(tipoCol(c) || '').startsWith('@x_') ? ' — guardada, de momento no cuenta en medias ni fichas' : ''}"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}</tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`;
 }
