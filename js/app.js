@@ -940,8 +940,12 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
     const valor = t === '@r' || t === '@p' ? r.rp?.[t.slice(1)] : r.puntuaciones?.[t];
     return `<td class="bt-num"><input class="input" type="text" inputmode="decimal" data-reg-edit="${r.id}" data-clave="${safeText(t)}" value="${safeText(valor ?? '')}" /></td>`;
   };
-  const rows = registros.length
-    ? registros.map(r => `<tr>${cols.map(c => celda(r, c)).join('')}</tr>`).join('')
+  // Mismo jugador junto: por nombre del jugador (A→Z) y, dentro, por fecha.
+  const ordenados = [...registros].sort((a, b) =>
+    String(jugadorLabel(a.jugadorId) || '').localeCompare(String(jugadorLabel(b.jugadorId) || ''), 'es', { sensitivity: 'base' })
+    || String(a.fechaRegistro || '').localeCompare(String(b.fechaRegistro || '')));
+  const rows = ordenados.length
+    ? ordenados.map(r => `<tr>${cols.map(c => celda(r, c)).join('')}</tr>`).join('')
     : `<tr>${cols.map(() => '<td class="bt-vacia"></td>').join('')}</tr>`;
   return `
     <style>
