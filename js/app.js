@@ -564,7 +564,7 @@ function buildResumenImportHTML(r) {
   const pendHTML = grupos.length ? `
     <div class="mb-16">
       <div class="text-xs text-muted mb-8" style="font-weight:700;text-transform:uppercase;">Pendientes de identificar (${grupos.length} nombres, ${regImport.pendientes.length} filas)</div>
-      <p class="text-xs text-muted mb-8">Elige a quién corresponde cada nombre: vale para todas sus filas y se guarda como alias, así la próxima vez se reconoce solo.</p>
+      <p class="text-xs text-muted mb-8">Elige a quién corresponde cada nombre: vale para todas sus filas y se guarda como alias, así la próxima vez se reconoce solo. Al pulsar <b>Confirmar importación</b> se guardan también.</p>
       <div class="text-xs mb-8" style="background:#fef3c7;border:1px solid #f59e0b;color:#78350f;padding:8px 10px;border-radius:6px;line-height:1.5;">
         ⚠ <b>Estos jugadores no se meten en la BBDD porque no se sabe quiénes son. Comprobadlos:</b><br>
         ${grupos.map(g => `${safeText(g.nombre)} (${g.filas.length})`).join(' · ')}
@@ -893,7 +893,8 @@ function renderRegistroSub(container) {
     sel.addEventListener('change', () => { regImport.decisiones[sel.dataset.decision] = sel.value; });
   });
 
-  container.querySelector('#import-aplicar-pendientes')?.addEventListener('click', async () => {
+  // Asigna los "Pendientes de identificar" según lo elegido en los desplegables. Devuelve false si no pudo.
+  const aplicarPendientes = async (repintar = true) => {
     const resueltos = [];
     const restantes = [];
     const aliasUpdates = new Map(); // playerId -> Set(nombres del archivo)
@@ -926,7 +927,7 @@ function renderRegistroSub(container) {
 
     let existentes = [];
     try { existentes = await queryRegistros({ evaluacionId: regEvalSel }); }
-    catch (err) { console.error('[Firestore]', err); showError('No se pudo comprobar duplicados. Importación detenida para no duplicar registros: vuelve a pulsar.'); return; }
+    catch (err) { console.error('[Firestore]', err); showError('No se pudo comprobar duplicados. Importación detenida para no duplicar registros: vuelve a pulsar.'); return false; }
     regImport.pendientes = restantes;
     const todas = [
       ...resueltos,
@@ -936,11 +937,17 @@ function renderRegistroSub(container) {
       ...regImport.resultado.errores,
     ];
     regImport.resultado = clasificarFilas(todas, existentes);
-    renderRegistroSub(container);
-  });
+    if (repintar) renderRegistroSub(container);
+    return true;
+  };
+  container.querySelector('#import-aplicar-pendientes')?.addEventListener('click', () => aplicarPendientes(true));
 
   container.querySelector('#import-confirmar')?.addEventListener('click', async () => {
     if (isFirebaseUnconfigured()) { showError('Configura Firebase para importar.'); return; }
+    // Lo elegido en "Pendientes de identificar" cuenta aunque no se pulsara "Aplicar identificaciones".
+    if ([...container.querySelectorAll('[data-pend-select]')].some(sel => sel.value)) {
+      if (!(await aplicarPendientes(false))) return;
+    }
     const ev = regEvaluaciones.find(e => e.id === regEvalSel);
     const r = regImport.resultado;
     regImport.busy = true;
