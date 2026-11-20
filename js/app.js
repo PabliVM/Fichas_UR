@@ -516,7 +516,7 @@ function buildImportWizardHTML() {
       : '<div class="mb-16" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;color:#166534;"><b>✓ Las columnas cuadran con las preguntas del Excel.</b></div>';
     body = `
       ${aviso}
-      <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas${regImport.omitidas ? ` (${regImport.omitidas} filas de cabecera omitidas)` : ''}${regImport.precargado ? '. Mapeo precargado desde Configuración → Columnas encuesta' : ''}. Indica qué es cada columna (obligatorio: Jugador y Evaluador). Posición: ${safeText(posLabel)}.</p>
+      <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas${regImport.omitidas ? ` (${regImport.omitidas} filas de cabecera omitidas)` : ''}${regImport.precargado ? '. Mapeo precargado desde Configuración › Columnas de la encuesta' : ''}. Indica qué es cada columna (obligatorio: Jugador y Evaluador). Posición: ${safeText(posLabel)}.</p>
       <div style="overflow-x:auto;">
         <table class="table table-compact">
           <thead><tr><th>Columna del archivo</th><th>${hayPreguntas ? 'Pregunta del Excel' : 'Ejemplo'}</th><th>Se importa como</th>${hayPreguntas ? '<th>Estado</th>' : ''}</tr></thead>
@@ -1045,7 +1045,7 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
       .bt .bt-num input { width:100%; box-sizing:border-box; height:22px; font-size:11px; padding:0 2px; text-align:center; background:transparent; color:#0f1117; border:none; border-radius:0; box-shadow:none; }
       .bt .bt-num input:focus { outline:2px solid var(--blue-500, #3b82f6); outline-offset:-2px; background:#fff; }
     </style>
-    <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración → Columnas encuesta. Edita una nota y sal de la celda para guardar.</p>
+    <p class="text-xs text-muted mb-8">${safeText(posLabel)} · ${registros.length} registros · ${cols.length} columnas según Configuración › Columnas de la encuesta. Edita una nota y sal de la celda para guardar.</p>
     <div class="bt-wrap"><table class="bt">
       <thead><tr>${cols.map(c => `<th class="${String(tipoCol(c) || '').startsWith('@txt_') ? 'bt-th-txt' : ['@fecha', '@evaluador', '@jugador'].includes(tipoCol(c)) ? 'bt-th-fija' + (tipoCol(c) === '@jugador' ? ' bt-th-jug' : '') : ''}" title="Columna ${c.num} de la encuesta"><span class="bt-n">${c.num}</span>${safeText(c.nombre)}</th>`).join('')}<th title="Borrar un registro">Borrar</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -1442,38 +1442,33 @@ let configSubTab = localStorage.getItem('rm-config-subtab') || 'posiciones'; // 
 
 const CONFIG_GROUPS = [
   {
-    label: 'Contenido',
+    label: 'Encuesta y criterios',
     tabs: [
-      { key: 'posiciones',       label: 'Posiciones' },
-      { key: 'items',            label: 'Aspectos' },
-      { key: 'colores',          label: 'Rango de colores' },
-      { key: 'condicional-refs', label: 'Datos condicionales' },
+      { key: 'posiciones',        label: 'Posiciones' },
+      { key: 'items',             label: 'Aspectos por posición' },
+      { key: 'columnas-encuesta', label: 'Columnas de la encuesta' },
+      { key: 'condicional-refs',  label: 'Datos condicionales' },
+      { key: 'frases',            label: 'Frases modelo' },
     ],
   },
   {
-    label: 'Fichas tipo',
+    label: 'Fichas',
     tabs: [
-      { key: 'fichas-individual',  label: 'Individual' },
-      { key: 'columnas-encuesta',  label: 'Columnas encuesta' },
-      { key: 'fichas-espejo',      label: 'Fichas Espejo' },
-      { key: 'fichas-campograma',  label: 'Campograma' },
-      { key: 'fichas-mapa-nivel',  label: 'Mapa de nivel' },
+      { key: 'fichas-individual', label: 'Ficha individual' },
+      { key: 'fichas-espejo',     label: 'Fichas espejo' },
+      { key: 'fichas-campograma', label: 'Campograma' },
+      { key: 'fichas-mapa-nivel', label: 'Mapa de nivel' },
+      { key: 'ficha-colores',     label: 'Colores de la ficha' },
+      { key: 'colores',           label: 'Rango de colores' },
+      { key: 'ficha-matriz',      label: 'Matriz' },
+      { key: 'dimensiones',       label: 'Dimensiones' },
     ],
   },
   {
-    label: 'Diseño',
+    label: 'Datos y ayuda',
     tabs: [
-      { key: 'ficha-colores', label: 'Colores de la ficha' },
-      { key: 'ficha-matriz',  label: 'Matriz' },
-      { key: 'dimensiones',   label: 'Dimensiones' },
-    ],
-  },
-  {
-    label: 'Ayuda',
-    tabs: [
-      { key: 'flujo',   label: 'Flujo de evaluaciones' },
-      { key: 'frases',  label: 'Frases modelo' },
       { key: 'copia-seguridad', label: 'Copia de seguridad' },
+      { key: 'flujo',           label: 'Cómo funciona (flujo)' },
     ],
   },
 ];
@@ -3624,17 +3619,16 @@ function renderPanelConfig(container) {
 
   configSubTab = subVisible('config', configSubTab);
   const gruposVis = CONFIG_GROUPS.map(g => ({ ...g, tabs: g.tabs.filter(t => puedeVer(`config.${t.key}`)) })).filter(g => g.tabs.length);
-  const grupoCfg = gruposVis.find(g => g.tabs.some(t => t.key === configSubTab)) || gruposVis[0] || CONFIG_GROUPS[0];
-  container.innerHTML = `
+    container.innerHTML = `
     ${firebaseNotice()}
-    <div class="rm-sticky mb-16" style="border-bottom:1px solid var(--border-default);padding-bottom:8px;">
-      <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
-        ${gruposVis.map(g => `<button class="btn ${g === grupoCfg ? 'btn-primary' : 'btn-sm'}" data-config-group="${g.label}" style="font-weight:700;">${g.label}</button>`).join('')}
-      </div>
-      <div class="flex gap-8" style="align-items:center;flex-wrap:wrap;">
-        ${grupoCfg.tabs.map(t => `<button class="btn ${t.key === configSubTab ? 'btn-secondary' : 'btn-sm'}" ${t.key === configSubTab ? 'style="background:var(--bg-hover);border-color:var(--border-strong,var(--border-default));font-weight:700;"' : ''} data-config-subtab="${t.key}">${t.label}</button>`).join('')}
-      </div>
-    </div>
+    <div class="cfg-layout" style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;">
+    <nav class="card cfg-side" style="flex:1 1 220px;max-width:270px;margin:0;padding:12px 10px;position:sticky;top:8px;">
+      ${gruposVis.map(g => `
+        <div class="text-xs" style="font-weight:700;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;padding:10px 10px 4px;">${g.label}</div>
+        ${g.tabs.map(t => `<button class="btn btn-ghost" data-config-subtab="${t.key}" style="display:block;width:100%;text-align:left;justify-content:flex-start;padding:7px 10px;margin:1px 0;border-radius:8px;${t.key === configSubTab ? 'background:var(--blue-50, #eff6ff);color:var(--blue-600, #1d4ed8);font-weight:700;' : 'font-weight:500;'}">${t.label}</button>`).join('')}
+      `).join('')}
+    </nav>
+    <div class="cfg-main" style="flex:999 1 560px;min-width:0;">
 
     ${configSubTab !== 'posiciones' ? '' : `
     <div class="card mb-16">
@@ -3866,7 +3860,7 @@ function renderPanelConfig(container) {
 
     ${configSubTab !== 'fichas-individual' ? '' : `
     <div class="card mb-16">
-      <div class="card-title">Fichas tipo — Individual</div>
+      <div class="card-title">Ficha individual</div>
       <div class="card-body">
         <p class="text-sm text-muted mb-16">Vista previa de la Ficha 1 y Ficha 2 de cada posición, generadas desde Aspectos.</p>
         ${state.positions.length === 0 ? '<p class="text-xs text-muted">Define primero al menos una posición en la pestaña Posiciones.</p>' : `
@@ -3901,14 +3895,14 @@ function renderPanelConfig(container) {
 
     ${configSubTab !== 'fichas-campograma' ? '' : `
     <div class="card mb-16">
-      <div class="card-title">Fichas tipo — Campograma</div>
+      <div class="card-title">Campograma</div>
       <div class="card-body"><p class="text-xs text-muted">Pendiente de implementar.</p></div>
     </div>
     `}
 
     ${configSubTab !== 'fichas-mapa-nivel' ? '' : `
     <div class="card mb-16">
-      <div class="card-title">Fichas tipo — Mapa de nivel</div>
+      <div class="card-title">Mapa de nivel</div>
       <div class="card-body"><p class="text-xs text-muted">Pendiente de implementar.</p></div>
     </div>
     `}
@@ -3954,6 +3948,7 @@ function renderPanelConfig(container) {
       </div>
     </div>
     `}
+    </div></div>
   `;
 
   container.querySelector('#copia-seg-btn')?.addEventListener('click', async e => {
