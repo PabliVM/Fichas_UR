@@ -4828,6 +4828,7 @@ function injectPlantillaStyles() {
     #pl-pres-lista.pl-solo .pl-frame:not(.pl-cur),#pl-pres-lista.pl-solo .ficha-wrap:not(.pl-cur){display:none;}
     #pl-pres-lista.pl-solo .pl-cur{display:block;}
     #pl-pres-lista.pl-solo .pl-foto-btn{display:none !important;}
+    #pl-pres-lista.pl-solo .pl-pend{display:none !important;}
     #pl-pres-lista.pl-sin-obs .pl-obs{display:none !important;}
     #pl-pres-lista.pl-sin-obs:fullscreen > *{max-width:calc((100vh - 120px) * ${PL_W} / ${PL_H});}
     #pl-solo-nav,#pl-solo-top{display:none;}
@@ -5135,7 +5136,7 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
   const notaDe = it => notaNum(it.f1?.player?.[campoN]);
   const bandas = [
     { lab: '+4', bg: '#7bbf90', ok: v => v != null && v >= 4 },
-    { lab: '3-4', bg: '#f2e09c', ok: v => v == null || (v >= 3 && v < 4) },
+    { lab: '3-4', bg: '#f2e09c', ok: v => v != null && v >= 3 && v < 4 }, // sin nota: fuera de la diapositiva (lista de pendientes)
     { lab: '-3', bg: '#f0728f', ok: v => v != null && v < 3 },
   ];
   const POR_FILA = 6, ITEM_W = 150, TOP = 165, BOT = 1310, GAP = 16, MITAD = PL_W / 2;
@@ -5158,14 +5159,14 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
       const pl = it.f1?.player || {};
       const txtNota = hex ? (Number.isInteger(v) ? String(v) : (Math.round(v * 10) / 10).toFixed(1).replace('.', ',')) : 'X'; // 1 decimal como mucho
       const bgN = hex || '#ffffff', fgN = hex ? textoSobre(hex) : '#111';
-      const cid = `plmn${++plUid}`, R0 = D / 2, dN = Math.round(D * 0.44);
+      const cid = `plmn${++plUid}`, R0 = D / 2, dN = Math.max(44, Math.round(D * 0.62));
       const foto = it.j.fotoUrl
         ? svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${D}" height="${D}" viewBox="0 0 ${D} ${D}"><clipPath id="${cid}"><circle cx="${R0}" cy="${R0}" r="${R0}"/></clipPath><circle cx="${R0}" cy="${R0}" r="${R0}" fill="#ffffff"/><image xlink:href="${it.j.fotoUrl}" href="${it.j.fotoUrl}" x="0" y="0" width="${D}" height="${D}" preserveAspectRatio="xMidYMin slice" clip-path="url(#${cid})"/></svg>`, D, D, `position:absolute;left:${(ITEM_W - D) / 2}px;top:0;`)
         : `<div style="position:absolute;left:${(ITEM_W - D) / 2}px;top:0;width:${D}px;height:${D}px;border-radius:50%;background:#fff;"></div>`;
       const ap = String(it.j.apellidos || it.j.nombre || '').trim().toUpperCase();
       return `<div style="position:absolute;left:${cx - ITEM_W / 2}px;top:${top}px;width:${ITEM_W}px;height:${D + 44}px;">
         ${foto}
-        <div style="position:absolute;left:${(ITEM_W + D) / 2 - dN * 0.6}px;top:${-dN * 0.1}px;width:${dN}px;height:${dN}px;border-radius:50%;background:${bgN};color:${fgN};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${Math.max(9, Math.min(20, Math.round((dN - 6) / (txtNota.length > 1 ? txtNota.length * 0.62 : 1.1))))}px;line-height:1;letter-spacing:-0.5px;font-family:system-ui,sans-serif;">${safeText(txtNota)}</div>
+        <div style="position:absolute;left:${(ITEM_W + D) / 2 - dN * 0.55}px;top:${-dN * 0.25}px;width:${dN}px;height:${dN}px;border-radius:50%;background:${bgN};color:${fgN};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${Math.max(12, Math.min(30, Math.round((dN - 6) / (txtNota.length > 1 ? txtNota.length * 0.6 : 1.4))))}px;line-height:1;letter-spacing:-0.5px;font-family:system-ui,sans-serif;">${safeText(txtNota)}</div>
         <div style="position:absolute;left:-10px;width:${ITEM_W + 20}px;top:${D + 8}px;text-align:center;"><span style="display:inline-block;background:${cf.bg};color:${cf.fg};font-family:system-ui,sans-serif;font-weight:800;font-size:17px;padding:3px 14px;border-radius:18px;white-space:nowrap;">${safeText(ap)}</span></div></div>`;
     }).join('');
     return { band: `<div style="position:absolute;left:20px;top:${y0}px;width:${PL_W - 40}px;height:${h}px;background:${d.b.bg};border-radius:70px;"></div>`, cont: `${lado(d.izq, 40, MITAD - 10)}${lado(d.der, MITAD + 10, PL_W - 40)}
@@ -5408,7 +5409,15 @@ async function renderPlantillaPresentacion(container) {
         <label class="text-xs text-muted" for="pl-mapa-modo">Ordenar por la nota de</label>
         <select class="select" id="pl-mapa-modo" style="max-width:200px;"><option value="r" ${plMapaModo === 'r' ? 'selected' : ''}>Rendimiento</option><option value="p" ${plMapaModo === 'p' ? 'selected' : ''}>Proyección</option><option value="rp" ${plMapaModo === 'rp' ? 'selected' : ''}>Las dos (2 diapositivas)</option></select>
       </div>
-      ${(plMapaModo === 'rp' ? ['r', 'p'] : [plMapaModo]).map(m => plMapaNivel(t?.label || '', temporada, jugs.map(j => ({ j, f1: f1Map[j.id] })), m)).join('')}`;
+      ${(plMapaModo === 'rp' ? ['r', 'p'] : [plMapaModo]).map(m => plMapaNivel(t?.label || '', temporada, jugs.map(j => ({ j, f1: f1Map[j.id] })), m)).join('')}
+      ${(() => { // sin nota: no salen en la diapositiva; aquí, fuera del PDF
+        const sinNota = m => jugs.filter(j => notaNum(f1Map[j.id]?.player?.[m === 'p' ? 'pValue' : 'rValue']) == null);
+        const bloques = (plMapaModo === 'rp' ? ['r', 'p'] : [plMapaModo]).map(m => ({ m, js: sinNota(m) })).filter(b => b.js.length);
+        return bloques.length ? `<div class="card btn-print-ficha pl-pend mb-16" style="margin-top:4px;"><div class="card-body">${bloques.map(b => `
+          <div class="text-sm mb-8"><b>Pendientes de evaluar (${b.m === 'p' ? 'Proyección' : 'Rendimiento'}) · ${b.js.length}</b> <span class="text-xs text-muted">— no salen en la diapositiva</span></div>
+          <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">${b.js.map(j => `<span style="background:var(--bg-hover);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:600;">${safeText(`${j.nombre || ''} ${j.apellidos || ''}`.trim())}</span>`).join('')}</div>`).join('')}
+        </div></div>` : '';
+      })()}`;
     mapaHost.querySelector('#pl-mapa-modo').addEventListener('change', e => { plMapaModo = e.target.value; dibujarMapa(); });
     [...mapaHost.querySelectorAll('.pl-frame')].forEach((f, i, arr) => { f.dataset.plObs = arr.length > 1 ? `mapa-${i ? 'p' : 'r'}` : `mapa-${plMapaModo}`; });
     obsMontar();
