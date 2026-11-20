@@ -1128,6 +1128,14 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
       .bt td { overflow:hidden; }
       .bt td.bt-nowrap { text-overflow:ellipsis; }
       .bt th:first-child { border-left:none; }
+      /* 🗑, Fecha, Evaluador y Jugador fijas al hacer scroll horizontal */
+      .bt td:nth-child(-n+4), .bt th:nth-child(-n+4) { position:sticky; z-index:2; }
+      .bt th:nth-child(-n+4) { z-index:3; }
+      .bt td:nth-child(-n+3) { box-shadow:inset -1px 0 #cbd5e1; } .bt th:nth-child(-n+3) { box-shadow:inset -1px 0 rgba(255,255,255,.35); }
+      .bt td:nth-child(1), .bt th:nth-child(1) { left:0; }
+      .bt td:nth-child(2), .bt th:nth-child(2) { left:40px; }
+      .bt td:nth-child(3), .bt th:nth-child(3) { left:150px; }
+      .bt td:nth-child(4), .bt th:nth-child(4) { left:234px; box-shadow:inset -2px 0 #94a3b8; }
       .bt th .bt-n { position:absolute; top:2px; left:0; right:0; font-size:9px; font-weight:600; opacity:.75; line-height:1; } /* número pegado arriba; nombre centrado */
       .bt td { background:#fff; color:#0f1117; padding:1px 5px; border-left:1px solid #cbd5e1; border-top:1px solid #cbd5e1; text-align:center; vertical-align:middle; line-height:1.25; height:22px; }
       .bt td:first-child { border-left:none; }
