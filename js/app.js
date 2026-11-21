@@ -2904,7 +2904,13 @@ function renderPanelJugadores(container) {
           <button class="btn" id="jug-import" title="Descargar / subir un Excel (o pegar texto) con todos los datos de los jugadores">📥 Cargar datos (Excel / texto)</button>
         </div>`}
         <div style="overflow-x:auto;">
-          <table class="table">
+          <style>
+            .jug-lista td { padding-top:3px !important; padding-bottom:3px !important; }
+            .jug-lista td .btn-sm { padding-top:3px; padding-bottom:3px; min-height:0; }
+            .jug-lista [data-jug-foto] { width:30px !important; height:30px !important; }
+            .jug-lista [data-jug-foto] img { width:30px !important; height:30px !important; }
+          </style>
+          <table class="table jug-lista">
             <thead>
               <tr>
                 <th></th><th>Nombre</th><th>Apellidos</th><th>Año</th><th>Edad</th><th>Años club</th>
@@ -4763,7 +4769,7 @@ function renderPanelPlantillas(container) {
         const corto = j => `${j?.nombre || ''} ${String(j?.apellidos || '').trim().split(/\s+/)[0] || ''}`.trim() || '(jugador eliminado)';
         const iniciales = j => `${(j?.nombre || '?')[0] || ''}${(j?.apellidos || '')[0] || ''}`.toUpperCase();
         const colorLinea = key => { const k = normalizeTxt(key); return k === '_sin' ? '#94a3b8' : /porter/.test(k) ? '#d4a63a' : /central|lateral|defens/.test(k) ? '#1d4ed8' : /medio|interior|pivote|centrocamp/.test(k) ? '#1f6b2a' : '#b91c1c'; };
-        const chip = id => { const j = pj(id); return `<div class="pl-chip" style="position:relative;display:flex;align-items:center;gap:7px;background:var(--bg-surface, #fff);border:1px solid var(--border-default);border-radius:8px;padding:4px 6px;min-width:0;">
+        const chip = id => { const j = pj(id); return `<div class="pl-chip" draggable="true" data-pl-drag="${id}" title="Arrastra a otra posición para cambiarla" style="cursor:grab;position:relative;display:flex;align-items:center;gap:7px;background:var(--bg-surface, #fff);border:1px solid var(--border-default);border-radius:8px;padding:4px 6px;min-width:0;">
             ${j?.fotoUrl ? `<img src="${j.fotoUrl}" alt="" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" />` : `<span style="width:24px;height:24px;border-radius:50%;background:var(--bg-hover);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--blue-600, #1d4ed8);">${safeText(iniciales(j))}</span>`}
             <a href="#" data-pl-ir="${t.key}|${id}" class="text-xs" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-primary);text-decoration:none;font-weight:600;" title="${safeText(nombreDe(id))} — ver ficha">${safeText(corto(j))}</a>
             <button class="btn btn-sm btn-ghost pl-x" style="padding:0 4px;" data-pl-del="${t.key}|${id}" title="Quitar de la plantilla" aria-label="Quitar ${safeText(nombreDe(id))}">✕</button>
@@ -4795,7 +4801,7 @@ function renderPanelPlantillas(container) {
           </div>
           ${verDatos ? `<div data-pl-datos-box="${t.key}"><p class="text-xs text-muted mb-8">Los cambios se guardan al salir de la casilla y son los mismos de la ficha del jugador.</p>${datosEquipoTablaHTML(t.key)}</div>` : `
           <div style="overflow-x:auto;"><div style="display:grid;grid-template-columns:repeat(${columnas.length},minmax(130px,1fr));gap:8px;">
-            ${columnas.map(col => { const cj = ids.filter(id => colDe(id) === col.key); return `<div style="background:var(--bg-hover);border-radius:10px;border-top:4px solid ${colorLinea(col.key)};padding:8px;display:flex;flex-direction:column;gap:5px;min-width:0;">
+            ${columnas.map(col => { const cj = ids.filter(id => colDe(id) === col.key); return `<div data-pl-col="${col.key}" style="background:var(--bg-hover);border-radius:10px;border-top:4px solid ${colorLinea(col.key)};padding:8px;display:flex;flex-direction:column;gap:5px;min-width:0;">
               <div class="flex" style="justify-content:space-between;font-weight:800;font-size:11px;letter-spacing:.04em;color:var(--text-muted);" title="${safeText(col.titulo)}"><span>${safeText(col.key === '_sin' ? 'SIN POSICIÓN' : plPlural(col.titulo).toUpperCase())}</span><span>${cj.length || ''}</span></div>
               ${cj.map(chip).join('')}
               ${añadir(col)}
@@ -4840,6 +4846,26 @@ function renderPanelPlantillas(container) {
     if (vista === 'datos') plCardDatos.add(teamKey); else plCardDatos.delete(teamKey);
     preservandoScroll(() => renderPanelPlantillas(container));
   }));
+  // Arrastrar un jugador a otra columna = cambiar su posición (en su ficha y en toda la app).
+  container.querySelectorAll('[data-pl-drag]').forEach(ch => ch.addEventListener('dragstart', e => {
+    e.dataTransfer.setData('text/plain', ch.dataset.plDrag); e.dataTransfer.effectAllowed = 'move'; ch.style.opacity = '.5';
+  }));
+  container.querySelectorAll('[data-pl-drag]').forEach(ch => ch.addEventListener('dragend', () => { ch.style.opacity = ''; }));
+  container.querySelectorAll('[data-pl-col]').forEach(col => {
+    col.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; col.style.outline = '2px dashed var(--blue-500, #3b82f6)'; });
+    col.addEventListener('dragleave', () => { col.style.outline = ''; });
+    col.addEventListener('drop', async e => {
+      e.preventDefault(); col.style.outline = '';
+      const id = e.dataTransfer.getData('text/plain'), destino = col.dataset.plCol === '_sin' ? null : col.dataset.plCol;
+      const j = state.players.find(x => x.id === id);
+      if (!j || (j.positionKey || null) === destino) return;
+      try {
+        await guardarCampoJugador(id, 'positionKey', destino);
+        showSuccess(`${nombreCompleto(j)} → ${destino ? state.positions.find(p => p.key === destino)?.label || destino : 'sin posición'}`);
+      } catch (err) { console.error('[Firestore] Posición:', err); showError('No se pudo cambiar la posición.'); }
+      preservandoScroll(() => renderPanelPlantillas(container));
+    });
+  });
   container.querySelectorAll('[data-pl-datos-box]').forEach(box => wireDatosEquipo(box, () => preservandoScroll(() => renderPanelPlantillas(container))));
   // Un solo "+ Añadir" abierto; se cierra al pulsar fuera.
   container.querySelectorAll('details.pl-add').forEach(d => d.addEventListener('toggle', () => {
