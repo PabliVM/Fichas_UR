@@ -25,7 +25,7 @@ export async function parseXLSXBuffer(arrayBuffer, sugerida = '') {
   const nombre = await elegirHoja(wb, sugerida);
   if (nombre == null && wb.SheetNames.length > 1) return { headers: [], rows: [], cancelado: true };
   const hoja = wb.Sheets[nombre];
-  if (!hoja) return { headers: [], rows: [] };
+  if (!hoja) return { headers: [], rows: [], hoja: nombre };
   const filas2D = XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
   const filasConDatos = filas2D.filter(cols => cols.some(c => String(c ?? '').trim() !== ''));
   if (!filasConDatos.length) return { headers: [], rows: [] };
@@ -36,7 +36,7 @@ export async function parseXLSXBuffer(arrayBuffer, sugerida = '') {
     headers.forEach((h, i) => { obj[h] = String(cols[i] ?? '').trim(); });
     return obj;
   });
-  return { headers, rows };
+  return { headers, rows, hoja: nombre };
 }
 
 /**

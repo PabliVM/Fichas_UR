@@ -399,10 +399,6 @@ function buildEvaluacionFormHTML() {
             <input class="input" type="text" id="ev-nombre" placeholder="Ej. Evaluación enero" value="${safeText(ev?.nombre || '')}" />
           </div>
           <div class="field-group" style="min-width:160px;">
-            <label class="label">Posición</label>
-            <select class="select" id="ev-posicion">${state.positions.map(p => `<option value="${p.key}" ${ev?.posicionKey === p.key ? 'selected' : ''}>${safeText(p.label)}</option>`).join('')}</select>
-          </div>
-          <div class="field-group" style="min-width:160px;">
             <label class="label">Tipo de evaluación</label>
             <input class="input" type="text" id="ev-tipo" placeholder="Ej. Trimestral" value="${safeText(ev?.tipo || '')}" />
           </div>
@@ -438,14 +434,20 @@ function buildEvaluacionesListHTML() {
       const r = regVer.res;
       registros = !r ? '<p class="text-xs text-muted mt-8">Cargando registros…</p>'
         : !r.registros.length ? '<p class="text-xs text-muted mt-8">Sin registros todavía en esta evaluación.</p>'
-        : `<div class="mt-8">${buildTablaEncuestaHTML(r.registros, ev.posicionKey, id => { const p = state.players.find(x => x.id === id); return p ? `${p.nombre} ${p.apellidos}` : '(sin identificar)'; })}</div>`;
+        : (() => { // una tabla por posición (cada una con sus columnas de encuesta)
+          const label = id => { const p = state.players.find(x => x.id === id); return p ? `${p.nombre} ${p.apellidos}` : '(sin identificar)'; };
+          const orden = state.positions.map(p => p.key);
+          const pks = [...new Set(r.registros.map(x => x.posicionKey || ev.posicionKey || ''))].sort((a, b) => orden.indexOf(a) - orden.indexOf(b));
+          return pks.map(pk => `<div class="mt-16"><div style="font-weight:800;margin-bottom:6px;">${safeText(state.positions.find(p => p.key === pk)?.label || pk || 'Sin posición')}</div>
+            ${pk ? buildTablaEncuestaHTML(r.registros.filter(x => (x.posicionKey || ev.posicionKey || '') === pk), pk, label) : ''}</div>`).join('');
+        })();
     }
     return `
     <div class="card" style="margin:0;${activa || viendo ? 'border:2px solid var(--blue-500, #3b82f6);' : ''}">
       <div class="card-body">
         <div class="flex gap-8" style="align-items:center;flex-wrap:wrap;">
           <div style="flex:1 1 260px;min-width:0;">
-            <div style="font-size:16px;font-weight:800;">${safeText(ev.nombre)} · ${safeText(pos)}</div>
+            <div style="font-size:16px;font-weight:800;">${safeText(ev.nombre)}${ev.posicionKey ? ` <span class="text-xs text-muted" title="Evaluación antigua de una sola posición: puedes unirla con las demás del mismo periodo">· solo ${safeText(pos)}</span>` : ''}</div>
             <div class="text-xs text-muted">${safeText(ev.temporada)}${ev.tipo ? ' · ' + safeText(ev.tipo) : ''}${fechas ? ' · ' + fechas : ''}</div>
           </div>
           <button class="btn btn-sm btn-primary" data-ev-importar="${ev.id}">📥 Importar encuesta</button>
@@ -474,7 +476,7 @@ function buildHuerfanosHTML() {
     const rs = regs.filter(r => (r.posicionKey || '') === pk);
     const pos = state.positions.find(p => p.key === pk)?.label || pk || 'Sin posición';
     const temps = [...new Set(rs.map(r => r.temporada).filter(Boolean))].join(', ');
-    const evs = (regEvaluaciones || []).filter(e => e.posicionKey === pk);
+    const evs = (regEvaluaciones || []).filter(e => !e.posicionKey || e.posicionKey === pk); // las de periodo (todas las posiciones) o las antiguas de esa posición
     return `<div class="mt-16" style="border-top:1px solid var(--border-default);padding-top:12px;">
       <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
         <b style="flex:1 1 220px;">${safeText(pos)} · ${rs.length} registro(s)${temps ? ' · ' + safeText(temps) : ''}</b>
@@ -501,7 +503,8 @@ function bloquesCriterios(posicionKey) {
 function buildImportWizardHTML() {
   const ev = regEvaluaciones.find(e => e.id === regEvalSel);
   if (!ev) return '';
-  const posLabel = state.positions.find(p => p.key === ev.posicionKey)?.label || ev.posicionKey;
+  const posImp = regImport.posicionKey || ev.posicionKey;
+  const posLabel = state.positions.find(p => p.key === posImp)?.label || posImp || '';
   let body = '';
 
   if (regImport.step === 'archivo') {
@@ -511,9 +514,9 @@ function buildImportWizardHTML() {
       <div class="flex gap-8 mt-16"><button class="btn btn-ghost" id="import-cancelar">Cancelar</button></div>
     `;
   } else if (regImport.step === 'mapeo') {
-    const schema = state.criteriaSchemas[ev.posicionKey] || {};
+    const schema = state.criteriaSchemas[posImp] || {};
     const perfiles = schema.perfiles || [];
-    const aspectoPorCompetencia = buildAspectoPorCompetencia(state, ev.posicionKey);
+    const aspectoPorCompetencia = buildAspectoPorCompetencia(state, posImp);
     const competencias = Object.keys(aspectoPorCompetencia);
     const optionsFor = header => {
       const sel = regImport.mapping[header] || '';
@@ -533,7 +536,7 @@ function buildImportWizardHTML() {
     };
     const preguntas = regImport.preguntas || {};
     const hayPreguntas = Object.keys(preguntas).length > 0;
-    const chk = hayPreguntas ? comprobarPorBloques(preguntas, regImport.mapping, bloquesCriterios(ev.posicionKey)) : { porColumna: {}, avisos: 0 };
+    const chk = hayPreguntas ? comprobarPorBloques(preguntas, regImport.mapping, bloquesCriterios(posImp)) : { porColumna: {}, avisos: 0 };
     const estadoHTML = h => {
       const e = chk.porColumna[h];
       if (!e) return '';
@@ -548,6 +551,11 @@ function buildImportWizardHTML() {
         </div>`
       : '<div class="mb-16" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;color:#166534;"><b>✓ Las columnas cuadran con las preguntas del Excel.</b></div>';
     body = `
+      <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
+        <label class="label" for="import-posicion" style="margin:0;">Posición de esta encuesta</label>
+        <select class="select" id="import-posicion" style="width:auto;min-width:180px;">${state.positions.map(pp => `<option value="${pp.key}" ${pp.key === posImp ? 'selected' : ''}>${safeText(pp.label)}</option>`).join('')}</select>
+        ${regImport.hoja ? `<span class="text-xs text-muted">pestaña del Excel: «${safeText(regImport.hoja)}»</span>` : ''}
+      </div>
       ${aviso}
       <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas${regImport.omitidas ? ` (${regImport.omitidas} filas de cabecera omitidas)` : ''}${regImport.precargado ? '. Mapeo precargado desde Configuración › Columnas de la encuesta' : ''}. Indica qué es cada columna (obligatorio: Jugador y Evaluador). Posición: ${safeText(posLabel)}.</p>
       <div style="overflow-x:auto;">
@@ -574,7 +582,7 @@ function buildImportWizardHTML() {
     body = buildResumenImportHTML(regImport.resultado);
   }
 
-  return `<div style="border-top:1px solid var(--border-default);padding-top:12px;"><div style="font-weight:800;margin-bottom:8px;">📥 Importar encuesta — ${safeText(ev.nombre)} (${safeText(posLabel)}, ${safeText(ev.temporada)})</div>${body}</div>`;
+  return `<div style="border-top:1px solid var(--border-default);padding-top:12px;"><div style="font-weight:800;margin-bottom:8px;">📥 Importar encuesta — ${safeText(ev.nombre)} (${safeText(ev.temporada)}${regImport.step !== 'archivo' && posLabel ? ' · ' + safeText(posLabel) : ''})</div>${body}</div>`;
 }
 
 /** Pendientes agrupados por nombre (sin tildes/mayúsculas): una decisión por nombre vale para todas sus filas. */
@@ -671,11 +679,12 @@ function buildResumenImportHTML(r) {
 /** De filas parseadas + mapeo → clasificación NUEVO/SIN CAMBIOS/CON CAMBIOS/ERROR (auditoría §15). */
 async function procesarImport(container) {
   const ev = regEvaluaciones.find(e => e.id === regEvalSel);
-  const schema = state.criteriaSchemas[ev.posicionKey] || {};
+  const posImp = regImport.posicionKey || ev.posicionKey;
+  const schema = state.criteriaSchemas[posImp] || {};
   const perfiles = schema.perfiles || [];
   // IDs estables (ficha-espejo.js): además de puntuaciones{nombre}, cada registro
   // nuevo guarda puntuacionesId{id}. Retrocompatible: lo antiguo se sigue leyendo por nombre.
-  const catalogo = buildCatalogo(state, ev.posicionKey);
+  const catalogo = buildCatalogo(state, posImp);
   const idPorClave = {};
   catalogo.lista.forEach(c => { if (!(c.clave in idPorClave)) idPorClave[c.clave] = c.id; });
   // Columnas de fecha/evaluador/jugador/equipo: las que el usuario mapeó (Configuración → Columnas encuesta).
@@ -849,7 +858,6 @@ function renderRegistroSub(container) {
     const data = {
       temporada:   container.querySelector('#ev-temporada').value,
       nombre:      container.querySelector('#ev-nombre').value.trim(),
-      posicionKey: container.querySelector('#ev-posicion').value,
       tipo:        container.querySelector('#ev-tipo').value.trim() || null,
       fechaInicio: container.querySelector('#ev-fecha-ini').value || null,
       fechaFin:    container.querySelector('#ev-fecha-fin').value || null,
@@ -936,7 +944,12 @@ function renderRegistroSub(container) {
     // Estructura fija de las encuestas: se omiten filas de cabecera (números/aspecto/preguntas),
     // la fecha se normaliza a ISO y el mapeo de columnas 7+ llega precargado (editable).
     const evImp = regEvaluaciones.find(x => x.id === regEvalSel);
-    const mapeoInicial = mapeoPorDefecto(state, evImp?.posicionKey, parsed.headers.length);
+    // Posición de esta encuesta: la de la evaluación antigua (si tenía), o la que diga la pestaña del Excel ("Laterales" → Lateral).
+    const raiz = t => normalizeTxt(t).replace(/[^a-z]/g, '').slice(0, 5);
+    const porHoja = parsed.hoja ? state.positions.find(p => raiz(p.label) && raiz(p.label) === raiz(parsed.hoja))?.key : null;
+    regImport.posicionKey = evImp?.posicionKey || porHoja || regImport.posicionKey || state.positions[0]?.key || null;
+    regImport.hoja = parsed.hoja || '';
+    const mapeoInicial = mapeoPorDefecto(state, regImport.posicionKey, parsed.headers.length);
     const colFechaImp = Object.keys(mapeoInicial).find(h => mapeoInicial[h] === '@fecha') || 'Columna 1';
     const limpio = quitarCabeceras(parsed.rows, colFechaImp);
     regImport.headers = parsed.headers;
@@ -959,9 +972,15 @@ function renderRegistroSub(container) {
     sel.addEventListener('change', () => { regImport.mapping[sel.dataset.mapCol] = sel.value; if (regImport.preguntas && Object.keys(regImport.preguntas).length) renderRegistroSub(container); });
   });
 
+  container.querySelector('#import-posicion')?.addEventListener('change', e => {
+    regImport.posicionKey = e.target.value;
+    regImport.mapping = mapeoPorDefecto(state, regImport.posicionKey, regImport.headers.length);
+    regImport.precargado = Object.keys(regImport.mapping).length > 0;
+    renderRegistroSub(container);
+  });
   container.querySelector('#import-auto')?.addEventListener('click', () => {
     const ev = regEvaluaciones.find(e => e.id === regEvalSel);
-    const { porColumna, propuesta } = comprobarPorBloques(regImport.preguntas || {}, regImport.mapping, bloquesCriterios(ev?.posicionKey));
+    const { porColumna, propuesta } = comprobarPorBloques(regImport.preguntas || {}, regImport.mapping, bloquesCriterios(regImport.posicionKey || ev?.posicionKey));
     Object.entries(porColumna).forEach(([h, e]) => { if (e.estado === 'aviso') regImport.mapping[h] = e.sugerido; });
     // Una columna sin criterio claro que se quede con uno ya colocado en otra → se ignora (no se duplica).
     const tomados = new Set(Object.values(propuesta));
@@ -1044,7 +1063,7 @@ function renderRegistroSub(container) {
     try {
       for (const fila of [...r.nuevos]) {
         await crearRegistro({
-          evaluacionId: ev.id, temporada: ev.temporada, posicionKey: ev.posicionKey, tipo: ev.tipo || null,
+          evaluacionId: ev.id, temporada: ev.temporada, posicionKey: regImport.posicionKey || ev.posicionKey, tipo: ev.tipo || null,
           jugadorId: fila.jugadorId, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
           puntuaciones: fila.puntuaciones, puntuacionesId: fila.puntuacionesId || {}, textos: fila.textos || {}, rp: fila.rp || {}, extras: fila.extras || {}, fechaRegistro: fila.fechaRegistro || null, rowKey: fila.rowKey, origen: 'csv',
         });
@@ -1517,9 +1536,11 @@ function renderComparativasSub(container) {
         if (compFiltros.generacion && String(calcAgeAndYear(jugador.birthDate).year) !== compFiltros.generacion) return false;
         return true;
       });
-      const posicionParaMedias = compFiltros.posicionKey || ev.posicionKey;
-      const map = buildAspectoPorCompetencia(state, posicionParaMedias);
-      const mediasPorJugador = calcularMediasPorJugador(registrosFiltrados, map);
+      // Cada registro con el esquema de SU posición (una evaluación puede tener todas las posiciones).
+      const porPos = {};
+      registrosFiltrados.forEach(r => { const pk = r.posicionKey || compFiltros.posicionKey || ev?.posicionKey; (porPos[pk] = porPos[pk] || []).push(r); });
+      const mediasPorJugador = {};
+      Object.entries(porPos).forEach(([pk, regs]) => Object.assign(mediasPorJugador, calcularMediasPorJugador(regs, buildAspectoPorCompetencia(state, pk))));
       compResultado = {
         mediasPorJugador,
         grupoMedia: calcularMediaGrupo(mediasPorJugador),
