@@ -5460,7 +5460,6 @@ async function renderPlantillaPresentacion(container) {
               </select>
               <label class="text-xs" title="La portada de cada posición lleva las notas del campograma. Desmarcada: portada solo con fotos y nombres."><input type="checkbox" id="pl-notas-portada" ${plNotasPortada() ? 'checked' : ''} /> Notas en las portadas</label>
               <label class="text-xs"><input type="checkbox" id="pl-ver-obs" ${plVerObs() ? 'checked' : ''} /> Ver observaciones</label>
-              <label class="text-xs"><input type="checkbox" id="pl-inc-pend" /> Incluir páginas "por definir" en el PDF</label>
             </div>
           </div>
         </div>
@@ -5829,11 +5828,10 @@ async function renderPlantillaPresentacion(container) {
   });
   lista.tabIndex = -1;
   pdfBtn.addEventListener('click', async () => {
-    const incluirPend = container.querySelector('#pl-inc-pend').checked;
     const evsEq = [...new Map(preps.filter(x => x.prep.evSel?.ev).map(x => [x.prep.evSel.eid, x.prep.evSel.ev])).values()];
     const pieEq = evsEq.length === 1 ? pieEvaluacion(evsEq[0]) : (evsEq.length ? `Evaluaciones: ${evsEq.map(e => [e.temporada, e.nombre].filter(Boolean).join(' · ')).join(' / ')}` : '');
     lista.querySelectorAll('.pl-frame').forEach(f => { f.dataset.pie = pieEq; });
-    const els = [...lista.querySelectorAll('.pl-slide, .p1-detalle, .ficha-detalle')].filter(el => incluirPend || !el.closest('.pl-pendiente'));
+    const els = [...lista.querySelectorAll('.pl-slide, .p1-detalle, .ficha-detalle')].filter(el => !el.closest('.pl-pendiente')); // páginas "por definir": nunca en el PDF
     if (!els.length) return;
     pdfBtn.disabled = true; pdfBtn.textContent = 'Generando PDF…';
     try { await exportFichasAsPDF(els, `${plVista.teamKey}-${String(temporada).replace(/\//g, '-')}.pdf`); }
