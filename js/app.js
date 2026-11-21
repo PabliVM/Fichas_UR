@@ -2004,10 +2004,12 @@ function buildJugadorFormHTML(player) {
           <img id="jug-foto-preview" src="${p.fotoUrl || ''}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;background:var(--bg-hover);display:${p.fotoUrl ? 'block' : 'none'};" />
           <div class="field-group">
             <label class="label">Foto</label>
-            <input class="input" type="file" id="jug-foto" accept="image/*" />
-            <div class="flex gap-8" style="align-items:center;margin-top:6px;flex-wrap:wrap;">
-              <button class="btn btn-sm" type="button" id="jug-foto-pegar" title="Pega la imagen que hayas copiado (también vale Ctrl+V)">📋 Pegar foto copiada</button>
-              <span class="text-xs text-muted">o copia una imagen y pulsa Ctrl+V</span>
+            <div class="flex gap-8" style="align-items:center;flex-wrap:wrap;">
+              <span style="display:inline-flex;">
+                <label class="btn btn-sm" style="cursor:pointer;border-top-right-radius:0;border-bottom-right-radius:0;" title="Elegir una imagen del ordenador">📁 Elegir foto<input type="file" id="jug-foto" accept="image/*" hidden /></label>
+                <button class="btn btn-sm" type="button" id="jug-foto-pegar" style="border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;" title="Pega la imagen que hayas copiado (también vale Ctrl+V)">📋 Pegar</button>
+              </span>
+              <span class="text-xs text-muted" id="jug-foto-nombre">o copia una imagen y pulsa Ctrl+V</span>
             </div>
           </div>
           <div id="jug-crop" style="display:none;">
@@ -2611,7 +2613,7 @@ function buildJugImportHTML() {
   if (!jugImport.filas) {
     return `
     <div class="card mb-16">
-      <div class="card-title">📥 Cargar datos de jugadores</div>
+      <div class="card-title" style="display:flex;align-items:center;gap:10px;"><button class="btn btn-sm btn-ghost" type="button" data-jimp-volver>← Volver</button>📥 Cargar datos de jugadores</div>
       <div class="card-body">
         <p class="text-sm mb-16">Un solo Excel con todos los datos del jugador (personales, años en el club y condicionales). Al subirlo: <b>jugador nuevo</b> → se crea; <b>celda con dato</b> → se guarda o, si es distinto, se actualiza; <b>celda vacía</b> → no se toca lo que ya tiene.</p>
         ${evs.length ? `<div class="field-group mb-16" style="max-width:420px;"><label class="label">1 · Evaluación de los datos condicionales</label>
@@ -2693,7 +2695,7 @@ function buildJugImportHTML() {
   };
   return `
     <div class="card mb-16">
-      <div class="card-title">Importar jugadores (${filas.length} en el archivo)</div>
+      <div class="card-title" style="display:flex;align-items:center;gap:10px;"><button class="btn btn-sm btn-ghost" type="button" data-jimp-volver>← Volver</button>Importar jugadores (${filas.length} en el archivo)</div>
       <div class="card-body">
         <p class="text-xs text-muted mb-8"><strong>Columnas reconocidas:</strong> ${reconocidas}${ignoradas ? `<br><strong>Ignoradas:</strong> ${ignoradas}` : ''}</p>${condHTML}
         <p class="text-xs text-muted mb-8">Se aplican los marcados: los <b>nuevos</b> se crean; en los que <b>ya existen</b>, cada celda con dato se guarda y, si es distinto al que tenían, <b>se actualiza</b> (queda en el histórico). Las <b>celdas vacías no borran nada</b>. Las fotos se suben desde el listado.</p>
@@ -2847,7 +2849,7 @@ function renderPanelJugadores(container) {
     if (fichaPlayer) { renderFichaJugador(container, fichaPlayer); return; }
     jugFichaId = null; // el jugador ya no existe
   }
-  const soloForm = !!(jugFichaId && jugadorFormId); // editando desde la ficha: se oculta la lista
+  const soloForm = !!(jugadorFormId || jugImport || condImport); // añadiendo, editando o cargando: solo se ve eso (← Volver para salir)
 
   const jugadoresFiltrados = jugadoresListado();
   const rows = jugadoresFiltrados.map(p => {
@@ -2900,8 +2902,13 @@ function renderPanelJugadores(container) {
       <div class="card-title">Jugadores (${jugadoresFiltrados.length}${jugadoresFiltrados.length !== state.players.length ? ` de ${state.players.length}` : ''})</div>
       <div class="card-body">
         ${jugadorFormId ? '' : `<div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
-          <button class="btn btn-primary" id="jug-add">+ Añadir jugador</button>
-          <button class="btn" id="jug-import" title="Descargar / subir un Excel (o pegar texto) con todos los datos de los jugadores">📥 Cargar datos (Excel / texto)</button>
+          <details class="jug-mas" style="position:relative;">
+            <summary class="btn btn-primary" style="cursor:pointer;">+ Añadir ▾</summary>
+            <div class="card" style="position:absolute;left:0;top:calc(100% + 4px);z-index:30;margin:0;padding:6px;min-width:280px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(15,23,42,.18);">
+              <button class="btn btn-ghost" id="jug-add" style="justify-content:flex-start;text-align:left;flex-direction:column;align-items:flex-start;"><b>Un jugador</b><span class="text-xs text-muted">Rellenar su ficha a mano</span></button>
+              <button class="btn btn-ghost" id="jug-import" style="justify-content:flex-start;text-align:left;flex-direction:column;align-items:flex-start;"><b>Varios / actualizar datos</b><span class="text-xs text-muted">Excel, texto pegado o foto</span></button>
+            </div>
+          </details>
         </div>`}
         <div style="overflow-x:auto;">
           <style>
@@ -2947,7 +2954,7 @@ function renderPanelJugadores(container) {
     const r = d.querySelector('summary').getBoundingClientRect(), menu = d.querySelector('.card');
     menu.style.position = 'fixed';
     menu.style.right = 'auto';
-    menu.style.left = Math.max(8, r.right - 170) + 'px';
+    menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - (menu.offsetWidth || 170) - 8)) + 'px';
     const alto = menu.offsetHeight || 120;
     menu.style.top = (r.bottom + 4 + alto > window.innerHeight ? r.top - alto - 4 : r.bottom + 4) + 'px';
   }));
@@ -2987,6 +2994,7 @@ function renderPanelJugadores(container) {
   container.querySelector('#jug-foto')?.addEventListener('change', e => {
     const f = e.target.files[0];
     if (!f) { crop = null; container.querySelector('#jug-crop').style.display = 'none'; return; }
+    const nom = container.querySelector('#jug-foto-nombre'); if (nom) nom.textContent = '✓ ' + f.name + ' — ajústala en el círculo';
     const url = URL.createObjectURL(f);
     const img = new Image();
     img.onload = () => {
@@ -3291,6 +3299,7 @@ function renderPanelJugadores(container) {
     renderPanelJugadores(container);
   });
   container.querySelector('#jimp-cancel')?.addEventListener('click', () => { jugImport = null; renderPanelJugadores(container); });
+  container.querySelectorAll('[data-jimp-volver]').forEach(b => b.addEventListener('click', () => { jugImport = null; renderPanelJugadores(container); }));
   container.querySelector('#jimp-crear')?.addEventListener('click', async e => {
     const btn = e.currentTarget;
     const aCrear = jugImport.filas.filter(f => f.crear);
