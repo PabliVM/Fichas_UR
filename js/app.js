@@ -4628,7 +4628,8 @@ function equiposDeJugador(jugador, temporada) {
 }
 
 let plVista = { modo: 'grid', teamKey: null };
-const plCardDatos = new Set();   // equipos que muestran la pestaña Datos en su tarjeta
+const plCardDatos = new Set();
+let plOpcionesAbiertas = false;  // presentación: panel ⚙ Opciones desplegado   // equipos que muestran la pestaña Datos en su tarjeta
 let plAddCierreGlobal = false;   // listener único para cerrar los "+ Añadir"
 let plIrJugador = null; // jugador al que saltar al abrir la presentación (clic en su nombre)
 let plRefModo = 'team';   // comparación de las medias en la Presentación: 'team' (precargado) | 'teampos' | 'none'  // 'grid' | 'datos' | 'pres'
@@ -5416,29 +5417,52 @@ async function renderPlantillaPresentacion(container) {
   const c = state.fichaColors || { slate: '#24313d', wine: '#7f3a52' };
   container.innerHTML = `
     ${firebaseNotice()}
-    <div class="pl-barra flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
-      <button class="btn btn-ghost" id="pl-volver">← Equipos</button>
-      <b>${safeText(t?.label || '')} · ${safeText(temporada)} · ${jugs.length} jugadores</b>
-      <label class="btn btn-sm" style="cursor:pointer;" title="Se usa en todos los equipos de la temporada salvo los que tengan una propia">Foto portada (todos los equipos)<input type="file" accept="image/*" id="pl-foto-portada" hidden /></label>
-      <label class="btn btn-sm" style="cursor:pointer;" title="Solo para este equipo">Foto portada (solo este equipo)<input type="file" accept="image/*" id="pl-foto-portada-eq" hidden /></label>
-      <button class="btn btn-sm btn-ghost" id="pl-foto-portada-quitar" ${docP().fotoPortada ? '' : 'style="display:none;"'}>↺ Usar la general</button>
-      <label class="btn btn-sm" style="cursor:pointer;">Foto equipo<input type="file" accept="image/*" id="pl-foto-equipo" hidden /></label>
-      <label class="text-xs text-muted" for="pl-ref">Comparar medias con</label>
-      <select class="select" id="pl-ref" style="max-width:260px;">
-        <option value="team" ${plRefModo === 'team' ? 'selected' : ''}>Equipo (toda la plantilla)</option>
-        <option value="teampos" ${plRefModo === 'teampos' ? 'selected' : ''}>Equipo · misma posición</option>
-        <option value="none" ${plRefModo === 'none' ? 'selected' : ''}>Sin comparar</option>
-      </select>
-      <label class="text-xs"><input type="checkbox" id="pl-inc-pend" /> Incluir páginas "por definir" en el PDF</label>
-      <label class="text-xs btn-print-ficha" title="La portada de cada posición lleva las notas del campograma. Desmarcada: portada solo con fotos y nombres."><input type="checkbox" id="pl-notas-portada" ${plNotasPortada() ? 'checked' : ''} /> Notas en las portadas</label>
-      <label class="text-xs btn-print-ficha"><input type="checkbox" id="pl-ver-obs" ${plVerObs() ? 'checked' : ''} /> Ver observaciones</label>
-      <button class="btn btn-primary btn-print-ficha" id="pl-pres-pdf" disabled>⬇ PDF del equipo</button>
-      <button class="btn btn-print-ficha" id="pl-pres-full" title="Pantalla completa: flechas del teclado para pasar de diapositiva, Esc para salir">▶ Presentar</button>
-      <span class="btn-print-ficha" id="pl-saltos" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;"></span>
-      <span class="text-xs text-muted" id="pl-pres-estado">Cargando fichas…</span>
+    <div class="pl-barra mb-16" style="display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:0 0 10px 10px;">
+      <div class="flex gap-8" style="align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-ghost btn-sm" id="pl-volver">← Equipos</button>
+        <b style="font-size:16px;">${safeText(t?.label || '')}</b>
+        <span class="text-sm text-muted">${safeText(temporada)} · ${jugs.length} jugadores</span>
+        <span style="flex:1;"></span>
+        <span class="text-xs text-muted" id="pl-pres-estado">Cargando fichas…</span>
+        <button class="btn btn-print-ficha" id="pl-pres-full" title="Pantalla completa: flechas del teclado para pasar de diapositiva, Esc para salir">▶ Presentar</button>
+        <button class="btn btn-primary btn-print-ficha" id="pl-pres-pdf" disabled>⬇ PDF del equipo</button>
+      </div>
+      <div class="flex gap-8 btn-print-ficha" style="align-items:center;flex-wrap:wrap;">
+        <span class="text-xs text-muted" style="font-weight:700;letter-spacing:.5px;">IR A</span>
+        <span id="pl-saltos" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;"></span>
+      </div>
+      <details class="btn-print-ficha" id="pl-opciones" ${plOpcionesAbiertas ? 'open' : ''}>
+        <summary class="text-xs" style="cursor:pointer;font-weight:700;color:var(--text-muted);letter-spacing:.5px;">⚙ OPCIONES · fotos y contenido</summary>
+        <div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:8px;">
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <span class="text-xs text-muted" style="font-weight:700;">Fotos</span>
+            <div class="flex gap-8" style="flex-wrap:wrap;align-items:center;">
+              <label class="btn btn-sm" style="cursor:pointer;" title="Se usa en todos los equipos de la temporada salvo los que tengan una propia">Portada (todos los equipos)<input type="file" accept="image/*" id="pl-foto-portada" hidden /></label>
+              <label class="btn btn-sm" style="cursor:pointer;" title="Solo para este equipo">Portada (solo este equipo)<input type="file" accept="image/*" id="pl-foto-portada-eq" hidden /></label>
+              <button class="btn btn-sm btn-ghost" id="pl-foto-portada-quitar" ${docP().fotoPortada ? '' : 'style="display:none;"'}>↺ Usar la general</button>
+              <label class="btn btn-sm" style="cursor:pointer;">Foto del equipo<input type="file" accept="image/*" id="pl-foto-equipo" hidden /></label>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <span class="text-xs text-muted" style="font-weight:700;">Contenido</span>
+            <div class="flex gap-8" style="flex-wrap:wrap;align-items:center;">
+              <label class="text-xs text-muted" for="pl-ref">Comparar medias con</label>
+              <select class="select" id="pl-ref" style="max-width:240px;">
+                <option value="team" ${plRefModo === 'team' ? 'selected' : ''}>Equipo (toda la plantilla)</option>
+                <option value="teampos" ${plRefModo === 'teampos' ? 'selected' : ''}>Equipo · misma posición</option>
+                <option value="none" ${plRefModo === 'none' ? 'selected' : ''}>Sin comparar</option>
+              </select>
+              <label class="text-xs" title="La portada de cada posición lleva las notas del campograma. Desmarcada: portada solo con fotos y nombres."><input type="checkbox" id="pl-notas-portada" ${plNotasPortada() ? 'checked' : ''} /> Notas en las portadas</label>
+              <label class="text-xs"><input type="checkbox" id="pl-ver-obs" ${plVerObs() ? 'checked' : ''} /> Ver observaciones</label>
+              <label class="text-xs"><input type="checkbox" id="pl-inc-pend" /> Incluir páginas "por definir" en el PDF</label>
+            </div>
+          </div>
+        </div>
+      </details>
     </div>
     <div id="pl-pres-lista"></div>`;
   container.querySelector('#pl-volver').addEventListener('click', () => { plVista = { modo: 'grid', teamKey: null }; renderPanelPlantillas(container); });
+  container.querySelector('#pl-opciones').addEventListener('toggle', e => { plOpcionesAbiertas = e.target.open; });
   container.querySelector('#pl-ref').addEventListener('change', e => { plRefModo = e.target.value; renderPlantillaPresentacion(container); });
   container.querySelector('#pl-notas-portada').addEventListener('change', e => { try { localStorage.setItem('rm-pl-notas-portada', e.target.checked ? '1' : '0'); } catch {} renderPlantillaPresentacion(container); });
   const lista = container.querySelector('#pl-pres-lista');
