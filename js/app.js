@@ -462,6 +462,78 @@ function buildEvaluacionesListHTML() {
   }).join('')}</div>`;
 }
 
+/** Evaluaciones del mismo periodo (mismo nombre y temporada) que antes se creaban una por posición. */
+function gruposEvaluacionesRepetidas() {
+  const g = {};
+  (regEvaluaciones || []).forEach(e => { const k = `${normalizeTxt(e.nombre).trim()}|${e.temporada || ''}`; (g[k] = g[k] || []).push(e); });
+  return Object.values(g).filter(arr => arr.length > 1);
+}
+function buildUnirEvaluacionesHTML() {
+  const grupos = gruposEvaluacionesRepetidas();
+  if (!grupos.length) return '';
+  const pos = k => state.positions.find(p => p.key === k)?.label || k || 'sin posición';
+  return `<div class="card mb-16" style="border:2px solid #f59e0b;"><div class="card-body">
+    <div class="flex gap-8" style="align-items:center;flex-wrap:wrap;">
+      <div style="flex:1 1 320px;">
+        <b>🔗 Evaluaciones del mismo periodo separadas por posición</b>
+        <div class="text-xs text-muted" style="margin-top:4px;">${grupos.map(gr => `<div>· <b>${safeText(gr[0].nombre)}</b> (${safeText(gr[0].temporada)}): ${gr.map(e => safeText(pos(e.posicionKey))).join(', ')}</div>`).join('')}</div>
+        <div class="text-xs text-muted" style="margin-top:4px;">Al unirlas queda una sola evaluación por periodo con todas las posiciones. Se mueven sus registros y lo guardado en las fichas (textos, descripción, plan, condicionales, notas a mano). Antes se descarga una copia de seguridad.</div>
+      </div>
+      <button class="btn btn-primary" id="reg-unir">Unir evaluaciones</button>
+      <span class="text-xs text-muted" id="reg-unir-estado"></span>
+    </div>
+  </div></div>`;
+}
+/** Junta cada grupo en una evaluación (la más antigua). Mueve registros y los mapas por evaluación de cada jugador. */
+async function unirEvaluaciones(estado) {
+  const grupos = gruposEvaluacionesRepetidas();
+  // 1. Copia de seguridad (evaluaciones, registros y jugadores) que se descarga antes de tocar nada
+  estado('Haciendo copia de seguridad…');
+  const copia = { tipo: 'antes-de-unir-evaluaciones', creada: new Date().toISOString(),
+    evaluaciones: await readCollection('evaluaciones'), registros: await readCollection('registros'), jugadores: await readCollection('jugadores') };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(copia)], { type: 'application/json' }));
+  a.download = `copia-antes-de-unir-evaluaciones-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  const CAMPOS = ['condicionalPorEval', 'condicionalMaxPorEval', 'condicionalBasePorEval', 'fichaNotasManuales', 'fichaTextos'];
+  let movidos = 0;
+  for (const gr of grupos) {
+    const orden = [...gr].sort((x, y) => (x.createdAt?.seconds || 0) - (y.createdAt?.seconds || 0));
+    const master = orden[0], otras = orden.slice(1);
+    // Los registros de la principal guardan su posición antes de que la evaluación deje de tenerla
+    if (master.posicionKey) {
+      for (const r of (await queryRegistros({ evaluacionId: master.id })).filter(r => !r.posicionKey)) await actualizarRegistro(r.id, { posicionKey: master.posicionKey });
+    }
+    for (const ot of otras) {
+      estado(`Uniendo ${master.nombre}: ${state.positions.find(p => p.key === ot.posicionKey)?.label || ''}…`);
+      for (const r of await queryRegistros({ evaluacionId: ot.id })) {
+        await actualizarRegistro(r.id, { evaluacionId: master.id, temporada: master.temporada, posicionKey: r.posicionKey || ot.posicionKey || null,
+          rowKey: buildRowKey({ evaluacionId: master.id, jugadorId: r.jugadorId, jugadorNombreArchivo: r.jugadorNombreArchivo, evaluador: r.evaluador }) });
+        movidos++;
+      }
+      for (const j of state.players) {
+        for (const campo of CAMPOS) {
+          const val = j[campo]?.[ot.id];
+          if (val == null) continue;
+          const yaHay = j[campo]?.[master.id];
+          const nuevo = yaHay && typeof yaHay === 'object' && typeof val === 'object' ? { ...val, ...yaHay } : (yaHay ?? val);
+          await updateMapEntry('jugadores', j.id, campo, master.id, nuevo);
+          await updateMapEntry('jugadores', j.id, campo, ot.id, null);
+          const mapa = { ...(j[campo] || {}), [master.id]: nuevo }; delete mapa[ot.id];
+          j[campo] = mapa;
+        }
+      }
+      await eliminarEvaluacion(ot.id);
+    }
+    const fechas = gr.map(e => e.fechaInicio).filter(Boolean).sort(), fines = gr.map(e => e.fechaFin).filter(Boolean).sort();
+    const patch = { posicionKey: null, fechaInicio: fechas[0] || master.fechaInicio || null, fechaFin: fines[fines.length - 1] || master.fechaFin || null };
+    await actualizarEvaluacion(master.id, patch);
+    regEvaluaciones = regEvaluaciones.filter(e => !otras.some(o => o.id === e.id)).map(e => e.id === master.id ? { ...e, ...patch } : e);
+  }
+  setState({ players: [...state.players] });
+  return { grupos: grupos.length, movidos };
+}
+
 /** Registros cuya evaluación se borró: verlos, editarlos, borrarlos o pasarlos a otra evaluación de su posición. */
 function buildHuerfanosHTML() {
   if (!regEvaluaciones) return '';
@@ -772,10 +844,27 @@ function renderRegistroSub(container) {
       ${regEvalFormOpen ? '' : '<button class="btn btn-primary" id="reg-nueva-ev">+ Nueva evaluación</button>'}
     </div>
     ${regEvalFormOpen ? `<div class="mb-16">${buildEvaluacionFormHTML()}</div>` : ''}
+    ${buildUnirEvaluacionesHTML()}
     ${buildEvaluacionesListHTML()}
     ${buildHuerfanosHTML()}
   `;
 
+  container.querySelector('#reg-unir')?.addEventListener('click', async e => {
+    if (isFirebaseUnconfigured()) { showError('Configura Firebase para unir evaluaciones.'); return; }
+    const grupos = gruposEvaluacionesRepetidas();
+    if (!confirm(`Se van a unir ${grupos.reduce((n, g) => n + g.length, 0)} evaluaciones en ${grupos.length}.\n\nAntes se descargará una copia de seguridad. ¿Seguimos?`)) return;
+    const btn = e.currentTarget, est = container.querySelector('#reg-unir-estado');
+    btn.disabled = true;
+    try {
+      const r = await unirEvaluaciones(t => { if (est) est.textContent = t; });
+      regVer = null; regEvalSel = null; resetRegImport(); regHuerfanos = null;
+      showSuccess(`Hecho: ${r.grupos} evaluación(es) unidas, ${r.movidos} registros movidos.`, 8000);
+    } catch (err) {
+      console.error('[Unir evaluaciones]', err);
+      showError('Se paró a medias: ' + (err.message || err) + '. Lo hecho se queda; vuelve a pulsar para terminar (tienes la copia descargada).', 12000);
+    }
+    renderRegistroSub(container);
+  });
   container.querySelectorAll('[data-ev-ver]').forEach(btn => btn.addEventListener('click', async () => {
     const evId = btn.dataset.evVer;
     if (regVer?.evId === evId) { regVer = null; renderRegistroSub(container); return; }
