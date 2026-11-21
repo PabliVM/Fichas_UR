@@ -1567,6 +1567,9 @@ let jugImport = null; // alta masiva desde Excel/CSV: { columnas, filas:[{data, 
 let condImport = null; // carga de datos condicionales: { evalId, columnas?, filas?:[{nombre, media, max, avisos, playerId}] }
 let configCriteriaPosition = null;      // qué posición se está editando en "Items a evaluar"
 let fichaTipoPosition = null;           // qué posición se está viendo en Configuración → Fichas tipo → Individual
+// Menú lateral de Configuración: grupos plegados y menú oculto (se recuerdan).
+let cfgGruposCerrados = (() => { try { return JSON.parse(localStorage.getItem('rm-cfg-cerrados') || '[]'); } catch (_) { return []; } })();
+let cfgMenuOculto = (() => { try { return localStorage.getItem('rm-cfg-menu-oculto') === '1'; } catch (_) { return false; } })();
 let configSubTab = localStorage.getItem('rm-config-subtab') || 'posiciones'; // pestaña interna activa dentro de Configuración — persiste al refrescar
 
 const CONFIG_GROUPS = [
@@ -3780,12 +3783,16 @@ function renderPanelConfig(container) {
     container.innerHTML = `
     ${firebaseNotice()}
     <div class="cfg-layout" style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;">
-    <nav class="card cfg-side" style="flex:1 1 220px;max-width:270px;margin:0;padding:12px 10px;position:sticky;top:8px;">
-      ${gruposVis.map(g => `
-        <div class="text-xs" style="font-weight:700;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;padding:10px 10px 4px;">${g.label}</div>
-        ${g.tabs.map(t => `<button class="btn btn-ghost" data-config-subtab="${t.key}" style="display:block;width:100%;text-align:left;justify-content:flex-start;padding:7px 10px;margin:1px 0;border-radius:8px;${t.key === configSubTab ? 'background:var(--blue-50, #eff6ff);color:var(--blue-600, #1d4ed8);font-weight:700;' : 'font-weight:500;'}">${t.label}</button>`).join('')}
-      `).join('')}
-    </nav>
+    ${cfgMenuOculto ? `<button class="btn btn-sm" id="cfg-mostrar" title="Mostrar el menú de Configuración" style="position:sticky;top:8px;">☰ Menú</button>` : `
+    <nav class="card cfg-side" style="flex:1 1 220px;max-width:270px;margin:0;padding:8px 10px 12px;position:sticky;top:8px;">
+      <div style="display:flex;justify-content:flex-end;"><button class="btn btn-sm btn-ghost" id="cfg-ocultar" title="Ocultar el menú (más sitio para la ficha)" style="padding:2px 8px;">« Ocultar</button></div>
+      ${gruposVis.map(g => {
+        const cerrado = cfgGruposCerrados.includes(g.label), dentro = g.tabs.some(t => t.key === configSubTab);
+        return `
+        <button class="btn btn-ghost text-xs" data-cfg-grupo="${safeText(g.label)}" aria-expanded="${!cerrado}" style="display:flex;width:100%;justify-content:space-between;align-items:center;font-weight:700;color:${cerrado && dentro ? 'var(--blue-600, #1d4ed8)' : 'var(--text-muted)'};letter-spacing:1px;text-transform:uppercase;padding:10px 10px 4px;">${g.label}<span aria-hidden="true">${cerrado ? '▸' : '▾'}</span></button>
+        ${cerrado ? '' : g.tabs.map(t => `<button class="btn btn-ghost" data-config-subtab="${t.key}" style="display:block;width:100%;text-align:left;justify-content:flex-start;padding:7px 10px;margin:1px 0;border-radius:8px;${t.key === configSubTab ? 'background:var(--blue-50, #eff6ff);color:var(--blue-600, #1d4ed8);font-weight:700;' : 'font-weight:500;'}">${t.label}</button>`).join('')}`;
+      }).join('')}
+    </nav>`}
     <div class="cfg-main" style="flex:999 1 560px;min-width:0;">
 
     ${configSubTab !== 'posiciones' ? '' : `
@@ -4145,6 +4152,19 @@ function renderPanelConfig(container) {
       renderPanelConfig(container);
     });
   });
+  container.querySelectorAll('[data-cfg-grupo]').forEach(btn => btn.addEventListener('click', () => {
+    const g = btn.dataset.cfgGrupo;
+    cfgGruposCerrados = cfgGruposCerrados.includes(g) ? cfgGruposCerrados.filter(x => x !== g) : [...cfgGruposCerrados, g];
+    try { localStorage.setItem('rm-cfg-cerrados', JSON.stringify(cfgGruposCerrados)); } catch (_) { /* ignorar */ }
+    renderPanelConfig(container);
+  }));
+  const menuCfg = oculto => () => {
+    cfgMenuOculto = oculto;
+    try { localStorage.setItem('rm-cfg-menu-oculto', oculto ? '1' : '0'); } catch (_) { /* ignorar */ }
+    renderPanelConfig(container);
+  };
+  container.querySelector('#cfg-ocultar')?.addEventListener('click', menuCfg(true));
+  container.querySelector('#cfg-mostrar')?.addEventListener('click', menuCfg(false));
   container.querySelectorAll('[data-config-subtab]').forEach(btn => {
     btn.addEventListener('click', () => {
       configSubTab = btn.dataset.configSubtab;
