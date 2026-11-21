@@ -1594,12 +1594,9 @@ const CONFIG_GROUPS = [
     tabs: [
       { key: 'fichas-individual', label: 'Ficha individual' },
       { key: 'fichas-espejo',     label: 'Fichas espejo' },
-      { key: 'fichas-campograma', label: 'Campograma' },
-      { key: 'fichas-mapa-nivel', label: 'Mapa de nivel' },
       { key: 'ficha-colores',     label: 'Colores de la ficha' },
       { key: 'colores',           label: 'Rango de colores' },
       { key: 'ficha-matriz',      label: 'Matriz' },
-      { key: 'dimensiones',       label: 'Dimensiones' },
     ],
   },
   {
@@ -3799,6 +3796,7 @@ function renderPanelConfig(container) {
     fichaTipoPosition = state.positions[0].key;
   }
 
+  if (!CONFIG_GROUPS.some(g => g.tabs.some(t => t.key === configSubTab))) configSubTab = 'posiciones'; // pantalla quitada del menú
   configSubTab = subVisible('config', configSubTab);
   const gruposVis = CONFIG_GROUPS.map(g => ({ ...g, tabs: g.tabs.filter(t => puedeVer(`config.${t.key}`)) })).filter(g => g.tabs.length);
     container.innerHTML = `
