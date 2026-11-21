@@ -122,7 +122,7 @@ export const PROFILES = [
 export const TABS = [
   { key: 'jugadores',  label: 'Jugadores'         },
   { key: 'plantillas', label: 'Equipos'           },
-  { key: 'sucesion',   label: 'Líneas de sucesión' }, // pestaña reservada — contenido pendiente de definir
   { key: 'registro',   label: 'Evaluaciones'      },
+  { key: 'sucesion',   label: 'Líneas de sucesión' }, // pestaña reservada — contenido pendiente de definir
   { key: 'config',     label: 'Configuración'     },
 ];
