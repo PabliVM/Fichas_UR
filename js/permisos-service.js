@@ -58,6 +58,7 @@ export const SUBPANTALLAS = {
     { key: 'items', label: 'Encuesta y criterios › Aspectos' },
     { key: 'colores', label: 'Fichas › Rango de colores' },
     { key: 'condicional-refs', label: 'Encuesta y criterios › Datos condicionales' },
+    { key: 'evaluadores', label: 'Encuesta y criterios › Evaluadores' },
     { key: 'fichas-individual', label: 'Fichas › Ficha individual' },
     { key: 'columnas-encuesta', label: 'Encuesta y criterios › Columnas de la encuesta' },
     { key: 'fichas-espejo', label: 'Fichas › Fichas espejo' },
