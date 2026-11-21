@@ -5016,7 +5016,7 @@ function injectPlantillaStyles() {
     .pl-frame{position:relative;width:100%;aspect-ratio:${PL_W}/${PL_H};overflow:hidden;margin-bottom:16px;border-radius:6px;}
     .pl-slide{position:absolute;left:0;top:0;width:${PL_W}px;height:${PL_H}px;transform-origin:top left;overflow:hidden;font-family:'Segoe UI Black','Arial Black',system-ui,sans-serif;color:#fff;}
     .pl-slide .pl-crest{position:absolute;width:150px;height:150px;object-fit:contain;border-radius:28px;}
-    .pl-t{font-weight:900;text-transform:uppercase;letter-spacing:-0.01em;line-height:1;margin:0;}
+    .pl-t{font-weight:900;text-transform:uppercase;letter-spacing:-0.01em;line-height:1;margin:0;overflow-wrap:normal;word-break:normal;hyphens:none;}
     .pl-t-xl{font-size:165px;font-style:italic;}
     .pl-t-l{font-size:96px;}
     .pl-t-m{font-size:66px;}
@@ -5220,6 +5220,12 @@ function ajustarSlides(root) {
     fr.style.width = `${maxW}px`;
     fr.style.margin = '0 auto 16px';
     sl.style.transform = `scale(${maxW / PL_W})`;
+    // Títulos grandes: si una palabra no cabe en su caja, se reduce la letra (nunca se parte la palabra).
+    sl.querySelectorAll('.pl-t-xl, .pl-t-l').forEach(el => {
+      el.style.fontSize = '';
+      let size = parseFloat(getComputedStyle(el).fontSize);
+      while (el.scrollWidth > el.clientWidth + 1 && size > 48) { size -= 4; el.style.fontSize = size + 'px'; }
+    });
   });
 }
 // Reduce la foto elegida a ≤1400 px y JPEG 0.8 (~150 KB) para guardarla en el doc de la plantilla.
