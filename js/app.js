@@ -2562,7 +2562,7 @@ function renderFichaJugador(container, p) {
         <button class="btn btn-primary btn-print-ficha" id="jug-fichas-pdf">⬇ PDF Ficha 1 + 2</button>
         <button class="btn btn-sm btn-print-ficha" id="jug-ficha1-pdf">⬇ Solo Ficha 1</button>
         <button class="btn btn-sm" id="jug-desc-ia" title="La IA escribe una propuesta con sus notas y los comentarios de los evaluadores. Revísala y pulsa Guardar textos.">✨ Proponer descripción</button>
-        <button class="btn btn-sm" id="jug-textos-guardar">Guardar textos</button>
+        <button class="btn btn-sm btn-primary" id="jug-textos-guardar">💾 Guardar textos</button>
         <button class="btn btn-sm" id="jug-textos-restaurar" ${p.fichaTextos?.[textosKey] ? '' : 'disabled'}>Restaurar desde la encuesta</button>
         <span class="text-xs text-muted">Descripción y ofensivos/defensivos a potenciar y mejorar: edítalos en la ficha y pulsa Guardar textos.${textosExtra ? ` Hay ${textosExtra} respuestas más de las que caben (5 filas).` : ''}</span>
       </div>
@@ -2636,8 +2636,8 @@ function renderFichaJugador(container, p) {
   });
   const f1Jug = container.querySelector('#jug-ficha1-wrap'), f2Jug = container.querySelector('#jug-ficha2-wrap');
   container.querySelector('#jug-textos-guardar')?.addEventListener('click', e => guardarTextosFicha(p, textosKey, f1Jug, f2Jug, { btn: e.currentTarget, aviso: true }));
-  autoGuardarTextosFicha([f1Jug, f2Jug], () => guardarTextosFicha(p, textosKey, f1Jug, f2Jug, {}));
-  container.querySelector('#jug-desc-ia')?.addEventListener('click', e => proponerDescripcion(e.currentTarget, container.querySelector('#jug-ficha1-wrap .p1-desc-text'), p, evSel, aspectosTxt));
+  autoGuardarTextosFicha([f1Jug, f2Jug], () => guardarTextosFicha(p, textosKey, f1Jug, f2Jug, { pendienteBtn: container.querySelector('#jug-textos-guardar') }), container.querySelector('#jug-textos-guardar'));
+  container.querySelector('#jug-desc-ia')?.addEventListener('click', e => proponerDescripcion(e.currentTarget, container.querySelector('#jug-ficha1-wrap .p1-desc-text'), p, evSel, aspectosTxt, container.querySelector('#jug-textos-guardar')));
   container.querySelector('#jug-textos-restaurar')?.addEventListener('click', async () => {
     // Vuelven los 4 textos de la encuesta; la descripción y el plan de acción se conservan.
     const actual = p.fichaTextos?.[textosKey] || {};
@@ -5107,10 +5107,10 @@ function leerTextosFicha(f1, f2) {
   }
   return out;
 }
-async function guardarTextosFicha(jug, key, f1, f2, { btn, aviso } = {}) {
+async function guardarTextosFicha(jug, key, f1, f2, { btn, aviso, pendienteBtn } = {}) {
   if (!f1 && !f2) return;
   const nuevo = { ...(jug.fichaTextos?.[key] || {}), ...leerTextosFicha(f1, f2) };
-  if (JSON.stringify(nuevo) === JSON.stringify(jug.fichaTextos?.[key] || {})) { if (aviso) showSuccess('Sin cambios que guardar.'); return; }
+  if (JSON.stringify(nuevo) === JSON.stringify(jug.fichaTextos?.[key] || {})) { if (aviso) showSuccess('Sin cambios que guardar.'); marcarTextosPendientes(btn || pendienteBtn, false); return; }
   const txt = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
   try {
@@ -5119,14 +5119,25 @@ async function guardarTextosFicha(jug, key, f1, f2, { btn, aviso } = {}) {
     jug.fichaTextos = fichaTextos;
     setState({ players: state.players.map(x => x.id === jug.id ? { ...x, fichaTextos } : x) });
     showSuccess(aviso ? 'Textos de la ficha guardados.' : 'Guardado ✓', aviso ? undefined : 1500);
+    marcarTextosPendientes(btn || pendienteBtn, false);
   } catch (err) {
     console.error('[Firestore] No se pudieron guardar los textos:', err);
     showError('No se pudieron guardar los textos (revisa las reglas de Firestore).');
-  } finally { if (btn) { btn.disabled = false; btn.textContent = txt; } }
+    if (btn) btn.textContent = txt;
+  } finally { if (btn) btn.disabled = false; }
+}
+/** Botón «Guardar textos» en ámbar mientras haya cambios sin guardar (p. ej. una descripción propuesta por la IA). */
+function marcarTextosPendientes(btn, pendiente) {
+  if (!btn) return;
+  btn.style.background = pendiente ? '#f59e0b' : '';
+  btn.style.borderColor = pendiente ? '#d97706' : '';
+  btn.style.boxShadow = pendiente ? '0 0 0 3px rgba(245,158,11,.35)' : '';
+  btn.textContent = pendiente ? '💾 Guardar textos (sin guardar)' : '💾 Guardar textos';
 }
 /** Guarda solo al salir de un texto editado de la ficha (sin tener que pulsar «Guardar textos»). */
-function autoGuardarTextosFicha(roots, guardar) {
+function autoGuardarTextosFicha(roots, guardar, btn = null) {
   let t = null;
+  roots.filter(Boolean).forEach(r => r.addEventListener('input', e => { if (e.target.closest?.('[contenteditable="true"]')) marcarTextosPendientes(btn, true); }));
   roots.filter(Boolean).forEach(r => r.addEventListener('focusout', e => {
     if (!e.target.closest?.('[contenteditable="true"]')) return;
     clearTimeout(t); t = setTimeout(guardar, 300);
@@ -5134,7 +5145,7 @@ function autoGuardarTextosFicha(roots, guardar) {
 }
 
 /** «✨ Proponer descripción»: la IA redacta la descripción de la Ficha 1 (no se guarda sola; luego «Guardar textos»). */
-async function proponerDescripcion(btn, descEl, p, evSel, aspectosTxt) {
+async function proponerDescripcion(btn, descEl, p, evSel, aspectosTxt, btnGuardar = null) {
   if (!descEl) return;
   if (descEl.innerText.trim() && !confirm(`Ya hay una descripción de ${nombreCompleto(p)}. ¿Sustituirla por la propuesta?`)) return;
   const fPos = evSel?.posKey || p.positionKey, comp = evSel?.media?.porCompetencia || {};
@@ -5164,6 +5175,7 @@ async function proponerDescripcion(btn, descEl, p, evSel, aspectosTxt) {
     if (r.status === 503 && d.error === 'no-configurado') throw new Error('falta poner la clave ANTHROPIC_API_KEY en Vercel.');
     if (!r.ok || !d.texto) throw new Error(d.error || ('error ' + r.status));
     descEl.textContent = d.texto;
+    marcarTextosPendientes(btnGuardar, true);
     showSuccess('Descripción propuesta: revísala y pulsa «Guardar textos».', 6000);
   } catch (err) {
     showError('No se pudo proponer la descripción: ' + (err.message || err), 9000);
@@ -5943,7 +5955,7 @@ async function renderPlantillaPresentacion(container) {
           <b style="font-size:18px;">${safeText(nombreCompleto(j))}</b>
           <span class="text-xs text-muted">${safeText(prep.evSel ? `${prep.evSel.ev.temporada} · ${prep.evSel.ev.nombre}` : 'Sin evaluaciones')}</span>
           ${prep.fPos ? `<button class="btn btn-sm" data-pr-desc="${j.id}" title="La IA propone la descripción con sus notas y los comentarios de los evaluadores">✨ Proponer descripción</button>` : ''}
-          <button class="btn btn-sm" data-pr-textos="${j.id}">Guardar textos</button>
+          <button class="btn btn-sm btn-primary" data-pr-textos="${j.id}">💾 Guardar textos</button>
           <button class="btn btn-sm" data-pr-editar="${j.id}">Editar datos</button>
         </div>
         ${prep.fPos ? '<div class="ficha-wrap mb-16" data-pr-f1></div><div class="ficha-wrap" data-pr-f2></div>' : '<p class="text-xs text-muted">Sin posición ni evaluación: asigna una posición en Datos (no entra en el PDF).</p>'}`;
@@ -5954,10 +5966,10 @@ async function renderPlantillaPresentacion(container) {
       obsMontar();
       renderFichaPagina1(sec.querySelector('[data-pr-f1]'), buildFicha1RealData(prep.fPos, prep.fMedia, j, prep.aspectosTxt, prep.evSel?.eid), LOGO_PATH, state.fichaColors);
       renderFichaDetalle(sec.querySelector('[data-pr-f2]'), buildFichaRealData(prep.fPos, prep.fMedia, j, prep.evSel?.eid, refDe(j, prep)), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
-      sec.querySelector('[data-pr-desc]')?.addEventListener('click', e => proponerDescripcion(e.currentTarget, sec.querySelector('[data-pr-f1] .p1-desc-text'), j, prep.evSel, prep.aspectosTxt));
+      sec.querySelector('[data-pr-desc]')?.addEventListener('click', e => proponerDescripcion(e.currentTarget, sec.querySelector('[data-pr-f1] .p1-desc-text'), j, prep.evSel, prep.aspectosTxt, sec.querySelector('[data-pr-textos]')));
       const f1Pr = sec.querySelector('[data-pr-f1]'), f2Pr = sec.querySelector('[data-pr-f2]');
       sec.querySelector('[data-pr-textos]').addEventListener('click', e => guardarTextosFicha(j, prep.textosKey, f1Pr, f2Pr, { btn: e.currentTarget, aviso: true }));
-      autoGuardarTextosFicha([f1Pr, f2Pr], () => guardarTextosFicha(j, prep.textosKey, f1Pr, f2Pr, {}));
+      autoGuardarTextosFicha([f1Pr, f2Pr], () => guardarTextosFicha(j, prep.textosKey, f1Pr, f2Pr, { pendienteBtn: sec.querySelector('[data-pr-textos]') }), sec.querySelector('[data-pr-textos]'));
       sec.querySelector('[data-pr-editar]').addEventListener('click', () => { jugFichaId = null; jugadorFormId = j.id; switchTab('jugadores'); });
       estado.textContent = `Fichas ${++hechas}/${preps.length}…`;
       await new Promise(r => setTimeout(r, 0)); // deja respirar al navegador entre fichas
