@@ -2874,10 +2874,10 @@ function renderPanelJugadores(container) {
         <td>
           <div class="flex gap-8" style="align-items:center;justify-content:flex-end;">
           <button class="btn btn-sm btn-primary" data-jug-ficha="${p.id}">Ficha</button>
-          <button class="btn btn-sm" data-jug-edit="${p.id}">Editar</button>
           <details class="jug-mas" style="position:relative;">
             <summary class="btn btn-sm" style="list-style:none;cursor:pointer;" aria-label="Más acciones" title="Más acciones">⋯</summary>
             <div class="card" style="position:absolute;right:0;top:calc(100% + 4px);z-index:30;margin:0;padding:6px;min-width:170px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(15,23,42,.18);">
+              <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;" data-jug-edit="${p.id}">Editar</button>
               <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;" data-jug-hist="${p.id}">${jugadorHistoricoOpenId === p.id ? 'Ocultar histórico' : 'Histórico'}</button>
               <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;" data-jug-foto="${p.id}">Cambiar foto</button>
               <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;color:#b91c1c;" data-jug-del="${p.id}">Borrar</button>

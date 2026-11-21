@@ -329,3 +329,7 @@ input[type="file"].input::file-selector-button {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Safari: sin el triángulo ▶ en los desplegables con aspecto de botón (⋯, + Añadir, Más filtros) */
+summary.btn, .jug-mas > summary, .pl-add > summary { list-style: none; }
+summary.btn::-webkit-details-marker, .jug-mas > summary::-webkit-details-marker, .pl-add > summary::-webkit-details-marker { display: none; }
