@@ -5,7 +5,7 @@
 // almacenamiento local.
 // ================================================
 
-import { APP_NAME, DEFAULT_SEASON, TEAMS, TABS, PROFILES, SEASONS } from './constants.js';
+import { APP_NAME, DEFAULT_SEASON, TEAMS, TABS, PROFILES, SEASONS, SEASONS_RETIRADAS } from './constants.js';
 import { saveDocument, updateDocument, readDocument, readCollection } from './firebase-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { showError } from './utils.js';
@@ -193,7 +193,12 @@ export async function loadConfigFromFirestore() {
     if (!doc) return;
     const patch = {};
     CONFIG_KEYS.forEach(k => { if (doc[k] !== undefined) patch[k] = doc[k]; });
+    if (Array.isArray(patch.seasons)) {
+      const limpias = patch.seasons.filter(t => !SEASONS_RETIRADAS.includes(t));
+      patch.seasons = limpias.length ? limpias : [...SEASONS];
+    }
     Object.assign(_state, patch);
+    if (!_state.seasons.includes(_state.season)) _state.season = _state.seasons[0];
   } catch (err) {
     console.error('[Firestore] No se pudo cargar la configuración:', err);
     showError('No se pudo cargar la configuración guardada (revisa las reglas de Firestore o la conexión).', 6000);

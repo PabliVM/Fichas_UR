@@ -90,13 +90,11 @@ function renderPanelImportar(container) {
 
 function renderPanelSucesion(container) {
   container.innerHTML = `
-    ${puedeVer('plantillas') ? '<button class="btn btn-sm mb-16" id="suc-volver">← Equipos</button>' : ''}
     <div class="card">
       <div class="card-title">Líneas de sucesión</div>
       <div class="card-body">Pendiente de definir — pestaña reservada.</div>
     </div>
   `;
-  container.querySelector('#suc-volver')?.addEventListener('click', () => switchTab('plantillas'));
 }
 
 let registroSubTab = localStorage.getItem('rm-registro-subtab') || 'registro'; // 'registro' | 'bbdd'
@@ -4768,7 +4766,6 @@ function renderPanelPlantillas(container) {
       <label class="text-xs text-muted" for="pl-temporada">Temporada</label>
       <select class="select" id="pl-temporada" style="max-width:200px;">${state.seasons.map(t => `<option value="${safeText(t)}" ${t === plantillaTemporada ? 'selected' : ''}>${safeText(t)}</option>`).join('')}</select>
       <label class="btn btn-sm" style="cursor:pointer;" title="Una sola vez para todos los equipos de esta temporada. En cada equipo puedes cambiarla.">📷 Foto de portada (todos los equipos)<input type="file" accept="image/*" id="pl-foto-global" hidden /></label>
-      ${puedeVer('sucesion') ? '<button class="btn btn-sm" id="pl-sucesion">Líneas de sucesión</button>' : ''}
       <span class="text-xs text-muted">Un jugador puede estar en varios equipos. Los jugadores nuevos con equipo se añaden aquí solos (temporada activa).</span>
     </div>
     <div style="display:flex;flex-direction:column;gap:10px;">
@@ -4839,7 +4836,6 @@ function renderPanelPlantillas(container) {
     }
   };
   container.querySelector('#pl-temporada')?.addEventListener('change', e => { plantillaTemporada = e.target.value; renderPanelPlantillas(container); });
-  container.querySelector('#pl-sucesion')?.addEventListener('click', () => switchTab('sucesion'));
   container.querySelector('#pl-foto-global')?.addEventListener('change', async e => {
     const f = e.target.files[0]; if (!f) return;
     try { await guardarPlantilla(plantillaTemporada, '_portada', { fotoPortada: await fotoADataUrl(f) }); showSuccess('Foto de portada guardada para todos los equipos.'); }
