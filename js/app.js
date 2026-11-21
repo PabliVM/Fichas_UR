@@ -310,7 +310,7 @@ function buildFicha1RealData(positionKey, media, jugador, aspectos, evalId) {
     competenciasDefensivas: orderByTactico(schema.competenciasDefensivas).map(withStatus),
     frasesModelo: state.frasesModelo,
     simbolos: simbolosFicha1(),
-    ...(aspectos ? { aspectosOfensivos: aspectos.ofensivos, aspectosDefensivos: aspectos.defensivos } : {}),
+    ...(aspectos ? { aspectosOfensivos: aspectos.ofensivos, aspectosDefensivos: aspectos.defensivos, description: aspectos.desc || '' } : {}),
   };
 }
 
@@ -2407,6 +2407,7 @@ function renderFichaJugador(container, p) {
   const cinco = arr => { textosExtra = Math.max(textosExtra, arr.length - 5); return Array.from({ length: 5 }, (_, i) => arr[i] || ''); };
   const mediaRP = k => { const v = regsEval.map(r => r.rp?.[k]).filter(x => typeof x === 'number'); if (!v.length) return null; const m = v.reduce((x, y) => x + y, 0) / v.length; return String(Math.round(m * 10) / 10).replace('.', ','); };
   const aspectosTxt = {
+    desc: guardadosTxt?.desc || '',
     rp: { r: mediaRP('r'), p: mediaRP('p') },
     ofensivos: { potenciar: cinco(origenTxt('of_pot')), mejorar: cinco(origenTxt('of_mej')) },
     defensivos: { potenciar: cinco(origenTxt('def_pot')), mejorar: cinco(origenTxt('def_mej')) },
@@ -2449,9 +2450,10 @@ function renderFichaJugador(container, p) {
         <b>Ficha 1</b>
         <button class="btn btn-primary btn-print-ficha" id="jug-fichas-pdf">⬇ PDF Ficha 1 + 2</button>
         <button class="btn btn-sm btn-print-ficha" id="jug-ficha1-pdf">⬇ Solo Ficha 1</button>
+        <button class="btn btn-sm" id="jug-desc-ia" title="La IA escribe una propuesta con sus notas y los comentarios de los evaluadores. Revísala y pulsa Guardar textos.">✨ Proponer descripción</button>
         <button class="btn btn-sm" id="jug-textos-guardar">Guardar textos</button>
         <button class="btn btn-sm" id="jug-textos-restaurar" ${p.fichaTextos?.[textosKey] ? '' : 'disabled'}>Restaurar desde la encuesta</button>
-        <span class="text-xs text-muted">Ofensivos/defensivos a potenciar y mejorar: vienen de la encuesta, edítalos en la ficha y pulsa Guardar textos.${textosExtra ? ` Hay ${textosExtra} respuestas más de las que caben (5 filas).` : ''}</span>
+        <span class="text-xs text-muted">Descripción y ofensivos/defensivos a potenciar y mejorar: edítalos en la ficha y pulsa Guardar textos.${textosExtra ? ` Hay ${textosExtra} respuestas más de las que caben (5 filas).` : ''}</span>
       </div>
       <div id="jug-ficha1-wrap" class="ficha-wrap mb-16"></div>
       <div class="mb-8 flex gap-8 btn-print-ficha" style="flex-wrap:wrap;align-items:center;">
@@ -2526,7 +2528,8 @@ function renderFichaJugador(container, p) {
     const wrap = container.querySelector('#jug-ficha1-wrap');
     const grids = [...wrap.querySelectorAll('.p1-aspectos-grid')];
     const leer = (g, i) => [...(g?.querySelectorAll('.p1-aspectos-col')[i]?.querySelectorAll('li') || [])].map(li => li.innerText.trim());
-    const nuevo = { of_pot: leer(grids[0], 0), of_mej: leer(grids[0], 1), def_pot: leer(grids[1], 0), def_mej: leer(grids[1], 1) };
+    const nuevo = { of_pot: leer(grids[0], 0), of_mej: leer(grids[0], 1), def_pot: leer(grids[1], 0), def_mej: leer(grids[1], 1),
+      desc: (wrap.querySelector('.p1-desc-text')?.innerText || '').trim() };
     const fichaTextos = { ...(p.fichaTextos || {}), [textosKey]: nuevo };
     btn.disabled = true; btn.textContent = 'Guardando…';
     try {
@@ -2537,6 +2540,42 @@ function renderFichaJugador(container, p) {
       console.error('[Firestore] No se pudieron guardar los textos:', err);
       showError('No se pudieron guardar (revisa las reglas de Firestore).');
     } finally { btn.disabled = false; btn.textContent = 'Guardar textos'; }
+  });
+  container.querySelector('#jug-desc-ia')?.addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    const descEl = container.querySelector('#jug-ficha1-wrap .p1-desc-text');
+    if (!descEl) return;
+    if (descEl.innerText.trim() && !confirm('Ya hay una descripción. ¿Sustituirla por la propuesta?')) return;
+    const fPos = evSel?.posKey || p.positionKey, comp = evSel?.media?.porCompetencia || {};
+    const apc = buildAspectoPorCompetencia(state, fPos);
+    const notas = Object.entries(comp).filter(([, v]) => typeof v === 'number')
+      .map(([c, v]) => ({ competencia: c, bloque: apc[c] || 'perfil', nota: Math.round(v * 100) / 100 }));
+    if (!notas.length) { showError('Este jugador no tiene notas en esta evaluación: no hay con qué escribir la descripción.'); return; }
+    const limpia = arr => (arr || []).filter(Boolean);
+    const datos = {
+      jugador: `${p.nombre || ''} ${p.apellidos || ''}`.trim(),
+      posicion: state.positions.find(x => x.key === fPos)?.label || fPos || '',
+      equipo: TEAMS.find(t => t.key === p.teamKey)?.label || '',
+      evaluacion: evSel ? evLabel(evSel.eid) : '',
+      notas, rp: aspectosTxt.rp,
+      comentarios: {
+        ofensivos_potenciar: limpia(aspectosTxt.ofensivos.potenciar), ofensivos_mejorar: limpia(aspectosTxt.ofensivos.mejorar),
+        defensivos_potenciar: limpia(aspectosTxt.defensivos.potenciar), defensivos_mejorar: limpia(aspectosTxt.defensivos.mejorar),
+      },
+      frasesModelo: (state.frasesModelo || []).slice(0, 40),
+    };
+    btn.disabled = true; btn.textContent = '✨ Escribiendo…';
+    try {
+      let token = null; try { token = await tokenActual(); } catch (_) { /* modo local */ }
+      const r = await fetch('/api/describir', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (token || '') }, body: JSON.stringify(datos) });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 503 && d.error === 'no-configurado') throw new Error('falta poner la clave ANTHROPIC_API_KEY en Vercel.');
+      if (!r.ok || !d.texto) throw new Error(d.error || ('error ' + r.status));
+      descEl.textContent = d.texto;
+      showSuccess('Descripción propuesta: revísala y pulsa «Guardar textos».', 6000);
+    } catch (err) {
+      showError('No se pudo proponer la descripción: ' + (err.message || err), 9000);
+    } finally { btn.disabled = false; btn.textContent = '✨ Proponer descripción'; }
   });
   container.querySelector('#jug-textos-restaurar')?.addEventListener('click', async () => {
     const fichaTextos = { ...(p.fichaTextos || {}) };
@@ -5040,6 +5079,7 @@ function prepararFichaJugador(p, regs, temporada) {
     evSel, textosKey,
     fPos: evSel?.posKey || p.positionKey, fMedia: evSel?.media || null,
     aspectosTxt: {
+      desc: p.fichaTextos?.[textosKey]?.desc || '',
       rp: { r: mediaRP('r'), p: mediaRP('p') },
       ofensivos: { potenciar: cinco(origenTxt('of_pot')), mejorar: cinco(origenTxt('of_mej')) },
       defensivos: { potenciar: cinco(origenTxt('def_pot')), mejorar: cinco(origenTxt('def_mej')) },
@@ -5757,7 +5797,8 @@ async function renderPlantillaPresentacion(container) {
         const btn = e.currentTarget;
         const grids = [...sec.querySelectorAll('.p1-aspectos-grid')];
         const leer = (gr, i) => [...(gr?.querySelectorAll('.p1-aspectos-col')[i]?.querySelectorAll('li') || [])].map(li => li.innerText.trim());
-        const nuevo = { of_pot: leer(grids[0], 0), of_mej: leer(grids[0], 1), def_pot: leer(grids[1], 0), def_mej: leer(grids[1], 1) };
+        const nuevo = { of_pot: leer(grids[0], 0), of_mej: leer(grids[0], 1), def_pot: leer(grids[1], 0), def_mej: leer(grids[1], 1),
+          desc: (sec.querySelector('[data-pr-f1] .p1-desc-text')?.innerText || '').trim() };
         const fichaTextos = { ...(j.fichaTextos || {}), [prep.textosKey]: nuevo };
         btn.disabled = true; btn.textContent = 'Guardando…';
         try {
