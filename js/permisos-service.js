@@ -61,7 +61,7 @@ export const SUBPANTALLAS = {
     { key: 'evaluadores', label: 'Encuesta y criterios › Evaluadores' },
     { key: 'fichas-individual', label: 'Fichas › Ficha individual' },
     { key: 'columnas-encuesta', label: 'Encuesta y criterios › Columnas de la encuesta' },
-    { key: 'fichas-espejo', label: 'Fichas › Fichas espejo' },
+    { key: 'fichas-espejo', label: 'En pruebas › Ficha espejo (borrador)' },
     { key: 'ficha-colores', label: 'Fichas › Colores de la ficha' },
     { key: 'ficha-matriz', label: 'Fichas › Matriz' },
     { key: 'flujo', label: 'Datos y ayuda › Flujo de evaluaciones' },
