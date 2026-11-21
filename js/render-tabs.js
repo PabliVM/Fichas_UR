@@ -22,7 +22,12 @@ export function renderTabs() {
   `).join('');
 
   nav.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.tab;
+      document.dispatchEvent(new CustomEvent('rm:tab-click', { detail: key })); // vuelve a la pantalla principal de la pestaña
+      if (state.activeTab === key) document.dispatchEvent(new CustomEvent('rm:tab-changed', { detail: key }));
+      else switchTab(key);
+    });
   });
 }
 

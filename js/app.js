@@ -4622,6 +4622,8 @@ function equiposDeJugador(jugador, temporada) {
 }
 
 let plVista = { modo: 'grid', teamKey: null };
+const plCardDatos = new Set();   // equipos que muestran la pestaña Datos en su tarjeta
+let plAddCierreGlobal = false;   // listener único para cerrar los "+ Añadir"
 let plIrJugador = null; // jugador al que saltar al abrir la presentación (clic en su nombre)
 let plRefModo = 'team';   // comparación de las medias en la Presentación: 'team' (precargado) | 'teampos' | 'none'  // 'grid' | 'datos' | 'pres'
 
@@ -4741,6 +4743,7 @@ function renderPanelPlantillas(container) {
 
   container.innerHTML = `
     ${firebaseNotice()}
+    <style>.pl-chip .pl-x{opacity:0;transition:opacity .15s;}.pl-chip:hover .pl-x,.pl-chip:focus-within .pl-x{opacity:1;}@media (hover:none){.pl-chip .pl-x{opacity:.6;}}</style>
     <div class="rm-sticky flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;padding:8px 0;">
       <label class="text-xs text-muted" for="pl-temporada">Temporada</label>
       <select class="select" id="pl-temporada" style="max-width:200px;">${state.seasons.map(t => `<option value="${safeText(t)}" ${t === plantillaTemporada ? 'selected' : ''}>${safeText(t)}</option>`).join('')}</select>
@@ -4756,32 +4759,49 @@ function renderPanelPlantillas(container) {
         const porteros = ids.filter(id => esPortero(state.positions.find(p => p.key === colDe(id)))).length;
         const campo = ids.length - porteros;
         const columnas = [...state.positions.map(p => ({ key: p.key, abrev: posAbrev(p.label), titulo: p.label })), ...(ids.some(id => colDe(id) === '_sin') ? [{ key: '_sin', abrev: '—', titulo: 'Sin posición' }] : [])];
-        const jug = id => `<div class="flex" style="justify-content:space-between;align-items:center;gap:2px;"><a href="#" data-pl-ir="${t.key}|${id}" class="text-xs" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-primary);text-decoration:none;font-weight:600;" title="Ver ficha de ${safeText(nombreDe(id))}">${safeText(nombreDe(id))}</a><button class="btn btn-sm btn-ghost" style="padding:0 4px;" data-pl-del="${t.key}|${id}" title="Quitar de la plantilla">✕</button></div>`;
-        return `<div class="card" data-pl-det="${t.key}"><div class="card-body">
-          <div style="display:flex;gap:14px;align-items:stretch;flex-wrap:wrap;">
-            <div style="width:190px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;">
-              <div><b>${safeText(t.label)}</b><div class="text-xs text-muted" title="Jugadores de campo + porteros">${campo}+${porteros} <span style="opacity:.7;">campo+porteros</span></div></div>
-              <div class="flex gap-8" style="flex-wrap:wrap;">
-                ${puedeVer('plantillas.datos') ? `<button class="btn btn-sm" data-pl-datos="${t.key}" ${ids.length ? '' : 'disabled'}>Datos</button>` : ''}
-                ${puedeVer('plantillas.pres') ? `<button class="btn btn-sm btn-primary" data-pl-pres="${t.key}" ${ids.length ? '' : 'disabled'}>Presentación de fichas</button>` : ''}
-                <button class="btn btn-sm" data-pl-lista-btn="${t.key}">+ Lista</button>
-              </div>
+        const pj = id => state.players.find(x => x.id === id);
+        const corto = j => `${j?.nombre || ''} ${String(j?.apellidos || '').trim().split(/\s+/)[0] || ''}`.trim() || '(jugador eliminado)';
+        const iniciales = j => `${(j?.nombre || '?')[0] || ''}${(j?.apellidos || '')[0] || ''}`.toUpperCase();
+        const colorLinea = key => { const k = normalizeTxt(key); return k === '_sin' ? '#94a3b8' : /porter/.test(k) ? '#d4a63a' : /central|lateral|defens/.test(k) ? '#1d4ed8' : /medio|interior|pivote|centrocamp/.test(k) ? '#1f6b2a' : '#b91c1c'; };
+        const chip = id => { const j = pj(id); return `<div class="pl-chip" style="position:relative;display:flex;align-items:center;gap:7px;background:var(--bg-surface, #fff);border:1px solid var(--border-default);border-radius:8px;padding:4px 6px;min-width:0;">
+            ${j?.fotoUrl ? `<img src="${j.fotoUrl}" alt="" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" />` : `<span style="width:24px;height:24px;border-radius:50%;background:var(--bg-hover);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--blue-600, #1d4ed8);">${safeText(iniciales(j))}</span>`}
+            <a href="#" data-pl-ir="${t.key}|${id}" class="text-xs" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-primary);text-decoration:none;font-weight:600;" title="${safeText(nombreDe(id))} — ver ficha">${safeText(corto(j))}</a>
+            <button class="btn btn-sm btn-ghost pl-x" style="padding:0 4px;" data-pl-del="${t.key}|${id}" title="Quitar de la plantilla" aria-label="Quitar ${safeText(nombreDe(id))}">✕</button>
+          </div>`; };
+        const verDatos = plCardDatos.has(t.key) && ids.length && puedeVer('plantillas.datos');
+        const añadir = col => {
+          const libresPos = [...libres.filter(j => (j.positionKey || '_sin') === col.key), ...libres.filter(j => (j.positionKey || '_sin') !== col.key)];
+          return `<details class="pl-add" style="position:relative;">
+            <summary class="text-xs" style="list-style:none;cursor:pointer;border:1px dashed var(--border-emphasis, #cbd5e1);border-radius:8px;padding:5px;text-align:center;color:var(--text-muted);">+ Añadir</summary>
+            <div class="card" style="position:absolute;left:0;top:calc(100% + 4px);z-index:20;margin:0;padding:10px;width:280px;display:flex;flex-direction:column;gap:6px;box-shadow:0 8px 24px rgba(15,23,42,.18);">
+              <div class="text-xs" style="font-weight:800;color:var(--blue-600, #1d4ed8);">+ AÑADIR A ${safeText(plPlural(col.titulo).toUpperCase())}</div>
+              <div class="flex gap-8"><select class="select" data-pl-sel="${t.key}|${col.key}" style="flex:1;min-width:0;"><option value="">Elegir jugador…</option>${libresPos.map(j => `<option value="${j.id}">${safeText(nombreCompleto(j))}</option>`).join('')}</select>
+              <button class="btn btn-sm btn-primary" data-pl-add="${t.key}|${col.key}">Añadir</button></div>
+              <div class="text-xs text-muted">o pega una lista (uno por línea; crea los que no existan):</div>
+              <textarea class="input" data-pl-lista="${t.key}|${col.key}" rows="4" style="width:100%;font-size:12px;" placeholder="Apellidos, Nombre&#10;o: Nombre Apellidos"></textarea>
+              <button class="btn btn-sm" data-pl-lista-ok="${t.key}|${col.key}">Añadir la lista</button>
             </div>
-            <div style="flex:1;min-width:0;overflow-x:auto;"><div style="display:grid;grid-template-columns:repeat(${columnas.length},minmax(110px,1fr));min-height:90px;border:1px solid var(--border-default);border-radius:8px;">
-              ${columnas.map((col, ci) => { const cj = ids.filter(id => colDe(id) === col.key); return `<div style="${ci ? 'border-left:1px solid var(--border-default);' : ''}padding:6px 8px;display:flex;flex-direction:column;gap:3px;min-width:0;">
-                <div style="font-weight:800;font-size:12px;letter-spacing:.04em;border-bottom:1px solid var(--border-default);padding-bottom:4px;margin-bottom:2px;" title="${safeText(col.titulo)}">${col.abrev} <span class="text-xs text-muted" style="font-weight:600;">${cj.length || ''}</span></div>
-                ${cj.map(jug).join('')}
-              </div>`; }).join('')}
-            </div></div>
+          </details>`;
+        };
+        return `<div class="card" data-pl-det="${t.key}"><div class="card-body">
+          <div class="flex gap-8" style="align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+            <b style="font-size:17px;">${safeText(t.label)}</b>
+            <span style="background:#eff6ff;color:#1d4ed8;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;">${campo} de campo</span>
+            <span style="background:#fef3c7;color:#92400e;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;">${porteros} portero${porteros === 1 ? '' : 's'}</span>
+            ${puedeVer('plantillas.datos') && ids.length ? `<span style="display:inline-flex;background:var(--bg-hover);border-radius:999px;padding:3px;margin-left:6px;">
+              <button class="btn btn-sm ${verDatos ? 'btn-ghost' : ''}" data-pl-vista="${t.key}|plantilla" style="border-radius:999px;${verDatos ? '' : 'background:var(--bg-surface, #fff);font-weight:700;'}">Plantilla</button>
+              <button class="btn btn-sm ${verDatos ? '' : 'btn-ghost'}" data-pl-vista="${t.key}|datos" style="border-radius:999px;${verDatos ? 'background:var(--bg-surface, #fff);font-weight:700;' : ''}">Datos</button></span>` : ''}
+            <span style="flex:1;"></span>
+            ${puedeVer('plantillas.pres') ? `<button class="btn btn-sm btn-primary" data-pl-pres="${t.key}" ${ids.length ? '' : 'disabled'}>Presentación de fichas</button>` : ''}
           </div>
-          <div data-pl-lista-box="${t.key}" style="display:none;margin-top:12px;">
-            <textarea class="input" data-pl-lista="${t.key}" rows="6" style="width:100%;" placeholder="Un jugador por línea:&#10;Apellidos, Nombre&#10;o: Nombre Apellidos"></textarea>
-            <button class="btn btn-sm btn-primary mt-8" data-pl-lista-ok="${t.key}">Crear plantilla</button>
-          </div>
-          <div class="flex gap-8" style="margin-top:12px;">
-            <select class="select" data-pl-sel="${t.key}" style="flex:1;min-width:0;max-width:420px;"><option value="">Añadir jugador…</option>${libres.map(j => `<option value="${j.id}">${safeText(nombreCompleto(j))}</option>`).join('')}</select>
-            <button class="btn btn-sm btn-primary" data-pl-add="${t.key}">Añadir</button>
-          </div>
+          ${verDatos ? `<div data-pl-datos-box="${t.key}"><p class="text-xs text-muted mb-8">Los cambios se guardan al salir de la casilla y son los mismos de la ficha del jugador.</p>${datosEquipoTablaHTML(t.key)}</div>` : `
+          <div style="overflow-x:auto;"><div style="display:grid;grid-template-columns:repeat(${columnas.length},minmax(130px,1fr));gap:8px;">
+            ${columnas.map(col => { const cj = ids.filter(id => colDe(id) === col.key); return `<div style="background:var(--bg-hover);border-radius:10px;border-top:4px solid ${colorLinea(col.key)};padding:8px;display:flex;flex-direction:column;gap:5px;min-width:0;">
+              <div class="flex" style="justify-content:space-between;font-weight:800;font-size:11px;letter-spacing:.04em;color:var(--text-muted);" title="${safeText(col.titulo)}"><span>${safeText(col.key === '_sin' ? 'SIN POSICIÓN' : plPlural(col.titulo).toUpperCase())}</span><span>${cj.length || ''}</span></div>
+              ${cj.map(chip).join('')}
+              ${añadir(col)}
+            </div>`; }).join('')}
+          </div></div>`}
         </div></div>`;
       }).join('')}
     </div>`;
@@ -4807,8 +4827,8 @@ function renderPanelPlantillas(container) {
     catch (err) { console.error(err); showError('No se pudo guardar la foto (¿demasiado grande?).'); }
   });
   container.querySelectorAll('[data-pl-add]').forEach(btn => btn.addEventListener('click', () => {
-    const teamKey = btn.dataset.plAdd;
-    const sel = container.querySelector(`[data-pl-sel="${teamKey}"]`);
+    const [teamKey] = btn.dataset.plAdd.split('|');
+    const sel = container.querySelector(`[data-pl-sel="${btn.dataset.plAdd}"]`);
     if (!sel?.value) return;
     guardar(teamKey, { jugadorIds: arrayUnion(sel.value) }, { jugadorIds: [...new Set([...(docDe(teamKey)?.jugadorIds || []), sel.value])] });
   }));
@@ -4816,20 +4836,36 @@ function renderPanelPlantillas(container) {
     const [teamKey, jid] = btn.dataset.plDel.split('|');
     guardar(teamKey, { jugadorIds: arrayRemove(jid) }, { jugadorIds: (docDe(teamKey)?.jugadorIds || []).filter(x => x !== jid) });
   }));
-  container.querySelectorAll('[data-pl-datos]').forEach(btn => btn.addEventListener('click', () => { plVista = { modo: 'datos', teamKey: btn.dataset.plDatos }; renderPanelPlantillas(container); }));
+  container.querySelectorAll('[data-pl-vista]').forEach(btn => btn.addEventListener('click', () => {
+    const [teamKey, vista] = btn.dataset.plVista.split('|');
+    if (vista === 'datos') plCardDatos.add(teamKey); else plCardDatos.delete(teamKey);
+    preservandoScroll(() => renderPanelPlantillas(container));
+  }));
+  container.querySelectorAll('[data-pl-datos-box]').forEach(box => wireDatosEquipo(box, () => preservandoScroll(() => renderPanelPlantillas(container))));
+  // Un solo "+ Añadir" abierto; se cierra al pulsar fuera.
+  container.querySelectorAll('details.pl-add').forEach(d => d.addEventListener('toggle', () => {
+    if (!d.open) return;
+    container.querySelectorAll('details.pl-add[open]').forEach(o => { if (o !== d) o.open = false; });
+    // Flotante (la fila de posiciones tiene scroll y lo recortaría)
+    const r = d.querySelector('summary').getBoundingClientRect(), menu = d.querySelector('.card');
+    menu.style.position = 'fixed';
+    menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 300)) + 'px';
+    const alto = menu.offsetHeight || 220;
+    menu.style.top = (r.bottom + 4 + alto > window.innerHeight ? Math.max(8, r.top - alto - 4) : r.bottom + 4) + 'px';
+  }));
+  if (!plAddCierreGlobal) {
+    plAddCierreGlobal = true;
+    document.addEventListener('click', e => { if (!e.target.closest('details.pl-add')) document.querySelectorAll('details.pl-add[open]').forEach(o => { o.open = false; }); });
+    window.addEventListener('scroll', e => { if (!e.target.closest?.('details.pl-add')) document.querySelectorAll('details.pl-add[open]').forEach(o => { if (!o.contains(document.activeElement)) o.open = false; }); }, true);
+  }
   container.querySelectorAll('[data-pl-ir]').forEach(el => el.addEventListener('click', e => {
     e.preventDefault(); const id = el.dataset.plIr.split('|')[1];
     jugFichaId = id; jugadorFormId = null; jugFichaTab = 'datos'; jugFichaEvalId = null; jugVolverA = 'plantillas'; switchTab('jugadores');
   }));
   container.querySelectorAll('[data-pl-pres]').forEach(btn => btn.addEventListener('click', () => { plVista = { modo: 'pres', teamKey: btn.dataset.plPres }; renderPanelPlantillas(container); }));
-  container.querySelectorAll('[data-pl-lista-btn]').forEach(btn => btn.addEventListener('click', () => {
-    const box = container.querySelector(`[data-pl-lista-box="${btn.dataset.plListaBtn}"]`);
-    box.style.display = box.style.display === 'none' ? '' : 'none';
-    const det = box.closest('details'); if (det && box.style.display !== 'none') det.open = true;
-  }));
   container.querySelectorAll('[data-pl-lista-ok]').forEach(btn => btn.addEventListener('click', async () => {
-    const teamKey = btn.dataset.plListaOk;
-    const texto = container.querySelector(`[data-pl-lista="${teamKey}"]`).value;
+    const [teamKey] = btn.dataset.plListaOk.split('|');
+    const texto = container.querySelector(`[data-pl-lista="${btn.dataset.plListaOk}"]`).value;
     if (!texto.trim()) return;
     if (isFirebaseUnconfigured()) { showError('Configura Firebase para crear plantillas.'); return; }
     btn.disabled = true; btn.textContent = 'Creando…';
@@ -4846,19 +4882,12 @@ function renderPanelPlantillas(container) {
 }
 
 // ── Plantilla · Datos: tabla editable de las fichas de datos (misma fuente que Jugadores) ──
-function renderPlantillaDatos(container) {
-  const t = TEAMS.find(x => x.key === plVista.teamKey);
-  const ids = plantillasCache.find(d => d.id === plantillaDocId(plantillaTemporada, plVista.teamKey))?.jugadorIds || [];
+/** Tabla editable de datos de los jugadores de un equipo (misma fuente que Jugadores). */
+function datosEquipoTablaHTML(teamKey) {
+  const ids = plantillasCache.find(d => d.id === plantillaDocId(plantillaTemporada, teamKey))?.jugadorIds || [];
   const jugs = ids.map(id => state.players.find(x => x.id === id)).filter(Boolean).sort(ordenJugadores);
   const inp = (j, campo, tipo = 'text', extra = '') => `<input class="input" type="${tipo}" ${extra} data-pl-campo="${campo}" data-pl-id="${j.id}" value="${safeText(j[campo] ?? '')}" style="min-width:${tipo === 'date' ? 130 : 80}px;" />`;
-  container.innerHTML = `
-    ${firebaseNotice()}
-    <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
-      <button class="btn btn-ghost" id="pl-volver">← Equipos</button>
-      <b>${safeText(t?.label || '')} · ${safeText(plantillaTemporada)}</b>
-      <span class="text-xs text-muted">Los cambios se guardan al salir de la casilla y son los mismos de la ficha del jugador.</span>
-    </div>
-    <div style="overflow-x:auto;"><table class="table table-compact">
+  return `<div style="overflow-x:auto;"><table class="table table-compact">
       <thead><tr><th>Apellidos</th><th>Nombre</th><th>F. nacimiento</th><th>Lateralidad</th><th>Posición</th><th>Altura (m)</th><th>Peso (kg)</th><th>Complexión</th><th>Ed. madurativa</th><th></th></tr></thead>
       <tbody>${jugs.map(j => `<tr>
         <td>${inp(j, 'apellidos')}</td><td>${inp(j, 'nombre')}</td><td>${inp(j, 'birthDate', 'date')}</td>
@@ -4868,8 +4897,9 @@ function renderPlantillaDatos(container) {
         <td>${inp(j, 'complexion')}</td><td>${inp(j, 'maturationalAge')}</td>
         <td><button class="btn btn-sm" data-pl-ficha="${j.id}">Ficha</button></td></tr>`).join('')}</tbody>
     </table></div>`;
-  container.querySelector('#pl-volver').addEventListener('click', () => { plVista = { modo: 'grid', teamKey: null }; renderPanelPlantillas(container); });
-  container.querySelectorAll('[data-pl-campo]').forEach(el => el.addEventListener('change', async () => {
+}
+function wireDatosEquipo(root, rerender) {
+  root.querySelectorAll('[data-pl-campo]').forEach(el => el.addEventListener('change', async () => {
     const campo = el.dataset.plCampo;
     let v = el.value;
     if (campo === 'height' || campo === 'weight') v = v === '' ? null : parseFloat(v);
@@ -4877,14 +4907,29 @@ function renderPlantillaDatos(container) {
     else if (campo === 'complexion') v = v.trim() || null;
     else if (typeof v === 'string' && campo !== 'foot' && campo !== 'positionKey') v = v.trim();
     if (campo === 'positionKey') v = v || null;
-    if (campo === 'nombre' && !v) { showError('El nombre es obligatorio.'); renderPlantillaDatos(container); return; }
-    try { await guardarCampoJugador(el.dataset.plId, campo, v); }
+    if (campo === 'nombre' && !v) { showError('El nombre es obligatorio.'); rerender(); return; }
+    try { await guardarCampoJugador(el.dataset.plId, campo, v); if (campo === 'positionKey') rerender(); }
     catch (err) { console.error('[Firestore] Campo jugador:', err); showError('No se pudo guardar el cambio.'); }
   }));
-  container.querySelectorAll('[data-pl-ficha]').forEach(btn => btn.addEventListener('click', () => {
+  root.querySelectorAll('[data-pl-ficha]').forEach(btn => btn.addEventListener('click', () => {
     jugFichaId = btn.dataset.plFicha; jugadorFormId = null; jugFichaTab = 'fichas'; jugFichaEvalId = null;
     switchTab('jugadores');
   }));
+}
+
+// ── Plantilla · Datos (pantalla completa, se mantiene por compatibilidad) ──
+function renderPlantillaDatos(container) {
+  const t = TEAMS.find(x => x.key === plVista.teamKey);
+  container.innerHTML = `
+    ${firebaseNotice()}
+    <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
+      <button class="btn btn-ghost" id="pl-volver">← Equipos</button>
+      <b>${safeText(t?.label || '')} · ${safeText(plantillaTemporada)}</b>
+      <span class="text-xs text-muted">Los cambios se guardan al salir de la casilla y son los mismos de la ficha del jugador.</span>
+    </div>
+    ${datosEquipoTablaHTML(plVista.teamKey)}`;
+  container.querySelector('#pl-volver').addEventListener('click', () => { plVista = { modo: 'grid', teamKey: null }; renderPanelPlantillas(container); });
+  wireDatosEquipo(container, () => renderPlantillaDatos(container));
 }
 
 // ── Plantilla · Presentación: Ficha 1 y 2 de todos los jugadores, seguidas ──
@@ -5774,6 +5819,11 @@ function renderMain() {
 // ── EVENTOS GLOBALES ─────────────────────────────
 
 function setupEvents() {
+  // Pulsar una pestaña de la barra lleva a su pantalla principal (no a la última ficha o presentación abierta).
+  document.addEventListener('rm:tab-click', e => {
+    if (e.detail === 'jugadores') { jugFichaId = null; jugadorFormId = null; jugVolverA = null; }
+    if (e.detail === 'plantillas') plVista = { modo: 'grid', teamKey: null };
+  });
   document.addEventListener('rm:tab-changed', e => {
     const tabKey = e.detail;
     const panel  = document.querySelector(`.tab-panel[data-tab="${tabKey}"]`);
