@@ -4222,7 +4222,7 @@ function renderPanelConfig(container) {
         <p class="text-sm text-muted mb-16">
           Documentación interna — no aparece en las fichas de los jugadores. Se guarda igual que el resto de Configuración.
         </p>
-        <textarea class="input" id="flujo-evaluaciones-text" rows="24" style="width:100%;font-family:var(--font-mono, monospace);font-size:13px;resize:vertical;">${safeText(state.flujoEvaluaciones)}</textarea>
+        <textarea class="input" id="flujo-evaluaciones-text" rows="24" style="width:100%;min-height:70vh;font-family:var(--font-mono, monospace);font-size:13px;line-height:1.5;resize:vertical;overflow:hidden;">${safeText(state.flujoEvaluaciones)}</textarea>
       </div>
     </div>
     `}
@@ -4318,6 +4318,10 @@ function renderPanelConfig(container) {
 
   const flujoTextarea = container.querySelector('#flujo-evaluaciones-text');
   if (flujoTextarea) {
+    // Crece con el texto: se ve entero, sin barra de desplazamiento propia.
+    const ajustarFlujo = () => { flujoTextarea.style.height = 'auto'; flujoTextarea.style.height = Math.max(flujoTextarea.scrollHeight + 4, window.innerHeight * 0.7) + 'px'; };
+    requestAnimationFrame(ajustarFlujo);
+    flujoTextarea.addEventListener('input', ajustarFlujo);
     flujoTextarea.addEventListener('change', () => {
       setState({ flujoEvaluaciones: flujoTextarea.value });
     });
