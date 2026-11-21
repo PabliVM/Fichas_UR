@@ -231,10 +231,11 @@ function buildFichaRealData(positionKey, media, jugador, evalId, ref) {
       tactico:     { rp: [null, null], items: rated(schema.tactico) },
       condicional: { rp: null,         items: condicional, base },
     },
-    plan: {
-      tecnico: ['', '', '', '', '', '', ''], tactico: ['', '', '', '', '', '', ''],
-      condicional: ['', '', '', '', '', '', ''], mental: ['', '', '', '', '', '', ''],
-    },
+    plan: (() => { // Plan de acción guardado (por evaluación); si no hay, 7 filas vacías por columna
+      const g = jugador?.fichaTextos?.[evKey]?.plan || {};
+      const col = k => Array.from({ length: 7 }, (_, i) => g[k]?.[i] || '');
+      return { tecnico: col('tecnico'), tactico: col('tactico'), condicional: col('condicional'), mental: col('mental') };
+    })(),
   };
 }
 
@@ -2523,30 +2524,18 @@ function renderFichaJugador(container, p) {
       }
     });
   });
-  container.querySelector('#jug-textos-guardar')?.addEventListener('click', async e => {
-    const btn = e.currentTarget;
-    const wrap = container.querySelector('#jug-ficha1-wrap');
-    const grids = [...wrap.querySelectorAll('.p1-aspectos-grid')];
-    const leer = (g, i) => [...(g?.querySelectorAll('.p1-aspectos-col')[i]?.querySelectorAll('li') || [])].map(li => li.innerText.trim());
-    const nuevo = { of_pot: leer(grids[0], 0), of_mej: leer(grids[0], 1), def_pot: leer(grids[1], 0), def_mej: leer(grids[1], 1),
-      desc: (wrap.querySelector('.p1-desc-text')?.innerText || '').trim() };
-    const fichaTextos = { ...(p.fichaTextos || {}), [textosKey]: nuevo };
-    btn.disabled = true; btn.textContent = 'Guardando…';
-    try {
-      await updateMapEntry('jugadores', id, 'fichaTextos', textosKey, nuevo);
-      setState({ players: state.players.map(x => x.id === id ? { ...x, fichaTextos } : x) });
-      showSuccess('Textos de la ficha guardados.');
-    } catch (err) {
-      console.error('[Firestore] No se pudieron guardar los textos:', err);
-      showError('No se pudieron guardar (revisa las reglas de Firestore).');
-    } finally { btn.disabled = false; btn.textContent = 'Guardar textos'; }
-  });
+  const f1Jug = container.querySelector('#jug-ficha1-wrap'), f2Jug = container.querySelector('#jug-ficha2-wrap');
+  container.querySelector('#jug-textos-guardar')?.addEventListener('click', e => guardarTextosFicha(p, textosKey, f1Jug, f2Jug, { btn: e.currentTarget, aviso: true }));
+  autoGuardarTextosFicha([f1Jug, f2Jug], () => guardarTextosFicha(p, textosKey, f1Jug, f2Jug, {}));
   container.querySelector('#jug-desc-ia')?.addEventListener('click', e => proponerDescripcion(e.currentTarget, container.querySelector('#jug-ficha1-wrap .p1-desc-text'), p, evSel, aspectosTxt));
   container.querySelector('#jug-textos-restaurar')?.addEventListener('click', async () => {
+    // Vuelven los 4 textos de la encuesta; la descripción y el plan de acción se conservan.
+    const actual = p.fichaTextos?.[textosKey] || {};
+    const resto = {}; if (actual.desc) resto.desc = actual.desc; if (actual.plan) resto.plan = actual.plan;
     const fichaTextos = { ...(p.fichaTextos || {}) };
-    delete fichaTextos[textosKey];
+    if (Object.keys(resto).length) fichaTextos[textosKey] = resto; else delete fichaTextos[textosKey];
     try {
-      await updateMapEntry('jugadores', id, 'fichaTextos', textosKey, null);
+      await updateMapEntry('jugadores', id, 'fichaTextos', textosKey, Object.keys(resto).length ? resto : null);
       setState({ players: state.players.map(x => x.id === id ? { ...x, fichaTextos } : x) });
       renderPanelJugadores(container);
     } catch (err) { showError('No se pudo restaurar.'); }
@@ -4990,6 +4979,45 @@ function wireDatosEquipo(root, rerender) {
   }));
 }
 
+/** Textos editables de las fichas (Ficha 1: potenciar/mejorar y descripción · Ficha 2: plan de acción).
+ *  Se guardan en el jugador por evaluación (fichaTextos[evaluación]): lo mismo se ve en su ficha y en la presentación. */
+function leerTextosFicha(f1, f2) {
+  const grids = [...(f1?.querySelectorAll('.p1-aspectos-grid') || [])];
+  const leer = (g, i) => [...(g?.querySelectorAll('.p1-aspectos-col')[i]?.querySelectorAll('li') || [])].map(li => li.innerText.trim());
+  const out = { of_pot: leer(grids[0], 0), of_mej: leer(grids[0], 1), def_pot: leer(grids[1], 0), def_mej: leer(grids[1], 1),
+    desc: (f1?.querySelector('.p1-desc-text')?.innerText || '').trim() };
+  if (f2?.querySelector('li[data-plan]')) {
+    out.plan = {};
+    ['tecnico', 'tactico', 'condicional', 'mental'].forEach(k => { out.plan[k] = [...f2.querySelectorAll(`li[data-plan="${k}"]`)].map(li => li.innerText.trim()); });
+  }
+  return out;
+}
+async function guardarTextosFicha(jug, key, f1, f2, { btn, aviso } = {}) {
+  if (!f1 && !f2) return;
+  const nuevo = { ...(jug.fichaTextos?.[key] || {}), ...leerTextosFicha(f1, f2) };
+  if (JSON.stringify(nuevo) === JSON.stringify(jug.fichaTextos?.[key] || {})) { if (aviso) showSuccess('Sin cambios que guardar.'); return; }
+  const txt = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+  try {
+    await updateMapEntry('jugadores', jug.id, 'fichaTextos', key, nuevo);
+    const fichaTextos = { ...(jug.fichaTextos || {}), [key]: nuevo };
+    jug.fichaTextos = fichaTextos;
+    setState({ players: state.players.map(x => x.id === jug.id ? { ...x, fichaTextos } : x) });
+    showSuccess(aviso ? 'Textos de la ficha guardados.' : 'Guardado ✓', aviso ? undefined : 1500);
+  } catch (err) {
+    console.error('[Firestore] No se pudieron guardar los textos:', err);
+    showError('No se pudieron guardar los textos (revisa las reglas de Firestore).');
+  } finally { if (btn) { btn.disabled = false; btn.textContent = txt; } }
+}
+/** Guarda solo al salir de un texto editado de la ficha (sin tener que pulsar «Guardar textos»). */
+function autoGuardarTextosFicha(roots, guardar) {
+  let t = null;
+  roots.filter(Boolean).forEach(r => r.addEventListener('focusout', e => {
+    if (!e.target.closest?.('[contenteditable="true"]')) return;
+    clearTimeout(t); t = setTimeout(guardar, 300);
+  }));
+}
+
 /** «✨ Proponer descripción»: la IA redacta la descripción de la Ficha 1 (no se guarda sola; luego «Guardar textos»). */
 async function proponerDescripcion(btn, descEl, p, evSel, aspectosTxt) {
   if (!descEl) return;
@@ -5797,22 +5825,9 @@ async function renderPlantillaPresentacion(container) {
       renderFichaPagina1(sec.querySelector('[data-pr-f1]'), buildFicha1RealData(prep.fPos, prep.fMedia, j, prep.aspectosTxt, prep.evSel?.eid), LOGO_PATH, state.fichaColors);
       renderFichaDetalle(sec.querySelector('[data-pr-f2]'), buildFichaRealData(prep.fPos, prep.fMedia, j, prep.evSel?.eid, refDe(j, prep)), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
       sec.querySelector('[data-pr-desc]')?.addEventListener('click', e => proponerDescripcion(e.currentTarget, sec.querySelector('[data-pr-f1] .p1-desc-text'), j, prep.evSel, prep.aspectosTxt));
-      sec.querySelector('[data-pr-textos]').addEventListener('click', async e => {
-        const btn = e.currentTarget;
-        const grids = [...sec.querySelectorAll('.p1-aspectos-grid')];
-        const leer = (gr, i) => [...(gr?.querySelectorAll('.p1-aspectos-col')[i]?.querySelectorAll('li') || [])].map(li => li.innerText.trim());
-        const nuevo = { of_pot: leer(grids[0], 0), of_mej: leer(grids[0], 1), def_pot: leer(grids[1], 0), def_mej: leer(grids[1], 1),
-          desc: (sec.querySelector('[data-pr-f1] .p1-desc-text')?.innerText || '').trim() };
-        const fichaTextos = { ...(j.fichaTextos || {}), [prep.textosKey]: nuevo };
-        btn.disabled = true; btn.textContent = 'Guardando…';
-        try {
-          await updateMapEntry('jugadores', j.id, 'fichaTextos', prep.textosKey, nuevo);
-          j.fichaTextos = fichaTextos;
-          setState({ players: state.players.map(x => x.id === j.id ? { ...x, fichaTextos } : x) });
-          showSuccess('Textos guardados.');
-        } catch (err) { console.error(err); showError('No se pudieron guardar los textos.'); }
-        finally { btn.disabled = false; btn.textContent = 'Guardar textos'; }
-      });
+      const f1Pr = sec.querySelector('[data-pr-f1]'), f2Pr = sec.querySelector('[data-pr-f2]');
+      sec.querySelector('[data-pr-textos]').addEventListener('click', e => guardarTextosFicha(j, prep.textosKey, f1Pr, f2Pr, { btn: e.currentTarget, aviso: true }));
+      autoGuardarTextosFicha([f1Pr, f2Pr], () => guardarTextosFicha(j, prep.textosKey, f1Pr, f2Pr, {}));
       sec.querySelector('[data-pr-editar]').addEventListener('click', () => { jugFichaId = null; jugadorFormId = j.id; switchTab('jugadores'); });
       estado.textContent = `Fichas ${++hechas}/${preps.length}…`;
       await new Promise(r => setTimeout(r, 0)); // deja respirar al navegador entre fichas
