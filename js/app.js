@@ -2541,42 +2541,7 @@ function renderFichaJugador(container, p) {
       showError('No se pudieron guardar (revisa las reglas de Firestore).');
     } finally { btn.disabled = false; btn.textContent = 'Guardar textos'; }
   });
-  container.querySelector('#jug-desc-ia')?.addEventListener('click', async e => {
-    const btn = e.currentTarget;
-    const descEl = container.querySelector('#jug-ficha1-wrap .p1-desc-text');
-    if (!descEl) return;
-    if (descEl.innerText.trim() && !confirm('Ya hay una descripción. ¿Sustituirla por la propuesta?')) return;
-    const fPos = evSel?.posKey || p.positionKey, comp = evSel?.media?.porCompetencia || {};
-    const apc = buildAspectoPorCompetencia(state, fPos);
-    const notas = Object.entries(comp).filter(([, v]) => typeof v === 'number')
-      .map(([c, v]) => ({ competencia: c, bloque: apc[c] || 'perfil', nota: Math.round(v * 100) / 100 }));
-    if (!notas.length) { showError('Este jugador no tiene notas en esta evaluación: no hay con qué escribir la descripción.'); return; }
-    const limpia = arr => (arr || []).filter(Boolean);
-    const datos = {
-      jugador: `${p.nombre || ''} ${p.apellidos || ''}`.trim(),
-      posicion: state.positions.find(x => x.key === fPos)?.label || fPos || '',
-      equipo: TEAMS.find(t => t.key === p.teamKey)?.label || '',
-      evaluacion: evSel ? evLabel(evSel.eid) : '',
-      notas, rp: aspectosTxt.rp,
-      comentarios: {
-        ofensivos_potenciar: limpia(aspectosTxt.ofensivos.potenciar), ofensivos_mejorar: limpia(aspectosTxt.ofensivos.mejorar),
-        defensivos_potenciar: limpia(aspectosTxt.defensivos.potenciar), defensivos_mejorar: limpia(aspectosTxt.defensivos.mejorar),
-      },
-      frasesModelo: (state.frasesModelo || []).slice(0, 40),
-    };
-    btn.disabled = true; btn.textContent = '✨ Escribiendo…';
-    try {
-      let token = null; try { token = await tokenActual(); } catch (_) { /* modo local */ }
-      const r = await fetch('/api/describir', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (token || '') }, body: JSON.stringify(datos) });
-      const d = await r.json().catch(() => ({}));
-      if (r.status === 503 && d.error === 'no-configurado') throw new Error('falta poner la clave ANTHROPIC_API_KEY en Vercel.');
-      if (!r.ok || !d.texto) throw new Error(d.error || ('error ' + r.status));
-      descEl.textContent = d.texto;
-      showSuccess('Descripción propuesta: revísala y pulsa «Guardar textos».', 6000);
-    } catch (err) {
-      showError('No se pudo proponer la descripción: ' + (err.message || err), 9000);
-    } finally { btn.disabled = false; btn.textContent = '✨ Proponer descripción'; }
-  });
+  container.querySelector('#jug-desc-ia')?.addEventListener('click', e => proponerDescripcion(e.currentTarget, container.querySelector('#jug-ficha1-wrap .p1-desc-text'), p, evSel, aspectosTxt));
   container.querySelector('#jug-textos-restaurar')?.addEventListener('click', async () => {
     const fichaTextos = { ...(p.fichaTextos || {}) };
     delete fichaTextos[textosKey];
@@ -5025,6 +4990,43 @@ function wireDatosEquipo(root, rerender) {
   }));
 }
 
+/** «✨ Proponer descripción»: la IA redacta la descripción de la Ficha 1 (no se guarda sola; luego «Guardar textos»). */
+async function proponerDescripcion(btn, descEl, p, evSel, aspectosTxt) {
+  if (!descEl) return;
+  if (descEl.innerText.trim() && !confirm(`Ya hay una descripción de ${nombreCompleto(p)}. ¿Sustituirla por la propuesta?`)) return;
+  const fPos = evSel?.posKey || p.positionKey, comp = evSel?.media?.porCompetencia || {};
+  const apc = buildAspectoPorCompetencia(state, fPos);
+  const notas = Object.entries(comp).filter(([, v]) => typeof v === 'number')
+    .map(([c, v]) => ({ competencia: c, bloque: apc[c] || 'perfil', nota: Math.round(v * 100) / 100 }));
+  if (!notas.length) { showError(`${nombreCompleto(p)} no tiene notas en esta evaluación: no hay con qué escribir la descripción.`); return; }
+  const limpia = arr => (arr || []).filter(Boolean);
+  const datos = {
+    jugador: `${p.nombre || ''} ${p.apellidos || ''}`.trim(),
+    posicion: state.positions.find(x => x.key === fPos)?.label || fPos || '',
+    equipo: TEAMS.find(t => t.key === p.teamKey)?.label || '',
+    evaluacion: evSel?.ev ? `${evSel.ev.temporada} · ${evSel.ev.nombre}` : '',
+    notas, rp: aspectosTxt?.rp || null,
+    comentarios: {
+      ofensivos_potenciar: limpia(aspectosTxt?.ofensivos?.potenciar), ofensivos_mejorar: limpia(aspectosTxt?.ofensivos?.mejorar),
+      defensivos_potenciar: limpia(aspectosTxt?.defensivos?.potenciar), defensivos_mejorar: limpia(aspectosTxt?.defensivos?.mejorar),
+    },
+    frasesModelo: (state.frasesModelo || []).slice(0, 40),
+  };
+  const txtBtn = btn.textContent;
+  btn.disabled = true; btn.textContent = '✨ Escribiendo…';
+  try {
+    let token = null; try { token = await tokenActual(); } catch (_) { /* modo local */ }
+    const r = await fetch('/api/describir', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (token || '') }, body: JSON.stringify(datos) });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 503 && d.error === 'no-configurado') throw new Error('falta poner la clave ANTHROPIC_API_KEY en Vercel.');
+    if (!r.ok || !d.texto) throw new Error(d.error || ('error ' + r.status));
+    descEl.textContent = d.texto;
+    showSuccess('Descripción propuesta: revísala y pulsa «Guardar textos».', 6000);
+  } catch (err) {
+    showError('No se pudo proponer la descripción: ' + (err.message || err), 9000);
+  } finally { btn.disabled = false; btn.textContent = txtBtn; }
+}
+
 // ── Plantilla · Datos (pantalla completa, se mantiene por compatibilidad) ──
 function renderPlantillaDatos(container) {
   const t = TEAMS.find(x => x.key === plVista.teamKey);
@@ -5782,6 +5784,7 @@ async function renderPlantillaPresentacion(container) {
         <div class="flex gap-8 mb-8 btn-print-ficha" style="align-items:center;flex-wrap:wrap;">
           <b style="font-size:18px;">${safeText(nombreCompleto(j))}</b>
           <span class="text-xs text-muted">${safeText(prep.evSel ? `${prep.evSel.ev.temporada} · ${prep.evSel.ev.nombre}` : 'Sin evaluaciones')}</span>
+          ${prep.fPos ? `<button class="btn btn-sm" data-pr-desc="${j.id}" title="La IA propone la descripción con sus notas y los comentarios de los evaluadores">✨ Proponer descripción</button>` : ''}
           <button class="btn btn-sm" data-pr-textos="${j.id}">Guardar textos</button>
           <button class="btn btn-sm" data-pr-editar="${j.id}">Editar datos</button>
         </div>
@@ -5793,6 +5796,7 @@ async function renderPlantillaPresentacion(container) {
       obsMontar();
       renderFichaPagina1(sec.querySelector('[data-pr-f1]'), buildFicha1RealData(prep.fPos, prep.fMedia, j, prep.aspectosTxt, prep.evSel?.eid), LOGO_PATH, state.fichaColors);
       renderFichaDetalle(sec.querySelector('[data-pr-f2]'), buildFichaRealData(prep.fPos, prep.fMedia, j, prep.evSel?.eid, refDe(j, prep)), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
+      sec.querySelector('[data-pr-desc]')?.addEventListener('click', e => proponerDescripcion(e.currentTarget, sec.querySelector('[data-pr-f1] .p1-desc-text'), j, prep.evSel, prep.aspectosTxt));
       sec.querySelector('[data-pr-textos]').addEventListener('click', async e => {
         const btn = e.currentTarget;
         const grids = [...sec.querySelectorAll('.p1-aspectos-grid')];
