@@ -399,10 +399,6 @@ function buildEvaluacionFormHTML() {
             <input class="input" type="text" id="ev-nombre" placeholder="Ej. Evaluación enero" value="${safeText(ev?.nombre || '')}" />
           </div>
           <div class="field-group" style="min-width:160px;">
-            <label class="label">Posición</label>
-            <select class="select" id="ev-posicion">${state.positions.map(p => `<option value="${p.key}" ${ev?.posicionKey === p.key ? 'selected' : ''}>${safeText(p.label)}</option>`).join('')}</select>
-          </div>
-          <div class="field-group" style="min-width:160px;">
             <label class="label">Tipo de evaluación</label>
             <input class="input" type="text" id="ev-tipo" placeholder="Ej. Trimestral" value="${safeText(ev?.tipo || '')}" />
           </div>
@@ -438,14 +434,20 @@ function buildEvaluacionesListHTML() {
       const r = regVer.res;
       registros = !r ? '<p class="text-xs text-muted mt-8">Cargando registros…</p>'
         : !r.registros.length ? '<p class="text-xs text-muted mt-8">Sin registros todavía en esta evaluación.</p>'
-        : `<div class="mt-8">${buildTablaEncuestaHTML(r.registros, ev.posicionKey, id => { const p = state.players.find(x => x.id === id); return p ? `${p.nombre} ${p.apellidos}` : '(sin identificar)'; })}</div>`;
+        : (() => { // una tabla por posición (cada una con sus columnas de encuesta)
+          const label = id => { const p = state.players.find(x => x.id === id); return p ? `${p.nombre} ${p.apellidos}` : '(sin identificar)'; };
+          const orden = state.positions.map(p => p.key);
+          const pks = [...new Set(r.registros.map(x => x.posicionKey || ev.posicionKey || ''))].sort((a, b) => orden.indexOf(a) - orden.indexOf(b));
+          return pks.map(pk => `<div class="mt-16"><div style="font-weight:800;margin-bottom:6px;">${safeText(state.positions.find(p => p.key === pk)?.label || pk || 'Sin posición')}</div>
+            ${pk ? buildTablaEncuestaHTML(r.registros.filter(x => (x.posicionKey || ev.posicionKey || '') === pk), pk, label) : ''}</div>`).join('');
+        })();
     }
     return `
     <div class="card" style="margin:0;${activa || viendo ? 'border:2px solid var(--blue-500, #3b82f6);' : ''}">
       <div class="card-body">
         <div class="flex gap-8" style="align-items:center;flex-wrap:wrap;">
           <div style="flex:1 1 260px;min-width:0;">
-            <div style="font-size:16px;font-weight:800;">${safeText(ev.nombre)} · ${safeText(pos)}</div>
+            <div style="font-size:16px;font-weight:800;">${safeText(ev.nombre)}${ev.posicionKey ? ` <span class="text-xs text-muted" title="Evaluación antigua de una sola posición: puedes unirla con las demás del mismo periodo">· solo ${safeText(pos)}</span>` : ''}</div>
             <div class="text-xs text-muted">${safeText(ev.temporada)}${ev.tipo ? ' · ' + safeText(ev.tipo) : ''}${fechas ? ' · ' + fechas : ''}</div>
           </div>
           <button class="btn btn-sm btn-primary" data-ev-importar="${ev.id}">📥 Importar encuesta</button>
@@ -458,6 +460,78 @@ function buildEvaluacionesListHTML() {
       </div>
     </div>`;
   }).join('')}</div>`;
+}
+
+/** Evaluaciones del mismo periodo (mismo nombre y temporada) que antes se creaban una por posición. */
+function gruposEvaluacionesRepetidas() {
+  const g = {};
+  (regEvaluaciones || []).forEach(e => { const k = `${normalizeTxt(e.nombre).trim()}|${e.temporada || ''}`; (g[k] = g[k] || []).push(e); });
+  return Object.values(g).filter(arr => arr.length > 1);
+}
+function buildUnirEvaluacionesHTML() {
+  const grupos = gruposEvaluacionesRepetidas();
+  if (!grupos.length) return '';
+  const pos = k => state.positions.find(p => p.key === k)?.label || k || 'sin posición';
+  return `<div class="card mb-16" style="border:2px solid #f59e0b;"><div class="card-body">
+    <div class="flex gap-8" style="align-items:center;flex-wrap:wrap;">
+      <div style="flex:1 1 320px;">
+        <b>🔗 Evaluaciones del mismo periodo separadas por posición</b>
+        <div class="text-xs text-muted" style="margin-top:4px;">${grupos.map(gr => `<div>· <b>${safeText(gr[0].nombre)}</b> (${safeText(gr[0].temporada)}): ${gr.map(e => safeText(pos(e.posicionKey))).join(', ')}</div>`).join('')}</div>
+        <div class="text-xs text-muted" style="margin-top:4px;">Al unirlas queda una sola evaluación por periodo con todas las posiciones. Se mueven sus registros y lo guardado en las fichas (textos, descripción, plan, condicionales, notas a mano). Antes se descarga una copia de seguridad.</div>
+      </div>
+      <button class="btn btn-primary" id="reg-unir">Unir evaluaciones</button>
+      <span class="text-xs text-muted" id="reg-unir-estado"></span>
+    </div>
+  </div></div>`;
+}
+/** Junta cada grupo en una evaluación (la más antigua). Mueve registros y los mapas por evaluación de cada jugador. */
+async function unirEvaluaciones(estado) {
+  const grupos = gruposEvaluacionesRepetidas();
+  // 1. Copia de seguridad (evaluaciones, registros y jugadores) que se descarga antes de tocar nada
+  estado('Haciendo copia de seguridad…');
+  const copia = { tipo: 'antes-de-unir-evaluaciones', creada: new Date().toISOString(),
+    evaluaciones: await readCollection('evaluaciones'), registros: await readCollection('registros'), jugadores: await readCollection('jugadores') };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(copia)], { type: 'application/json' }));
+  a.download = `copia-antes-de-unir-evaluaciones-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  const CAMPOS = ['condicionalPorEval', 'condicionalMaxPorEval', 'condicionalBasePorEval', 'fichaNotasManuales', 'fichaTextos'];
+  let movidos = 0;
+  for (const gr of grupos) {
+    const orden = [...gr].sort((x, y) => (x.createdAt?.seconds || 0) - (y.createdAt?.seconds || 0));
+    const master = orden[0], otras = orden.slice(1);
+    // Los registros de la principal guardan su posición antes de que la evaluación deje de tenerla
+    if (master.posicionKey) {
+      for (const r of (await queryRegistros({ evaluacionId: master.id })).filter(r => !r.posicionKey)) await actualizarRegistro(r.id, { posicionKey: master.posicionKey });
+    }
+    for (const ot of otras) {
+      estado(`Uniendo ${master.nombre}: ${state.positions.find(p => p.key === ot.posicionKey)?.label || ''}…`);
+      for (const r of await queryRegistros({ evaluacionId: ot.id })) {
+        await actualizarRegistro(r.id, { evaluacionId: master.id, temporada: master.temporada, posicionKey: r.posicionKey || ot.posicionKey || null,
+          rowKey: buildRowKey({ evaluacionId: master.id, jugadorId: r.jugadorId, jugadorNombreArchivo: r.jugadorNombreArchivo, evaluador: r.evaluador }) });
+        movidos++;
+      }
+      for (const j of state.players) {
+        for (const campo of CAMPOS) {
+          const val = j[campo]?.[ot.id];
+          if (val == null) continue;
+          const yaHay = j[campo]?.[master.id];
+          const nuevo = yaHay && typeof yaHay === 'object' && typeof val === 'object' ? { ...val, ...yaHay } : (yaHay ?? val);
+          await updateMapEntry('jugadores', j.id, campo, master.id, nuevo);
+          await updateMapEntry('jugadores', j.id, campo, ot.id, null);
+          const mapa = { ...(j[campo] || {}), [master.id]: nuevo }; delete mapa[ot.id];
+          j[campo] = mapa;
+        }
+      }
+      await eliminarEvaluacion(ot.id);
+    }
+    const fechas = gr.map(e => e.fechaInicio).filter(Boolean).sort(), fines = gr.map(e => e.fechaFin).filter(Boolean).sort();
+    const patch = { posicionKey: null, fechaInicio: fechas[0] || master.fechaInicio || null, fechaFin: fines[fines.length - 1] || master.fechaFin || null };
+    await actualizarEvaluacion(master.id, patch);
+    regEvaluaciones = regEvaluaciones.filter(e => !otras.some(o => o.id === e.id)).map(e => e.id === master.id ? { ...e, ...patch } : e);
+  }
+  setState({ players: [...state.players] });
+  return { grupos: grupos.length, movidos };
 }
 
 /** Registros cuya evaluación se borró: verlos, editarlos, borrarlos o pasarlos a otra evaluación de su posición. */
@@ -474,7 +548,7 @@ function buildHuerfanosHTML() {
     const rs = regs.filter(r => (r.posicionKey || '') === pk);
     const pos = state.positions.find(p => p.key === pk)?.label || pk || 'Sin posición';
     const temps = [...new Set(rs.map(r => r.temporada).filter(Boolean))].join(', ');
-    const evs = (regEvaluaciones || []).filter(e => e.posicionKey === pk);
+    const evs = (regEvaluaciones || []).filter(e => !e.posicionKey || e.posicionKey === pk); // las de periodo (todas las posiciones) o las antiguas de esa posición
     return `<div class="mt-16" style="border-top:1px solid var(--border-default);padding-top:12px;">
       <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
         <b style="flex:1 1 220px;">${safeText(pos)} · ${rs.length} registro(s)${temps ? ' · ' + safeText(temps) : ''}</b>
@@ -501,7 +575,8 @@ function bloquesCriterios(posicionKey) {
 function buildImportWizardHTML() {
   const ev = regEvaluaciones.find(e => e.id === regEvalSel);
   if (!ev) return '';
-  const posLabel = state.positions.find(p => p.key === ev.posicionKey)?.label || ev.posicionKey;
+  const posImp = regImport.posicionKey || ev.posicionKey;
+  const posLabel = state.positions.find(p => p.key === posImp)?.label || posImp || '';
   let body = '';
 
   if (regImport.step === 'archivo') {
@@ -511,9 +586,9 @@ function buildImportWizardHTML() {
       <div class="flex gap-8 mt-16"><button class="btn btn-ghost" id="import-cancelar">Cancelar</button></div>
     `;
   } else if (regImport.step === 'mapeo') {
-    const schema = state.criteriaSchemas[ev.posicionKey] || {};
+    const schema = state.criteriaSchemas[posImp] || {};
     const perfiles = schema.perfiles || [];
-    const aspectoPorCompetencia = buildAspectoPorCompetencia(state, ev.posicionKey);
+    const aspectoPorCompetencia = buildAspectoPorCompetencia(state, posImp);
     const competencias = Object.keys(aspectoPorCompetencia);
     const optionsFor = header => {
       const sel = regImport.mapping[header] || '';
@@ -533,7 +608,7 @@ function buildImportWizardHTML() {
     };
     const preguntas = regImport.preguntas || {};
     const hayPreguntas = Object.keys(preguntas).length > 0;
-    const chk = hayPreguntas ? comprobarPorBloques(preguntas, regImport.mapping, bloquesCriterios(ev.posicionKey)) : { porColumna: {}, avisos: 0 };
+    const chk = hayPreguntas ? comprobarPorBloques(preguntas, regImport.mapping, bloquesCriterios(posImp)) : { porColumna: {}, avisos: 0 };
     const estadoHTML = h => {
       const e = chk.porColumna[h];
       if (!e) return '';
@@ -548,6 +623,11 @@ function buildImportWizardHTML() {
         </div>`
       : '<div class="mb-16" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;color:#166534;"><b>✓ Las columnas cuadran con las preguntas del Excel.</b></div>';
     body = `
+      <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
+        <label class="label" for="import-posicion" style="margin:0;">Posición de esta encuesta</label>
+        <select class="select" id="import-posicion" style="width:auto;min-width:180px;">${state.positions.map(pp => `<option value="${pp.key}" ${pp.key === posImp ? 'selected' : ''}>${safeText(pp.label)}</option>`).join('')}</select>
+        ${regImport.hoja ? `<span class="text-xs text-muted">pestaña del Excel: «${safeText(regImport.hoja)}»</span>` : ''}
+      </div>
       ${aviso}
       <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas${regImport.omitidas ? ` (${regImport.omitidas} filas de cabecera omitidas)` : ''}${regImport.precargado ? '. Mapeo precargado desde Configuración › Columnas de la encuesta' : ''}. Indica qué es cada columna (obligatorio: Jugador y Evaluador). Posición: ${safeText(posLabel)}.</p>
       <div style="overflow-x:auto;">
@@ -574,7 +654,7 @@ function buildImportWizardHTML() {
     body = buildResumenImportHTML(regImport.resultado);
   }
 
-  return `<div style="border-top:1px solid var(--border-default);padding-top:12px;"><div style="font-weight:800;margin-bottom:8px;">📥 Importar encuesta — ${safeText(ev.nombre)} (${safeText(posLabel)}, ${safeText(ev.temporada)})</div>${body}</div>`;
+  return `<div style="border-top:1px solid var(--border-default);padding-top:12px;"><div style="font-weight:800;margin-bottom:8px;">📥 Importar encuesta — ${safeText(ev.nombre)} (${safeText(ev.temporada)}${regImport.step !== 'archivo' && posLabel ? ' · ' + safeText(posLabel) : ''})</div>${body}</div>`;
 }
 
 /** Pendientes agrupados por nombre (sin tildes/mayúsculas): una decisión por nombre vale para todas sus filas. */
@@ -671,11 +751,12 @@ function buildResumenImportHTML(r) {
 /** De filas parseadas + mapeo → clasificación NUEVO/SIN CAMBIOS/CON CAMBIOS/ERROR (auditoría §15). */
 async function procesarImport(container) {
   const ev = regEvaluaciones.find(e => e.id === regEvalSel);
-  const schema = state.criteriaSchemas[ev.posicionKey] || {};
+  const posImp = regImport.posicionKey || ev.posicionKey;
+  const schema = state.criteriaSchemas[posImp] || {};
   const perfiles = schema.perfiles || [];
   // IDs estables (ficha-espejo.js): además de puntuaciones{nombre}, cada registro
   // nuevo guarda puntuacionesId{id}. Retrocompatible: lo antiguo se sigue leyendo por nombre.
-  const catalogo = buildCatalogo(state, ev.posicionKey);
+  const catalogo = buildCatalogo(state, posImp);
   const idPorClave = {};
   catalogo.lista.forEach(c => { if (!(c.clave in idPorClave)) idPorClave[c.clave] = c.id; });
   // Columnas de fecha/evaluador/jugador/equipo: las que el usuario mapeó (Configuración → Columnas encuesta).
@@ -763,10 +844,27 @@ function renderRegistroSub(container) {
       ${regEvalFormOpen ? '' : '<button class="btn btn-primary" id="reg-nueva-ev">+ Nueva evaluación</button>'}
     </div>
     ${regEvalFormOpen ? `<div class="mb-16">${buildEvaluacionFormHTML()}</div>` : ''}
+    ${buildUnirEvaluacionesHTML()}
     ${buildEvaluacionesListHTML()}
     ${buildHuerfanosHTML()}
   `;
 
+  container.querySelector('#reg-unir')?.addEventListener('click', async e => {
+    if (isFirebaseUnconfigured()) { showError('Configura Firebase para unir evaluaciones.'); return; }
+    const grupos = gruposEvaluacionesRepetidas();
+    if (!confirm(`Se van a unir ${grupos.reduce((n, g) => n + g.length, 0)} evaluaciones en ${grupos.length}.\n\nAntes se descargará una copia de seguridad. ¿Seguimos?`)) return;
+    const btn = e.currentTarget, est = container.querySelector('#reg-unir-estado');
+    btn.disabled = true;
+    try {
+      const r = await unirEvaluaciones(t => { if (est) est.textContent = t; });
+      regVer = null; regEvalSel = null; resetRegImport(); regHuerfanos = null;
+      showSuccess(`Hecho: ${r.grupos} evaluación(es) unidas, ${r.movidos} registros movidos.`, 8000);
+    } catch (err) {
+      console.error('[Unir evaluaciones]', err);
+      showError('Se paró a medias: ' + (err.message || err) + '. Lo hecho se queda; vuelve a pulsar para terminar (tienes la copia descargada).', 12000);
+    }
+    renderRegistroSub(container);
+  });
   container.querySelectorAll('[data-ev-ver]').forEach(btn => btn.addEventListener('click', async () => {
     const evId = btn.dataset.evVer;
     if (regVer?.evId === evId) { regVer = null; renderRegistroSub(container); return; }
@@ -849,7 +947,6 @@ function renderRegistroSub(container) {
     const data = {
       temporada:   container.querySelector('#ev-temporada').value,
       nombre:      container.querySelector('#ev-nombre').value.trim(),
-      posicionKey: container.querySelector('#ev-posicion').value,
       tipo:        container.querySelector('#ev-tipo').value.trim() || null,
       fechaInicio: container.querySelector('#ev-fecha-ini').value || null,
       fechaFin:    container.querySelector('#ev-fecha-fin').value || null,
@@ -936,7 +1033,12 @@ function renderRegistroSub(container) {
     // Estructura fija de las encuestas: se omiten filas de cabecera (números/aspecto/preguntas),
     // la fecha se normaliza a ISO y el mapeo de columnas 7+ llega precargado (editable).
     const evImp = regEvaluaciones.find(x => x.id === regEvalSel);
-    const mapeoInicial = mapeoPorDefecto(state, evImp?.posicionKey, parsed.headers.length);
+    // Posición de esta encuesta: la de la evaluación antigua (si tenía), o la que diga la pestaña del Excel ("Laterales" → Lateral).
+    const raiz = t => normalizeTxt(t).replace(/[^a-z]/g, '').slice(0, 5);
+    const porHoja = parsed.hoja ? state.positions.find(p => raiz(p.label) && raiz(p.label) === raiz(parsed.hoja))?.key : null;
+    regImport.posicionKey = evImp?.posicionKey || porHoja || regImport.posicionKey || state.positions[0]?.key || null;
+    regImport.hoja = parsed.hoja || '';
+    const mapeoInicial = mapeoPorDefecto(state, regImport.posicionKey, parsed.headers.length);
     const colFechaImp = Object.keys(mapeoInicial).find(h => mapeoInicial[h] === '@fecha') || 'Columna 1';
     const limpio = quitarCabeceras(parsed.rows, colFechaImp);
     regImport.headers = parsed.headers;
@@ -959,9 +1061,15 @@ function renderRegistroSub(container) {
     sel.addEventListener('change', () => { regImport.mapping[sel.dataset.mapCol] = sel.value; if (regImport.preguntas && Object.keys(regImport.preguntas).length) renderRegistroSub(container); });
   });
 
+  container.querySelector('#import-posicion')?.addEventListener('change', e => {
+    regImport.posicionKey = e.target.value;
+    regImport.mapping = mapeoPorDefecto(state, regImport.posicionKey, regImport.headers.length);
+    regImport.precargado = Object.keys(regImport.mapping).length > 0;
+    renderRegistroSub(container);
+  });
   container.querySelector('#import-auto')?.addEventListener('click', () => {
     const ev = regEvaluaciones.find(e => e.id === regEvalSel);
-    const { porColumna, propuesta } = comprobarPorBloques(regImport.preguntas || {}, regImport.mapping, bloquesCriterios(ev?.posicionKey));
+    const { porColumna, propuesta } = comprobarPorBloques(regImport.preguntas || {}, regImport.mapping, bloquesCriterios(regImport.posicionKey || ev?.posicionKey));
     Object.entries(porColumna).forEach(([h, e]) => { if (e.estado === 'aviso') regImport.mapping[h] = e.sugerido; });
     // Una columna sin criterio claro que se quede con uno ya colocado en otra → se ignora (no se duplica).
     const tomados = new Set(Object.values(propuesta));
@@ -1044,7 +1152,7 @@ function renderRegistroSub(container) {
     try {
       for (const fila of [...r.nuevos]) {
         await crearRegistro({
-          evaluacionId: ev.id, temporada: ev.temporada, posicionKey: ev.posicionKey, tipo: ev.tipo || null,
+          evaluacionId: ev.id, temporada: ev.temporada, posicionKey: regImport.posicionKey || ev.posicionKey, tipo: ev.tipo || null,
           jugadorId: fila.jugadorId, jugadorNombreArchivo: fila.jugadorNombreArchivo, evaluador: fila.evaluador,
           puntuaciones: fila.puntuaciones, puntuacionesId: fila.puntuacionesId || {}, textos: fila.textos || {}, rp: fila.rp || {}, extras: fila.extras || {}, fechaRegistro: fila.fechaRegistro || null, rowKey: fila.rowKey, origen: 'csv',
         });
@@ -1517,9 +1625,11 @@ function renderComparativasSub(container) {
         if (compFiltros.generacion && String(calcAgeAndYear(jugador.birthDate).year) !== compFiltros.generacion) return false;
         return true;
       });
-      const posicionParaMedias = compFiltros.posicionKey || ev.posicionKey;
-      const map = buildAspectoPorCompetencia(state, posicionParaMedias);
-      const mediasPorJugador = calcularMediasPorJugador(registrosFiltrados, map);
+      // Cada registro con el esquema de SU posición (una evaluación puede tener todas las posiciones).
+      const porPos = {};
+      registrosFiltrados.forEach(r => { const pk = r.posicionKey || compFiltros.posicionKey || ev?.posicionKey; (porPos[pk] = porPos[pk] || []).push(r); });
+      const mediasPorJugador = {};
+      Object.entries(porPos).forEach(([pk, regs]) => Object.assign(mediasPorJugador, calcularMediasPorJugador(regs, buildAspectoPorCompetencia(state, pk))));
       compResultado = {
         mediasPorJugador,
         grupoMedia: calcularMediaGrupo(mediasPorJugador),
@@ -4659,7 +4769,8 @@ function equiposDeJugador(jugador, temporada) {
 
 let plVista = { modo: 'grid', teamKey: null };
 const plCardDatos = new Set();
-let plOpcionesAbiertas = false;  // presentación: panel ⚙ Opciones desplegado   // equipos que muestran la pestaña Datos en su tarjeta
+let plOpcionesAbiertas = false;
+let plEvalSel = null;            // presentación: evaluación elegida para todo el equipo ('auto' = cada uno la suya)  // presentación: panel ⚙ Opciones desplegado   // equipos que muestran la pestaña Datos en su tarjeta
 let plAddCierreGlobal = false;   // listener único para cerrar los "+ Añadir"
 let plIrJugador = null; // jugador al que saltar al abrir la presentación (clic en su nombre)
 let plRefModo = 'team';   // comparación de las medias en la Presentación: 'team' (precargado) | 'teampos' | 'none'  // 'grid' | 'datos' | 'pres'
@@ -5080,7 +5191,7 @@ function pieEvaluacion(ev) {
   const fechas = a && b && a !== b ? `${a} – ${b}` : (b || a);
   return `Evaluación: ${[ev.temporada, ev.nombre].filter(Boolean).join(' · ')}${fechas ? ' · ' + fechas : ''}`;
 }
-function prepararFichaJugador(p, regs, temporada) {
+function prepararFichaJugador(p, regs, temporada, evalPreferida = null) { // evalPreferida: la elegida para todo el equipo
   const evInfo = eid => (regEvaluaciones || []).find(e => e.id === eid);
   const grupos = {};
   (regs || []).forEach(r => { const k = r.evaluacionId || 'sin-evaluacion'; (grupos[k] = grupos[k] || []).push(r); });
@@ -5098,7 +5209,8 @@ function prepararFichaJugador(p, regs, temporada) {
     filasEval.push({ eid, ev, posKey: p.positionKey || ev.posicionKey, media: null, orden: `${ev.fechaFin || ev.fechaInicio || ''}|${String(idx).padStart(5, '0')}` });
   });
   filasEval.sort((x, y) => String(y.orden).localeCompare(String(x.orden)));
-  const evSel = filasEval.find(f => f.ev?.temporada === temporada && f.media) || filasEval.find(f => f.ev?.temporada === temporada) || filasEval.find(f => f.media) || filasEval[0] || null;
+  const evSel = evalPreferida ? (filasEval.find(f => f.eid === evalPreferida) || null)
+    : (filasEval.find(f => f.ev?.temporada === temporada && f.media) || filasEval.find(f => f.ev?.temporada === temporada) || filasEval.find(f => f.media) || filasEval[0] || null);
   const textosKey = evSel?.eid || 'sin-evaluacion';
   const regsEval = evSel ? (regs || []).filter(r => (r.evaluacionId || 'sin-evaluacion') === evSel.eid) : [];
   const filasTexto = k => regsEval.map(r => String(r.textos?.[k] || '').replace(/\s*\n+\s*/g, ' · ').trim()).filter(Boolean);
@@ -5541,6 +5653,8 @@ async function renderPlantillaPresentacion(container) {
         <button class="btn btn-ghost btn-sm" id="pl-volver">← Equipos</button>
         <b style="font-size:16px;">${safeText(t?.label || '')}</b>
         <span class="text-sm text-muted">${safeText(temporada)} · ${jugs.length} jugadores</span>
+        <label class="text-xs text-muted" for="pl-eval" style="margin-left:8px;">Evaluación</label>
+        <select class="select btn-print-ficha" id="pl-eval" style="width:auto;min-width:200px;" title="La misma evaluación para todos los jugadores del equipo"><option>Cargando…</option></select>
         <span style="flex:1;"></span>
         <span class="text-xs text-muted" id="pl-pres-estado">Cargando fichas…</span>
         <button class="btn btn-print-ficha" id="pl-pres-full" title="Pantalla completa: flechas del teclado para pasar de diapositiva, Esc para salir">▶ Presentar</button>
@@ -5689,11 +5803,23 @@ async function renderPlantillaPresentacion(container) {
   if (!isFirebaseUnconfigured()) {
     await Promise.all(jugs.map(j => jugFichaRegs[j.id] ? null : queryRegistros({ jugadorId: j.id }).then(r => { jugFichaRegs[j.id] = r; }).catch(err => { console.error('[Firestore] Registros:', err); jugFichaRegs[j.id] = []; })));
   }
+  await cargarEvaluacionesSilencioso();
   if (!container.isConnected || plVista.modo !== 'pres') return;
   setGpsTolerance(state.condicionalTolerance);
 
+  // Evaluación para todo el equipo: por defecto la más reciente de la temporada (o «cada uno la suya»).
+  const fechaEv = e => `${e.fechaFin || e.fechaInicio || ''}|${String(e.createdAt?.seconds || 0).padStart(12, '0')}`;
+  const evsTemp = (regEvaluaciones || []).filter(e => e.temporada === temporada).sort((a, b) => fechaEv(b).localeCompare(fechaEv(a)));
+  if (plEvalSel !== 'auto' && !evsTemp.some(e => e.id === plEvalSel)) plEvalSel = evsTemp[0]?.id || 'auto';
+  const selEval = container.querySelector('#pl-eval');
+  if (selEval) {
+    selEval.innerHTML = evsTemp.map(e => `<option value="${e.id}" ${e.id === plEvalSel ? 'selected' : ''}>${safeText(e.nombre)}${e.posicionKey ? ' · ' + safeText(state.positions.find(x => x.key === e.posicionKey)?.label || '') : ''}</option>`).join('')
+      + `<option value="auto" ${plEvalSel === 'auto' ? 'selected' : ''}>Cada jugador, su más reciente</option>`;
+    selEval.addEventListener('change', () => { plEvalSel = selEval.value; renderPlantillaPresentacion(container); });
+  }
+
   // Agrupa por posición (en el orden de Configuración); sin posición al final.
-  const preps = jugs.map(j => ({ j, prep: prepararFichaJugador(j, jugFichaRegs[j.id] || [], temporada) }));
+  const preps = jugs.map(j => ({ j, prep: prepararFichaJugador(j, jugFichaRegs[j.id] || [], temporada, plEvalSel === 'auto' ? null : plEvalSel) }));
   // Campograma: campo.jpg a diapositiva completa + jugadores arrastrables (posiciones guardadas en la plantilla).
   const f1Map = {};
   preps.forEach(({ j, prep }) => { if (prep.fPos) f1Map[j.id] = buildFicha1RealData(prep.fPos, prep.fMedia, j, prep.aspectosTxt, prep.evSel?.eid); });
