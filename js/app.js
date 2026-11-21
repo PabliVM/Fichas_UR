@@ -4725,16 +4725,20 @@ function parsearLineaJugador(linea) {
   return { nombre: w[0], apellidos: w.slice(1).join(' ') };
 }
 
-async function crearPlantillaDesdeLista(texto, teamKey, temporada) {
+async function crearPlantillaDesdeLista(texto, teamKey, temporada, positionKey = null) { // positionKey: la de la columna desde la que se añade (solo para quien no tenga)
   await ensurePlantillas();
   const res = { creados: [], existentes: [], dudosos: [] };
   for (const linea of texto.split(/\r?\n/)) {
     const pj = parsearLineaJugador(linea);
     if (!pj || !pj.nombre) continue;
     const m = matchJugador(`${pj.nombre} ${pj.apellidos}`, state.players, { teamKey });
-    if (m.status === 'auto') { await añadirAPlantilla(m.playerId, teamKey, temporada); res.existentes.push(linea.trim()); continue; }
+    if (m.status === 'auto') {
+      await añadirAPlantilla(m.playerId, teamKey, temporada);
+      if (positionKey && !state.players.find(x => x.id === m.playerId)?.positionKey) await guardarCampoJugador(m.playerId, 'positionKey', positionKey);
+      res.existentes.push(linea.trim()); continue;
+    }
     if (m.status === 'dudoso') { res.dudosos.push(`${linea.trim()} ≈ ${m.candidates.map(nombreCompleto).join(' / ')}`); continue; }
-    const data = { nombre: pj.nombre, apellidos: pj.apellidos, birthDate: null, foot: '', maturationalAge: '', teamKey, positionKey: null, weight: null, height: null, complexion: null };
+    const data = { nombre: pj.nombre, apellidos: pj.apellidos, birthDate: null, foot: '', maturationalAge: '', teamKey, positionKey: positionKey || null, weight: null, height: null, complexion: null };
     const id = await addDocument('jugadores', data);
     setState({ players: [...state.players, { id, ...data }] });
     await añadirAPlantilla(id, teamKey, temporada);
@@ -4842,9 +4846,13 @@ function renderPanelPlantillas(container) {
     catch (err) { console.error(err); showError('No se pudo guardar la foto (¿demasiado grande?).'); }
   });
   container.querySelectorAll('[data-pl-add]').forEach(btn => btn.addEventListener('click', () => {
-    const [teamKey] = btn.dataset.plAdd.split('|');
+    const [teamKey, colKey] = btn.dataset.plAdd.split('|');
     const sel = container.querySelector(`[data-pl-sel="${btn.dataset.plAdd}"]`);
     if (!sel?.value) return;
+    // Sin posición todavía → se le pone la de la columna desde la que se añade.
+    if (colKey && colKey !== '_sin' && !state.players.find(x => x.id === sel.value)?.positionKey) {
+      guardarCampoJugador(sel.value, 'positionKey', colKey).catch(err => console.error('[Firestore] Posición:', err));
+    }
     guardar(teamKey, { jugadorIds: arrayUnion(sel.value) }, { jugadorIds: [...new Set([...(docDe(teamKey)?.jugadorIds || []), sel.value])] });
   }));
   container.querySelectorAll('[data-pl-del]').forEach(btn => btn.addEventListener('click', () => {
@@ -4899,13 +4907,13 @@ function renderPanelPlantillas(container) {
   }));
   container.querySelectorAll('[data-pl-pres]').forEach(btn => btn.addEventListener('click', () => { plVista = { modo: 'pres', teamKey: btn.dataset.plPres }; renderPanelPlantillas(container); }));
   container.querySelectorAll('[data-pl-lista-ok]').forEach(btn => btn.addEventListener('click', async () => {
-    const [teamKey] = btn.dataset.plListaOk.split('|');
+    const [teamKey, colKey] = btn.dataset.plListaOk.split('|');
     const texto = container.querySelector(`[data-pl-lista="${btn.dataset.plListaOk}"]`).value;
     if (!texto.trim()) return;
     if (isFirebaseUnconfigured()) { showError('Configura Firebase para crear plantillas.'); return; }
     btn.disabled = true; btn.textContent = 'Creando…';
     try {
-      const r = await crearPlantillaDesdeLista(texto, teamKey, plantillaTemporada);
+      const r = await crearPlantillaDesdeLista(texto, teamKey, plantillaTemporada, colKey && colKey !== '_sin' ? colKey : null);
       showSuccess(`Creados ${r.creados.length} · ya existían ${r.existentes.length}${r.dudosos.length ? ` · ${r.dudosos.length} dudosos sin crear` : ''}.`);
       if (r.dudosos.length) showError(`Dudosos (no creados, añádelos a mano si son ellos): ${r.dudosos.join(' | ')}`, 15000);
     } catch (err) {
