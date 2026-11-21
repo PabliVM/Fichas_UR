@@ -4786,8 +4786,7 @@ function renderPanelPlantillas(container) {
         return `<div class="card" data-pl-det="${t.key}"><div class="card-body">
           <div class="flex gap-8" style="align-items:center;flex-wrap:wrap;margin-bottom:12px;">
             <b style="font-size:17px;">${safeText(t.label)}</b>
-            <span style="background:#eff6ff;color:#1d4ed8;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;">${campo} de campo</span>
-            <span style="background:#fef3c7;color:#92400e;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;">${porteros} portero${porteros === 1 ? '' : 's'}</span>
+            <span class="text-muted" style="font-size:14px;font-weight:600;" title="${campo} de campo + ${porteros} portero${porteros === 1 ? '' : 's'}">${campo}+${porteros}</span>
             ${puedeVer('plantillas.datos') && ids.length ? `<span style="display:inline-flex;background:var(--bg-hover);border-radius:999px;padding:3px;margin-left:6px;">
               <button class="btn btn-sm ${verDatos ? 'btn-ghost' : ''}" data-pl-vista="${t.key}|plantilla" style="border-radius:999px;${verDatos ? '' : 'background:var(--bg-surface, #fff);font-weight:700;'}">Plantilla</button>
               <button class="btn btn-sm ${verDatos ? '' : 'btn-ghost'}" data-pl-vista="${t.key}|datos" style="border-radius:999px;${verDatos ? 'background:var(--bg-surface, #fff);font-weight:700;' : ''}">Datos</button></span>` : ''}
