@@ -1216,7 +1216,7 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
       const fp = state.players.find(x => x.id === r.jugadorId), ini = `${(fp?.nombre || '?')[0] || ''}${(fp?.apellidos || '')[0] || ''}`.toUpperCase();
       const av = fp?.fotoUrl ? `<img src="${fp.fotoUrl}" alt="" style="width:20px;height:20px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;" />`
         : `<span style="display:inline-flex;width:20px;height:20px;border-radius:50%;background:#e2e8f0;color:#1d4ed8;font-size:8px;font-weight:800;align-items:center;justify-content:center;vertical-align:middle;margin-right:6px;">${safeText(ini)}</span>`;
-      return `<td class="bt-nowrap bt-bold">${av}${safeText(jugadorLabel(r.jugadorId))}</td>`;
+      return `<td class="bt-nowrap bt-bold">${av}${fp ? `<a href="#" data-reg-ficha="${r.jugadorId}" data-reg-ficha-ev="${safeText(r.evaluacionId || '')}" title="Abrir su ficha" style="color:inherit;text-decoration:none;border-bottom:1px dotted currentColor;">${safeText(jugadorLabel(r.jugadorId))}</a>` : safeText(jugadorLabel(r.jugadorId))}</td>`;
     }
     if (!t || t === 'equipo') return `<td class="bt-vacia"></td>`;
     if (t.startsWith('@txt_')) return `<td class="bt-texto">${safeText(r.textos?.[t.slice(5)] ?? '')}</td>`;
@@ -1374,6 +1374,15 @@ function buildBBDDPanelHTML() {
 
 /** Edición de notas y 🗑 de la Tabla de la encuesta. res() = { registros, mediasPorJugador } que se muestra. */
 function wireRegistrosTabla(container, res, rerender) {
+  // Nombre del jugador → su ficha (de esa evaluación); «← Volver a Evaluaciones» devuelve aquí mismo.
+  container.querySelectorAll('[data-reg-ficha]').forEach(a => a.addEventListener('click', async e => {
+    e.preventDefault();
+    await cargarEvaluacionesSilencioso();
+    jugFichaId = a.dataset.regFicha; jugadorFormId = null; jugFichaTab = 'fichas';
+    jugFichaEvalId = a.dataset.regFichaEv || null;
+    jugVolverA = 'registro'; jugVolverScroll = window.scrollY;
+    switchTab('jugadores');
+  }));
   // Columnas fijas (🗑, Fecha, Evaluador, Jugador): su "left" medido de verdad, sin huecos por donde se vea lo que pasa por detrás.
   container.querySelectorAll('table.bt').forEach(tabla => {
     if (!tabla.offsetParent) return; // oculta: se quedan los valores del CSS
@@ -2294,7 +2303,8 @@ function buildHistoricoHTML(entries) {
 
 // ── Jugadores: filtros + ficha de jugador ──────────
 let jugFiltros = { q: '', teamKey: '', positionKey: '', year: '', foot: '' };
-let jugVolverA = null;             // 'plantillas' si la ficha se abrió desde esa pestaña (botón Volver)
+let jugVolverA = null;             // 'plantillas' | 'registro': pestaña desde la que se abrió la ficha (botón Volver)
+let jugVolverScroll = 0;           // posición de la página al salir, para volver al mismo sitio
 let jugFichaId = null;             // null = lista; <id> = ficha de ese jugador abierta
 const jugFichaRegs = {};           // { [playerId]: registros[] } — evaluaciones recibidas
 const jugFichaLoading = new Set(); // evita lanzar la misma carga dos veces
@@ -2576,7 +2586,7 @@ function renderFichaJugador(container, p) {
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="flex gap-8 mb-16">
-      <button class="btn btn-ghost" id="jug-ficha-volver">${jugVolverA === 'plantillas' ? '← Volver a Plantillas' : '← Volver a la lista'}</button>
+      <button class="btn btn-ghost" id="jug-ficha-volver">${jugVolverA === 'plantillas' ? '← Volver a Equipos' : jugVolverA === 'registro' ? '← Volver a Evaluaciones' : '← Volver a la lista'}</button>
       <button class="btn btn-primary" id="jug-ficha-editar">Editar</button>
     </div>
     <div class="card mb-16"><div class="card-body">
@@ -2671,7 +2681,12 @@ function renderFichaJugador(container, p) {
   });
   container.querySelector('#jug-ficha-volver')?.addEventListener('click', () => {
     jugFichaId = null;
-    if (jugVolverA === 'plantillas') { jugVolverA = null; switchTab('plantillas'); return; }
+    if (jugVolverA === 'plantillas' || jugVolverA === 'registro') {
+      const destino = jugVolverA, y = jugVolverScroll;
+      jugVolverA = null; switchTab(destino);
+      setTimeout(() => window.scrollTo(0, y), 60); // vuelve a donde estaba
+      return;
+    }
     renderPanelJugadores(container);
   });
   container.querySelector('#jug-ficha-editar')?.addEventListener('click', async () => {
@@ -5037,7 +5052,7 @@ function renderPanelPlantillas(container) {
   }
   container.querySelectorAll('[data-pl-ir]').forEach(el => el.addEventListener('click', e => {
     e.preventDefault(); const id = el.dataset.plIr.split('|')[1];
-    jugFichaId = id; jugadorFormId = null; jugFichaTab = 'datos'; jugFichaEvalId = null; jugVolverA = 'plantillas'; switchTab('jugadores');
+    jugFichaId = id; jugadorFormId = null; jugFichaTab = 'datos'; jugFichaEvalId = null; jugVolverA = 'plantillas'; jugVolverScroll = window.scrollY; switchTab('jugadores');
   }));
   container.querySelectorAll('[data-pl-pres]').forEach(btn => btn.addEventListener('click', () => { plVista = { modo: 'pres', teamKey: btn.dataset.plPres }; renderPanelPlantillas(container); }));
   container.querySelectorAll('[data-pl-lista-ok]').forEach(btn => btn.addEventListener('click', async () => {
@@ -6246,7 +6261,7 @@ const NAV_LS = 'rm-nav';
       jugFichaId = n.jugFichaId;
       jugFichaTab = n.jugFichaTab === 'fichas' ? 'fichas' : 'datos';
       jugFichaEvalId = typeof n.jugFichaEvalId === 'string' ? n.jugFichaEvalId : null;
-      jugVolverA = n.jugVolverA === 'plantillas' ? 'plantillas' : null;
+      jugVolverA = ['plantillas', 'registro'].includes(n.jugVolverA) ? n.jugVolverA : null;
     }
     if (typeof n.plantillaTemporada === 'string' && n.plantillaTemporada) plantillaTemporada = n.plantillaTemporada;
     if (n.plVista && ['grid', 'datos', 'pres'].includes(n.plVista.modo)) plVista = { modo: n.plVista.modo, teamKey: n.plVista.teamKey || null };
