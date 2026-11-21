@@ -4769,7 +4769,8 @@ function equiposDeJugador(jugador, temporada) {
 
 let plVista = { modo: 'grid', teamKey: null };
 const plCardDatos = new Set();
-let plOpcionesAbiertas = false;  // presentación: panel ⚙ Opciones desplegado   // equipos que muestran la pestaña Datos en su tarjeta
+let plOpcionesAbiertas = false;
+let plEvalSel = null;            // presentación: evaluación elegida para todo el equipo ('auto' = cada uno la suya)  // presentación: panel ⚙ Opciones desplegado   // equipos que muestran la pestaña Datos en su tarjeta
 let plAddCierreGlobal = false;   // listener único para cerrar los "+ Añadir"
 let plIrJugador = null; // jugador al que saltar al abrir la presentación (clic en su nombre)
 let plRefModo = 'team';   // comparación de las medias en la Presentación: 'team' (precargado) | 'teampos' | 'none'  // 'grid' | 'datos' | 'pres'
@@ -5190,7 +5191,7 @@ function pieEvaluacion(ev) {
   const fechas = a && b && a !== b ? `${a} – ${b}` : (b || a);
   return `Evaluación: ${[ev.temporada, ev.nombre].filter(Boolean).join(' · ')}${fechas ? ' · ' + fechas : ''}`;
 }
-function prepararFichaJugador(p, regs, temporada) {
+function prepararFichaJugador(p, regs, temporada, evalPreferida = null) { // evalPreferida: la elegida para todo el equipo
   const evInfo = eid => (regEvaluaciones || []).find(e => e.id === eid);
   const grupos = {};
   (regs || []).forEach(r => { const k = r.evaluacionId || 'sin-evaluacion'; (grupos[k] = grupos[k] || []).push(r); });
@@ -5208,7 +5209,8 @@ function prepararFichaJugador(p, regs, temporada) {
     filasEval.push({ eid, ev, posKey: p.positionKey || ev.posicionKey, media: null, orden: `${ev.fechaFin || ev.fechaInicio || ''}|${String(idx).padStart(5, '0')}` });
   });
   filasEval.sort((x, y) => String(y.orden).localeCompare(String(x.orden)));
-  const evSel = filasEval.find(f => f.ev?.temporada === temporada && f.media) || filasEval.find(f => f.ev?.temporada === temporada) || filasEval.find(f => f.media) || filasEval[0] || null;
+  const evSel = evalPreferida ? (filasEval.find(f => f.eid === evalPreferida) || null)
+    : (filasEval.find(f => f.ev?.temporada === temporada && f.media) || filasEval.find(f => f.ev?.temporada === temporada) || filasEval.find(f => f.media) || filasEval[0] || null);
   const textosKey = evSel?.eid || 'sin-evaluacion';
   const regsEval = evSel ? (regs || []).filter(r => (r.evaluacionId || 'sin-evaluacion') === evSel.eid) : [];
   const filasTexto = k => regsEval.map(r => String(r.textos?.[k] || '').replace(/\s*\n+\s*/g, ' · ').trim()).filter(Boolean);
@@ -5651,6 +5653,8 @@ async function renderPlantillaPresentacion(container) {
         <button class="btn btn-ghost btn-sm" id="pl-volver">← Equipos</button>
         <b style="font-size:16px;">${safeText(t?.label || '')}</b>
         <span class="text-sm text-muted">${safeText(temporada)} · ${jugs.length} jugadores</span>
+        <label class="text-xs text-muted" for="pl-eval" style="margin-left:8px;">Evaluación</label>
+        <select class="select btn-print-ficha" id="pl-eval" style="width:auto;min-width:200px;" title="La misma evaluación para todos los jugadores del equipo"><option>Cargando…</option></select>
         <span style="flex:1;"></span>
         <span class="text-xs text-muted" id="pl-pres-estado">Cargando fichas…</span>
         <button class="btn btn-print-ficha" id="pl-pres-full" title="Pantalla completa: flechas del teclado para pasar de diapositiva, Esc para salir">▶ Presentar</button>
@@ -5799,11 +5803,23 @@ async function renderPlantillaPresentacion(container) {
   if (!isFirebaseUnconfigured()) {
     await Promise.all(jugs.map(j => jugFichaRegs[j.id] ? null : queryRegistros({ jugadorId: j.id }).then(r => { jugFichaRegs[j.id] = r; }).catch(err => { console.error('[Firestore] Registros:', err); jugFichaRegs[j.id] = []; })));
   }
+  await cargarEvaluacionesSilencioso();
   if (!container.isConnected || plVista.modo !== 'pres') return;
   setGpsTolerance(state.condicionalTolerance);
 
+  // Evaluación para todo el equipo: por defecto la más reciente de la temporada (o «cada uno la suya»).
+  const fechaEv = e => `${e.fechaFin || e.fechaInicio || ''}|${String(e.createdAt?.seconds || 0).padStart(12, '0')}`;
+  const evsTemp = (regEvaluaciones || []).filter(e => e.temporada === temporada).sort((a, b) => fechaEv(b).localeCompare(fechaEv(a)));
+  if (plEvalSel !== 'auto' && !evsTemp.some(e => e.id === plEvalSel)) plEvalSel = evsTemp[0]?.id || 'auto';
+  const selEval = container.querySelector('#pl-eval');
+  if (selEval) {
+    selEval.innerHTML = evsTemp.map(e => `<option value="${e.id}" ${e.id === plEvalSel ? 'selected' : ''}>${safeText(e.nombre)}${e.posicionKey ? ' · ' + safeText(state.positions.find(x => x.key === e.posicionKey)?.label || '') : ''}</option>`).join('')
+      + `<option value="auto" ${plEvalSel === 'auto' ? 'selected' : ''}>Cada jugador, su más reciente</option>`;
+    selEval.addEventListener('change', () => { plEvalSel = selEval.value; renderPlantillaPresentacion(container); });
+  }
+
   // Agrupa por posición (en el orden de Configuración); sin posición al final.
-  const preps = jugs.map(j => ({ j, prep: prepararFichaJugador(j, jugFichaRegs[j.id] || [], temporada) }));
+  const preps = jugs.map(j => ({ j, prep: prepararFichaJugador(j, jugFichaRegs[j.id] || [], temporada, plEvalSel === 'auto' ? null : plEvalSel) }));
   // Campograma: campo.jpg a diapositiva completa + jugadores arrastrables (posiciones guardadas en la plantilla).
   const f1Map = {};
   preps.forEach(({ j, prep }) => { if (prep.fPos) f1Map[j.id] = buildFicha1RealData(prep.fPos, prep.fMedia, j, prep.aspectosTxt, prep.evSel?.eid); });
