@@ -1998,7 +1998,7 @@ function buildJugadorFormHTML(player) {
   const posOptions = state.positions.map(pos => `<option value="${pos.key}" ${p.positionKey === pos.key ? 'selected' : ''}>${safeText(pos.label)}</option>`).join('');
   return `
     <div class="card mb-16">
-      <div class="card-title">${player ? 'Editar jugador' : 'Nuevo jugador'}</div>
+      <div class="card-title" style="display:flex;align-items:center;gap:10px;"><button class="btn btn-sm btn-ghost" type="button" id="jug-volver-form" title="Volver sin guardar (igual que Cancelar)">← Volver</button>${player ? 'Editar jugador' : 'Nuevo jugador'}</div>
       <div class="card-body">
         <div class="flex gap-12 mb-16" style="align-items:center;flex-wrap:wrap;">
           <img id="jug-foto-preview" src="${p.fotoUrl || ''}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;background:var(--bg-hover);display:${p.fotoUrl ? 'block' : 'none'};" />
@@ -3448,10 +3448,10 @@ function renderPanelJugadores(container) {
     if (fallos.length) showError(`Fallaron ${fallos.length}: ${fallos.join(', ')}. Revisa permisos o conexión.`, 12000);
   });
 
-  container.querySelector('#jug-cancel')?.addEventListener('click', () => {
+  ['#jug-cancel', '#jug-volver-form'].forEach(sel => container.querySelector(sel)?.addEventListener('click', () => {
     jugadorFormId = null;
     renderPanelJugadores(container);
-  });
+  }));
   container.querySelectorAll('[data-jug-edit]').forEach(btn => {
     btn.addEventListener('click', async () => {
       await cargarEvaluacionesSilencioso();
