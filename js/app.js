@@ -1597,7 +1597,6 @@ const CONFIG_GROUPS = [
     label: 'Fichas',
     tabs: [
       { key: 'fichas-individual', label: 'Ficha individual' },
-      { key: 'fichas-espejo',     label: 'Fichas espejo' },
       { key: 'ficha-colores',     label: 'Colores de la ficha' },
       { key: 'colores',           label: 'Rango de colores' },
       { key: 'ficha-matriz',      label: 'Matriz' },
@@ -1608,6 +1607,14 @@ const CONFIG_GROUPS = [
     tabs: [
       { key: 'copia-seguridad', label: 'Copia de seguridad' },
       { key: 'flujo',           label: 'Cómo funciona (flujo)' },
+    ],
+  },
+  {
+    // Borrador guardado (no está conectado a las fichas): solo lo ve el super admin, plegado al final.
+    label: 'En pruebas',
+    soloSuper: true,
+    tabs: [
+      { key: 'fichas-espejo', label: 'Ficha espejo (borrador)' },
     ],
   },
 ];
@@ -3802,7 +3809,7 @@ function renderPanelConfig(container) {
 
   if (!CONFIG_GROUPS.some(g => g.tabs.some(t => t.key === configSubTab))) configSubTab = 'posiciones'; // pantalla quitada del menú
   configSubTab = subVisible('config', configSubTab);
-  const gruposVis = CONFIG_GROUPS.map(g => ({ ...g, tabs: g.tabs.filter(t => puedeVer(`config.${t.key}`)) })).filter(g => g.tabs.length);
+  const gruposVis = CONFIG_GROUPS.filter(g => !g.soloSuper || esSuperadmin()).map(g => ({ ...g, tabs: g.tabs.filter(t => puedeVer(`config.${t.key}`)) })).filter(g => g.tabs.length);
     container.innerHTML = `
     ${firebaseNotice()}
     <div class="cfg-layout" style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;">
@@ -4075,7 +4082,7 @@ function renderPanelConfig(container) {
     <div class="card mb-16">
       <div class="card-title">Columnas de la encuesta (1-51)</div>
       <div class="card-body">
-        <p class="text-sm text-muted mb-16">Por posición: cómo se llama cada columna (cabecera en la BBDD) y a qué va (Fecha, Evaluador, Jugador, un perfil, una competencia o nada). Todo editable; la plantilla es solo el punto de partida. Se usa en el import (mapeo precargado) y en la tabla de BBDD. Después, Fichas Espejo decide cómo se calcula (media, etc.).</p>
+        <p class="text-sm text-muted mb-16">Por posición: cómo se llama cada columna (cabecera en la BBDD) y a qué va (Fecha, Evaluador, Jugador, un perfil, una competencia o nada). Todo editable; la plantilla es solo el punto de partida. Se usa en el import (mapeo precargado) y en la tabla de BBDD.</p>
         <div id="columnas-encuesta-wrap"></div>
       </div>
     </div>
