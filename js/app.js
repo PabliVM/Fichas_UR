@@ -91,9 +91,13 @@ function renderPanelImportar(container) {
 
 function renderPanelSucesion(container) {
   container.innerHTML = `
-    <div class="card">
-      <div class="card-title">Líneas de sucesión</div>
-      <div class="card-body">Pendiente de definir — pestaña reservada.</div>
+    <div class="card" style="min-height:60vh;display:flex;align-items:center;justify-content:center;text-align:center;">
+      <div style="padding:48px 24px;display:flex;flex-direction:column;align-items:center;gap:14px;max-width:560px;">
+        <div aria-hidden="true" style="font-size:64px;line-height:1;">🚧</div>
+        <div style="font-size:30px;font-weight:800;">Líneas de sucesión</div>
+        <div style="display:inline-block;background:#fef3c7;color:#92400e;border-radius:999px;padding:6px 16px;font-weight:800;letter-spacing:1px;font-size:13px;">PRÓXIMAMENTE</div>
+        <p class="text-muted" style="font-size:15px;margin:0;">Estamos preparando esta sección. Muy pronto estará disponible.</p>
+      </div>
     </div>
   `;
 }
