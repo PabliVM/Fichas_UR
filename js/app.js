@@ -31,6 +31,7 @@ import { renderFichasEspejo } from './ficha-espejo-ui.js';
 import { buildCatalogo, slugify } from './ficha-espejo.js';
 import { quitarCabeceras, normalizarFechas, mapeoPorDefecto, columnasEfectivas, TEXTOS_DESTINOS, RP_DESTINOS, EXTRAS_DESTINOS } from './importar-plantilla.js';
 import { renderColumnasEncuesta } from './columnas-encuesta-ui.js';
+import { renderEvaluadores, tituloEvaluador, infoEvaluador } from './evaluadores-ui.js';
 
 // ── EVITAR SALTO DE SCROLL AL RE-RENDERIZAR ───────
 // Reemplazar innerHTML de un panel entero resetea el scroll del navegador.
@@ -1097,8 +1098,13 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
   const celda = (r, c) => {
     const t = tipoCol(c);
     if (t === '@fecha') return `<td class="bt-nowrap">${safeText(fmtFecha(r.fechaRegistro))}</td>`;
-    if (t === '@evaluador') return `<td class="bt-nowrap">${safeText(r.evaluador)}</td>`;
-    if (t === '@jugador') return `<td class="bt-nowrap bt-bold">${safeText(jugadorLabel(r.jugadorId))}</td>`;
+    if (t === '@evaluador') { const ie = infoEvaluador(r.evaluador); return `<td class="bt-nowrap" title="${safeText(tituloEvaluador(r.evaluador))}" style="cursor:help;">${safeText(r.evaluador)}${ie?.rol ? `<span style="display:block;font-size:9px;color:#64748b;line-height:1;">${safeText(ie.rol)}</span>` : ''}</td>`; }
+    if (t === '@jugador') {
+      const fp = state.players.find(x => x.id === r.jugadorId), ini = `${(fp?.nombre || '?')[0] || ''}${(fp?.apellidos || '')[0] || ''}`.toUpperCase();
+      const av = fp?.fotoUrl ? `<img src="${fp.fotoUrl}" alt="" style="width:20px;height:20px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;" />`
+        : `<span style="display:inline-flex;width:20px;height:20px;border-radius:50%;background:#e2e8f0;color:#1d4ed8;font-size:8px;font-weight:800;align-items:center;justify-content:center;vertical-align:middle;margin-right:6px;">${safeText(ini)}</span>`;
+      return `<td class="bt-nowrap bt-bold">${av}${safeText(jugadorLabel(r.jugadorId))}</td>`;
+    }
     if (!t || t === 'equipo') return `<td class="bt-vacia"></td>`;
     if (t.startsWith('@txt_')) return `<td class="bt-texto">${safeText(r.textos?.[t.slice(5)] ?? '')}</td>`;
     const valor = t === '@r' || t === '@p' ? r.rp?.[t.slice(1)] : t.startsWith('@x_') ? r.extras?.[t.slice(3)] : r.puntuaciones?.[t];
@@ -1566,7 +1572,8 @@ let condImport = null; // carga de datos condicionales: { evalId, columnas?, fil
 let configCriteriaPosition = null;      // qué posición se está editando en "Items a evaluar"
 let fichaTipoPosition = null;           // qué posición se está viendo en Configuración → Fichas tipo → Individual
 // Menú lateral de Configuración: grupos plegados y menú oculto (se recuerdan).
-let cfgGruposCerrados = (() => { try { return JSON.parse(localStorage.getItem('rm-cfg-cerrados') || '[]'); } catch (_) { return []; } })();
+// Por defecto todos los grupos plegados (salvo el de la pantalla abierta); se recuerdan los que abras.
+let cfgGruposAbiertos = (() => { try { return JSON.parse(localStorage.getItem('rm-cfg-abiertos') || '[]'); } catch (_) { return []; } })();
 let cfgMenuOculto = (() => { try { return localStorage.getItem('rm-cfg-menu-oculto') === '1'; } catch (_) { return false; } })();
 let configSubTab = localStorage.getItem('rm-config-subtab') || 'posiciones'; // pestaña interna activa dentro de Configuración — persiste al refrescar
 
@@ -1578,6 +1585,7 @@ const CONFIG_GROUPS = [
       { key: 'items',             label: 'Aspectos por posición' },
       { key: 'columnas-encuesta', label: 'Columnas de la encuesta' },
       { key: 'condicional-refs',  label: 'Datos condicionales' },
+      { key: 'evaluadores',       label: 'Evaluadores' },
       { key: 'frases',            label: 'Frases modelo' },
     ],
   },
@@ -3800,7 +3808,7 @@ function renderPanelConfig(container) {
     <nav class="card cfg-side" style="flex:1 1 220px;max-width:270px;margin:0;padding:8px 10px 12px;position:sticky;top:8px;">
       <div style="display:flex;justify-content:flex-end;"><button class="btn btn-sm btn-ghost" id="cfg-ocultar" title="Ocultar el menú (más sitio para la ficha)" style="padding:2px 8px;">« Ocultar</button></div>
       ${gruposVis.map(g => {
-        const cerrado = cfgGruposCerrados.includes(g.label), dentro = g.tabs.some(t => t.key === configSubTab);
+        const dentro = g.tabs.some(t => t.key === configSubTab), cerrado = !cfgGruposAbiertos.includes(g.label);
         return `
         <button class="btn btn-ghost text-xs" data-cfg-grupo="${safeText(g.label)}" aria-expanded="${!cerrado}" style="display:flex;width:100%;justify-content:space-between;align-items:center;font-weight:700;color:${cerrado && dentro ? 'var(--blue-600, #1d4ed8)' : 'var(--text-muted)'};letter-spacing:1px;text-transform:uppercase;padding:10px 10px 4px;">${g.label}<span aria-hidden="true">${cerrado ? '▸' : '▾'}</span></button>
         ${cerrado ? '' : g.tabs.map(t => `<button class="btn btn-ghost" data-config-subtab="${t.key}" style="display:block;width:100%;text-align:left;justify-content:flex-start;padding:7px 10px;margin:1px 0;border-radius:8px;${t.key === configSubTab ? 'background:var(--blue-50, #eff6ff);color:var(--blue-600, #1d4ed8);font-weight:700;' : 'font-weight:500;'}">${t.label}</button>`).join('')}`;
@@ -4051,6 +4059,16 @@ function renderPanelConfig(container) {
     </div>
     `}
 
+    ${configSubTab !== 'evaluadores' ? '' : `
+    <div class="card mb-16">
+      <div class="card-title">Evaluadores</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">Quién es cada evaluador de las encuestas y qué rol tiene. Las variantes del mismo nombre (JESUS, Jesús…) cuentan como una. Solo informativo: no cambia notas ni medias. En la tabla de registros se ve al pasar el ratón por el evaluador.</p>
+        <div id="evaluadores-wrap"></div>
+      </div>
+    </div>
+    `}
+
     ${configSubTab !== 'columnas-encuesta' ? '' : `
     <div class="card mb-16">
       <div class="card-title">Columnas de la encuesta (1-51)</div>
@@ -4167,8 +4185,8 @@ function renderPanelConfig(container) {
   });
   container.querySelectorAll('[data-cfg-grupo]').forEach(btn => btn.addEventListener('click', () => {
     const g = btn.dataset.cfgGrupo;
-    cfgGruposCerrados = cfgGruposCerrados.includes(g) ? cfgGruposCerrados.filter(x => x !== g) : [...cfgGruposCerrados, g];
-    try { localStorage.setItem('rm-cfg-cerrados', JSON.stringify(cfgGruposCerrados)); } catch (_) { /* ignorar */ }
+    cfgGruposAbiertos = cfgGruposAbiertos.includes(g) ? cfgGruposAbiertos.filter(x => x !== g) : [...cfgGruposAbiertos, g];
+    try { localStorage.setItem('rm-cfg-abiertos', JSON.stringify(cfgGruposAbiertos)); } catch (_) { /* ignorar */ }
     renderPanelConfig(container);
   }));
   const menuCfg = oculto => () => {
@@ -4224,6 +4242,9 @@ function renderPanelConfig(container) {
 
   const fichasTipoWrap = container.querySelector('#fichas-tipo-wrap');
   if (fichasTipoWrap) renderPanelFichas(fichasTipoWrap, fichaTipoPosition);
+
+  const evaluadoresWrap = container.querySelector('#evaluadores-wrap');
+  if (evaluadoresWrap) renderEvaluadores(evaluadoresWrap);
 
   const columnasEncuestaWrap = container.querySelector('#columnas-encuesta-wrap');
   if (columnasEncuestaWrap) renderColumnasEncuesta(columnasEncuestaWrap);

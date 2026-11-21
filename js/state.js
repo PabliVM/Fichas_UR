@@ -106,6 +106,8 @@ const _state = {
   // ficha (checklist) y se juntan en el texto editable de Descripción.
   // Sin IA ni cálculo automático — eso depende de las medias (pendiente).
   frasesModelo: [],
+  // Evaluadores de las encuestas: { claveNormalizada: { nombre, rol, teamKey, alias } } — Configuración › Evaluadores.
+  evaluadores: {},
   // Texto libre editable en Configuración → Ayuda → Flujo de evaluaciones.
   // Documentación interna (no aparece en las fichas de los jugadores).
   flujoEvaluaciones: `FLUJO DE EVALUACIONES (estado actual)
@@ -140,7 +142,7 @@ export const state = _state;
 // jugadores NO va aquí — colección propia 'jugadores' (ver loadPlayersFromFirestore).
 const CONFIG_COLLECTION = 'config';
 const CONFIG_DOC_ID = 'general';
-const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'fichaEspejoReglas', 'columnasEncuesta', 'condicionalTolerance', 'fichaGridOrder', 'flujoEvaluaciones', 'frasesModelo'];
+const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'fichaEspejoReglas', 'columnasEncuesta', 'condicionalTolerance', 'fichaGridOrder', 'flujoEvaluaciones', 'frasesModelo', 'evaluadores'];
 
 let _persistTimer = null;
 // Solo se guarda la configuración si la carga inicial terminó bien: si falló, el estado en memoria son los valores
