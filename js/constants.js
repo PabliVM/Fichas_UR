@@ -7,7 +7,9 @@ export const DEFAULT_SEASON = '2026/2027';
 export const LOGO_PATH      = './rm.png';
 export const FOOTER_TEXT    = 'Cantera del Real Madrid CF — RM Perfiles';
 
-export const SEASONS = ['2026/2027', '2025/2026'];
+export const SEASONS = ['2026/2027'];
+// Temporadas quitadas de los desplegables (sin datos). Se quitan también si estaban guardadas en la configuración.
+export const SEASONS_RETIRADAS = ['2025/2026'];
 
 // Bloque CONDICIONAL de la Ficha 2 para alevines e infantiles: capacidades con símbolo (✔ / ▬ / ✘) en vez de datos GPS.
 export const CONDICIONAL_BASE = [
@@ -120,7 +122,7 @@ export const PROFILES = [
 export const TABS = [
   { key: 'jugadores',  label: 'Jugadores'         },
   { key: 'plantillas', label: 'Equipos'           },
+  { key: 'sucesion',   label: 'Líneas de sucesión' }, // pestaña reservada — contenido pendiente de definir
   { key: 'registro',   label: 'Evaluaciones'      },
-  { key: 'sucesion',   label: 'Líneas de sucesión', enBarra: false, dentroDe: 'plantillas' }, // se abre desde Equipos
   { key: 'config',     label: 'Configuración'     },
 ];
