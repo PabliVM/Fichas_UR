@@ -316,21 +316,24 @@
 .cond-refs-wrap {
   display: inline-block;
   max-width: 100%;
-  background: var(--cond-refs-bg, #24313d);
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
   border-radius: var(--radius-md);
-  padding: 8px;
+  overflow: hidden;
 }
+/* Mismo aspecto que las demás tablas (cabecera azul, cuerpo blanco) */
 .cond-refs-table {
   border-collapse: separate;
   border-spacing: 0;
   font-size: 12px;
   white-space: nowrap;
-  color: #ffffff;
+  color: #0f1117;
+  background: #ffffff;
 }
 .cond-refs-table th, .cond-refs-table td {
-  padding: 6px 10px;
-  border-bottom: 1px solid rgba(255,255,255,0.14);
-  border-right: 1px solid rgba(255,255,255,0.14);
+  padding: 5px 10px;
+  border-bottom: 1px solid #cbd5e1;
+  border-right: 1px solid #cbd5e1;
 }
 .cond-refs-table thead th {
   font-weight: 700;
@@ -338,34 +341,37 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  background: var(--cond-refs-header, #7b3a52);
+  background: var(--header-bg, #1d4ed8);
+  border-color: rgba(255,255,255,0.35);
   position: sticky;
   top: 0;
   z-index: 1;
 }
-.cond-refs-table tbody { background: var(--cond-refs-bg, #24313d); }
+.cond-refs-table tbody { background: #ffffff; }
+.cond-refs-table tbody tr:nth-child(even) td { background: #f8fafc; }
 .cond-refs-table td.cond-refs-sticky, .cond-refs-table th.cond-refs-sticky {
   position: sticky;
   left: 0;
   z-index: 2;
   text-align: left;
+  font-weight: 700;
 }
-.cond-refs-table th.cond-refs-sticky { background: var(--cond-refs-header, #7b3a52); }
-.cond-refs-table td.cond-refs-sticky { background: var(--cond-refs-bg, #24313d); }
+.cond-refs-table th.cond-refs-sticky { background: var(--header-bg, #1d4ed8); }
+.cond-refs-table td.cond-refs-sticky { background: #ffffff; }
 .cond-refs-table input {
   width: 64px;
   text-align: center;
   padding: 3px 4px;
   font-size: 12px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.25);
+  background: transparent;
+  border: 1px solid #e2e8f0;
   border-radius: 4px;
-  color: #ffffff;
+  color: #0f1117;
 }
 .cond-refs-table input:focus {
   outline: none;
-  border-color: var(--score-yellow, #eab308);
-  background: rgba(255,255,255,0.14);
+  border-color: var(--blue-500, #3b82f6);
+  background: #ffffff;
 }
 
 /* CHIP (posiciones en Configuración, etiquetas sueltas) */
