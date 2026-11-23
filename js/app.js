@@ -4947,7 +4947,7 @@ function renderPanelPlantillas(container) {
         const corto = j => `${j?.nombre || ''} ${String(j?.apellidos || '').trim().split(/\s+/)[0] || ''}`.trim() || '(jugador eliminado)';
         const iniciales = j => `${(j?.nombre || '?')[0] || ''}${(j?.apellidos || '')[0] || ''}`.toUpperCase();
         const colorLinea = key => { const k = normalizeTxt(key); return k === '_sin' ? '#94a3b8' : /porter/.test(k) ? '#d4a63a' : /central|lateral|defens/.test(k) ? '#1d4ed8' : /medio|interior|pivote|centrocamp/.test(k) ? '#1f6b2a' : '#b91c1c'; };
-        const chip = id => { const j = pj(id); return `<div class="pl-chip" draggable="true" data-pl-drag="${id}" title="Arrastra a otra posición para cambiarla" style="cursor:grab;position:relative;display:flex;align-items:center;gap:7px;background:var(--bg-surface, #fff);border:1px solid var(--border-default);border-radius:8px;padding:4px 6px;min-width:0;">
+        const chip = id => { const j = pj(id); return `<div class="pl-chip" draggable="true" data-pl-drag="${t.key}|${id}" title="Arrastra a otra posición o a otro equipo" style="cursor:grab;position:relative;display:flex;align-items:center;gap:7px;background:var(--bg-surface, #fff);border:1px solid var(--border-default);border-radius:8px;padding:4px 6px;min-width:0;">
             ${j?.fotoUrl ? `<img src="${j.fotoUrl}" alt="" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" />` : `<span style="width:24px;height:24px;border-radius:50%;background:var(--bg-hover);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--blue-600, #1d4ed8);">${safeText(iniciales(j))}</span>`}
             <a href="#" data-pl-ir="${t.key}|${id}" class="text-xs" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-primary);text-decoration:none;font-weight:600;" title="${safeText(nombreDe(id))} — ver ficha">${safeText(corto(j))}</a>
             <button class="btn btn-sm btn-ghost pl-x" style="padding:0 4px;" data-pl-del="${t.key}|${id}" title="Quitar de la plantilla" aria-label="Quitar ${safeText(nombreDe(id))}">✕</button>
@@ -4979,7 +4979,7 @@ function renderPanelPlantillas(container) {
           </div>
           ${verDatos ? `<div data-pl-datos-box="${t.key}"><p class="text-xs text-muted mb-8">Los cambios se guardan al salir de la casilla y son los mismos de la ficha del jugador.</p>${datosEquipoTablaHTML(t.key)}</div>` : `
           <div style="overflow-x:auto;"><div style="display:grid;grid-template-columns:repeat(${columnas.length},minmax(130px,1fr));gap:8px;">
-            ${columnas.map(col => { const cj = ids.filter(id => colDe(id) === col.key); return `<div data-pl-col="${col.key}" style="background:var(--bg-hover);border-radius:10px;border-top:4px solid ${colorLinea(col.key)};padding:8px;display:flex;flex-direction:column;gap:5px;min-width:0;">
+            ${columnas.map(col => { const cj = ids.filter(id => colDe(id) === col.key); return `<div data-pl-col="${col.key}" data-pl-team="${t.key}" style="background:var(--bg-hover);border-radius:10px;border-top:4px solid ${colorLinea(col.key)};padding:8px;display:flex;flex-direction:column;gap:5px;min-width:0;">
               <div class="flex" style="justify-content:space-between;font-weight:800;font-size:11px;letter-spacing:.04em;color:var(--text-muted);" title="${safeText(col.titulo)}"><span>${safeText(col.key === '_sin' ? 'SIN POSICIÓN' : plPlural(col.titulo).toUpperCase())}</span><span>${cj.length || ''}</span></div>
               ${cj.map(chip).join('')}
               ${añadir(col)}
@@ -5037,13 +5037,23 @@ function renderPanelPlantillas(container) {
     col.addEventListener('dragleave', () => { col.style.outline = ''; });
     col.addEventListener('drop', async e => {
       e.preventDefault(); col.style.outline = '';
-      const id = e.dataTransfer.getData('text/plain'), destino = col.dataset.plCol === '_sin' ? null : col.dataset.plCol;
+      const [origen, id] = e.dataTransfer.getData('text/plain').split('|'), equipo = col.dataset.plTeam;
+      const destino = col.dataset.plCol === '_sin' ? null : col.dataset.plCol;
       const j = state.players.find(x => x.id === id);
-      if (!j || (j.positionKey || null) === destino) return;
+      if (!j || !id) return;
+      const cambiaPos = (j.positionKey || null) !== destino, cambiaEq = origen !== equipo;
+      if (!cambiaPos && !cambiaEq) return;
       try {
-        await guardarCampoJugador(id, 'positionKey', destino);
-        showSuccess(`${nombreCompleto(j)} → ${destino ? state.positions.find(p => p.key === destino)?.label || destino : 'sin posición'}`);
-      } catch (err) { console.error('[Firestore] Posición:', err); showError('No se pudo cambiar la posición.'); }
+        // Otro equipo = se mueve: sale del de origen y entra en el de destino (misma temporada).
+        if (cambiaEq) {
+          await guardarPlantilla(plantillaTemporada, equipo, { jugadorIds: arrayUnion(id) }, { jugadorIds: [...new Set([...(docDe(equipo)?.jugadorIds || []), id])] });
+          await guardarPlantilla(plantillaTemporada, origen, { jugadorIds: arrayRemove(id) }, { jugadorIds: (docDe(origen)?.jugadorIds || []).filter(x => x !== id) });
+          if (j.teamKey === origen) await guardarCampoJugador(id, 'teamKey', equipo);
+        }
+        if (cambiaPos) await guardarCampoJugador(id, 'positionKey', destino);
+        const posTxt = destino ? state.positions.find(p => p.key === destino)?.label || destino : 'sin posición';
+        showSuccess(`${nombreCompleto(j)} → ${[cambiaEq ? TEAMS.find(x => x.key === equipo)?.label || equipo : '', cambiaPos ? posTxt : ''].filter(Boolean).join(' · ')}`);
+      } catch (err) { console.error('[Firestore] Mover jugador:', err); showError('No se pudo mover al jugador.'); }
       preservandoScroll(() => renderPanelPlantillas(container));
     });
   });
