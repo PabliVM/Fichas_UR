@@ -90,5 +90,5 @@ export function scoreColor(value, thresholds) {
 /** Nota/media para mostrar: como mucho 2 decimales (redondeado); si tiene 1 o ninguno, se deja así. Coma decimal. */
 export function fmtDec(v) {
   if (v == null || v === '' || Number.isNaN(Number(v))) return null;
-  return String(Math.round(Number(v) * 100) / 100).replace('.', ',');
+  return String(Math.round((Number(v) + Number.EPSILON) * 100) / 100).replace('.', ','); // EPSILON: 1.785 → 1,79 (no 1,78)
 }
