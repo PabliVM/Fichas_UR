@@ -3019,6 +3019,7 @@ function renderPanelJugadores(container) {
         <td>${safeText(posLabel)}</td>
         <td>${p.weight != null ? fmtDec(p.weight) + ' kg' : '-'}</td>
         <td>${p.height != null ? fmtDec(p.height) + ' m' : '-'}</td>
+        <td>${safeText(residenciaDe(p))}</td>
         <td>
           <div class="flex gap-8" style="align-items:center;justify-content:flex-end;">
           <button class="btn btn-sm btn-primary" data-jug-ficha="${p.id}">Ficha</button>
@@ -3067,10 +3068,10 @@ function renderPanelJugadores(container) {
             <thead>
               <tr>
                 <th></th><th>Nombre</th><th>Apellidos</th><th>Año</th><th>Edad</th><th>Años club</th>
-                <th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th></th>
+                <th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th>Residencia</th><th></th>
               </tr>
             </thead>
-            <tbody>${rows || `<tr><td colspan="11" class="text-muted">${state.players.length ? 'Ningún jugador coincide con los filtros.' : 'Sin jugadores todavía.'}</td></tr>`}</tbody>
+            <tbody>${rows || `<tr><td colspan="12" class="text-muted">${state.players.length ? 'Ningún jugador coincide con los filtros.' : 'Sin jugadores todavía.'}</td></tr>`}</tbody>
           </table>
         </div>
       </div>
