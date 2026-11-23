@@ -4914,6 +4914,26 @@ async function crearPlantillaDesdeLista(texto, teamKey, temporada, positionKey =
   return res;
 }
 
+// Al soltar un jugador en otro equipo u otra posición: menú junto al cursor «Mover» / «Duplicar». Devuelve 'mover' | 'duplicar' | null.
+function plElegirMoverDuplicar(x, y, { equipo, posicion }) {
+  return new Promise(resolve => {
+    const que = equipo && posicion ? 'equipo y posición' : equipo ? 'equipo' : 'posición';
+    const m = document.createElement('div');
+    m.className = 'card';
+    m.style.cssText = `position:fixed;z-index:1000;margin:0;padding:8px;display:flex;flex-direction:column;gap:6px;min-width:190px;box-shadow:0 8px 24px rgba(15,23,42,.22);left:${Math.min(x, window.innerWidth - 210)}px;top:${Math.min(y, window.innerHeight - 140)}px;`;
+    m.innerHTML = `<div class="text-xs text-muted" style="font-weight:700;">Cambio de ${que}</div>
+      <button class="btn btn-sm btn-primary" data-a="mover">Mover</button>
+      <button class="btn btn-sm" data-a="duplicar" title="${equipo ? 'Queda en los dos equipos' : ''}${equipo && posicion ? ' · ' : ''}${posicion ? 'Sale en las dos posiciones' : ''}">Duplicar</button>
+      <button class="btn btn-sm btn-ghost" data-a="">Cancelar</button>`;
+    const fin = v => { m.remove(); document.removeEventListener('mousedown', fuera, true); document.removeEventListener('keydown', esc); resolve(v); };
+    const fuera = ev => { if (!m.contains(ev.target)) fin(null); };
+    const esc = ev => { if (ev.key === 'Escape') fin(null); };
+    m.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => fin(b.dataset.a || null)));
+    document.body.appendChild(m);
+    setTimeout(() => { document.addEventListener('mousedown', fuera, true); document.addEventListener('keydown', esc); }, 0);
+  });
+}
+
 function renderPanelPlantillas(container) {
   if (!plantillasCache) {
     container.innerHTML = `${firebaseNotice()}<p class="text-xs text-muted">Cargando plantillas…</p>`;
@@ -4949,10 +4969,12 @@ function renderPanelPlantillas(container) {
         const corto = j => `${j?.nombre || ''} ${String(j?.apellidos || '').trim().split(/\s+/)[0] || ''}`.trim() || '(jugador eliminado)';
         const iniciales = j => `${(j?.nombre || '?')[0] || ''}${(j?.apellidos || '')[0] || ''}`.toUpperCase();
         const colorLinea = key => { const k = normalizeTxt(key); return k === '_sin' ? '#94a3b8' : /porter/.test(k) ? '#d4a63a' : /central|lateral|defens/.test(k) ? '#1d4ed8' : /medio|interior|pivote|centrocamp/.test(k) ? '#1f6b2a' : '#b91c1c'; };
-        const chip = id => { const j = pj(id); return `<div class="pl-chip" draggable="true" data-pl-drag="${t.key}|${id}" title="Arrastra a otra posición o a otro equipo" style="cursor:grab;position:relative;display:flex;align-items:center;gap:7px;background:var(--bg-surface, #fff);border:1px solid var(--border-default);border-radius:8px;padding:4px 6px;min-width:0;">
+        const extrasDe = id => (pj(id)?.posicionesExtra || []).filter(k => state.positions.some(p => p.key === k));
+        const chip = (id, colKey) => { const j = pj(id), extra = colDe(id) !== colKey; return `<div class="pl-chip" draggable="true" data-pl-drag="${t.key}|${id}|${colKey}" title="${extra ? 'Posición duplicada (la principal es ' + safeText(state.positions.find(p => p.key === colDe(id))?.label || 'otra') + '). ' : ''}Arrastra a otra posición o a otro equipo: mover o duplicar" style="cursor:grab;position:relative;display:flex;align-items:center;gap:7px;background:var(--bg-surface, #fff);border:1px ${extra ? 'dashed' : 'solid'} var(--border-default);border-radius:8px;padding:4px 6px;min-width:0;">
             ${j?.fotoUrl ? `<img src="${j.fotoUrl}" alt="" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" />` : `<span style="width:24px;height:24px;border-radius:50%;background:var(--bg-hover);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--blue-600, #1d4ed8);">${safeText(iniciales(j))}</span>`}
             <a href="#" data-pl-ir="${t.key}|${id}" class="text-xs" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-primary);text-decoration:none;font-weight:600;" title="${safeText(nombreDe(id))} — ver ficha">${safeText(corto(j))}</a>
-            <button class="btn btn-sm btn-ghost pl-x" style="padding:0 4px;" data-pl-del="${t.key}|${id}" title="Quitar de la plantilla" aria-label="Quitar ${safeText(nombreDe(id))}">✕</button>
+            ${extra ? `<button class="btn btn-sm btn-ghost pl-x" style="padding:0 4px;" data-pl-del-extra="${id}|${colKey}" title="Quitar de esta posición (sigue en la principal)" aria-label="Quitar ${safeText(nombreDe(id))} de esta posición">✕</button>`
+              : `<button class="btn btn-sm btn-ghost pl-x" style="padding:0 4px;" data-pl-del="${t.key}|${id}" title="Quitar de la plantilla" aria-label="Quitar ${safeText(nombreDe(id))}">✕</button>`}
           </div>`; };
         const verDatos = plCardDatos.has(t.key) && ids.length && puedeVer('plantillas.datos');
         const añadir = col => {
@@ -4981,9 +5003,9 @@ function renderPanelPlantillas(container) {
           </div>
           ${verDatos ? `<div data-pl-datos-box="${t.key}"><p class="text-xs text-muted mb-8">Los cambios se guardan al salir de la casilla y son los mismos de la ficha del jugador.</p>${datosEquipoTablaHTML(t.key)}</div>` : `
           <div style="overflow-x:auto;"><div style="display:grid;grid-template-columns:repeat(${columnas.length},minmax(130px,1fr));gap:8px;">
-            ${columnas.map(col => { const cj = ids.filter(id => colDe(id) === col.key); return `<div data-pl-col="${col.key}" data-pl-team="${t.key}" style="background:var(--bg-hover);border-radius:10px;border-top:4px solid ${colorLinea(col.key)};padding:8px;display:flex;flex-direction:column;gap:5px;min-width:0;">
+            ${columnas.map(col => { const cj = ids.filter(id => colDe(id) === col.key || (col.key !== '_sin' && extrasDe(id).includes(col.key) && colDe(id) !== col.key)); return `<div data-pl-col="${col.key}" data-pl-team="${t.key}" style="background:var(--bg-hover);border-radius:10px;border-top:4px solid ${colorLinea(col.key)};padding:8px;display:flex;flex-direction:column;gap:5px;min-width:0;">
               <div class="flex" style="justify-content:space-between;font-weight:800;font-size:11px;letter-spacing:.04em;color:var(--text-muted);" title="${safeText(col.titulo)}"><span>${safeText(col.key === '_sin' ? 'SIN POSICIÓN' : plPlural(col.titulo).toUpperCase())}</span><span>${cj.length || ''}</span></div>
-              ${cj.map(chip).join('')}
+              ${cj.map(id => chip(id, col.key)).join('')}
               ${añadir(col)}
             </div>`; }).join('')}
           </div></div>`}
@@ -5039,26 +5061,48 @@ function renderPanelPlantillas(container) {
     col.addEventListener('dragleave', () => { col.style.outline = ''; });
     col.addEventListener('drop', async e => {
       e.preventDefault(); col.style.outline = '';
-      const [origen, id] = e.dataTransfer.getData('text/plain').split('|'), equipo = col.dataset.plTeam;
+      const [origen, id, colOrigen] = e.dataTransfer.getData('text/plain').split('|'), equipo = col.dataset.plTeam;
       const destino = col.dataset.plCol === '_sin' ? null : col.dataset.plCol;
       const j = state.players.find(x => x.id === id);
       if (!j || !id) return;
-      const cambiaPos = (j.positionKey || null) !== destino, cambiaEq = origen !== equipo;
+      const principal = j.positionKey || null, extras = (j.posicionesExtra || []).filter(k => k !== principal);
+      const cambiaEq = origen !== equipo, cambiaPos = (colOrigen === '_sin' ? null : colOrigen) !== destino && principal !== destino && !(destino && extras.includes(destino) && !cambiaEq);
       if (!cambiaPos && !cambiaEq) return;
+      const accion = !cambiaEq && !destino ? 'mover' : await plElegirMoverDuplicar(e.clientX, e.clientY, { equipo: cambiaEq, posicion: cambiaPos && !!destino });
+      if (!accion) return;
+      const dup = accion === 'duplicar';
       try {
-        // Otro equipo = se mueve: sale del de origen y entra en el de destino (misma temporada).
+        // Equipo: mover = sale del de origen y entra en el de destino; duplicar = está en los dos (misma temporada).
         if (cambiaEq) {
           await guardarPlantilla(plantillaTemporada, equipo, { jugadorIds: arrayUnion(id) }, { jugadorIds: [...new Set([...(docDe(equipo)?.jugadorIds || []), id])] });
-          await guardarPlantilla(plantillaTemporada, origen, { jugadorIds: arrayRemove(id) }, { jugadorIds: (docDe(origen)?.jugadorIds || []).filter(x => x !== id) });
-          if (j.teamKey === origen) await guardarCampoJugador(id, 'teamKey', equipo);
+          if (!dup) {
+            await guardarPlantilla(plantillaTemporada, origen, { jugadorIds: arrayRemove(id) }, { jugadorIds: (docDe(origen)?.jugadorIds || []).filter(x => x !== id) });
+            if (j.teamKey === origen) await guardarCampoJugador(id, 'teamKey', equipo);
+          }
         }
-        if (cambiaPos) await guardarCampoJugador(id, 'positionKey', destino);
+        // Posición: mover = cambia la de esa casilla; duplicar = sale también en la nueva columna (posición extra).
+        if (cambiaPos) {
+          const desdeExtra = colOrigen !== '_sin' && colOrigen !== principal;
+          if (dup && destino) await guardarCampoJugador(id, 'posicionesExtra', [...new Set([...extras, destino])]);
+          else if (desdeExtra && destino) await guardarCampoJugador(id, 'posicionesExtra', [...new Set([...extras.filter(k => k !== colOrigen), destino])]);
+          else {
+            if (destino && extras.includes(destino)) await guardarCampoJugador(id, 'posicionesExtra', extras.filter(k => k !== destino));
+            await guardarCampoJugador(id, 'positionKey', destino);
+          }
+        }
         const posTxt = destino ? state.positions.find(p => p.key === destino)?.label || destino : 'sin posición';
-        showSuccess(`${nombreCompleto(j)} → ${[cambiaEq ? TEAMS.find(x => x.key === equipo)?.label || equipo : '', cambiaPos ? posTxt : ''].filter(Boolean).join(' · ')}`);
-      } catch (err) { console.error('[Firestore] Mover jugador:', err); showError('No se pudo mover al jugador.'); }
+        showSuccess(`${nombreCompleto(j)} ${dup ? '+' : '→'} ${[cambiaEq ? TEAMS.find(x => x.key === equipo)?.label || equipo : '', cambiaPos ? posTxt : ''].filter(Boolean).join(' · ')}`);
+      } catch (err) { console.error('[Firestore] Mover jugador:', err); showError('No se pudo guardar el cambio.'); }
       preservandoScroll(() => renderPanelPlantillas(container));
     });
   });
+  container.querySelectorAll('[data-pl-del-extra]').forEach(btn => btn.addEventListener('click', async () => {
+    const [jid, colKey] = btn.dataset.plDelExtra.split('|');
+    const j = state.players.find(x => x.id === jid); if (!j) return;
+    try { await guardarCampoJugador(jid, 'posicionesExtra', (j.posicionesExtra || []).filter(k => k !== colKey)); }
+    catch (err) { console.error('[Firestore] Posición extra:', err); showError('No se pudo quitar.'); }
+    preservandoScroll(() => renderPanelPlantillas(container));
+  }));
   container.querySelectorAll('[data-pl-datos-box]').forEach(box => wireDatosEquipo(box, () => preservandoScroll(() => renderPanelPlantillas(container))));
   // Un solo "+ Añadir" abierto; se cierra al pulsar fuera.
   container.querySelectorAll('details.pl-add').forEach(d => d.addEventListener('toggle', () => {
