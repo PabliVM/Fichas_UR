@@ -102,7 +102,6 @@ export const TEAMS = [
   { key: 'juvenil-c', label: 'Juvenil C'     },
   { key: 'cadete-a',  label: 'Cadete A'      },
   { key: 'cadete-b',  label: 'Cadete B'      },
-  { key: 'cadete-c',  label: 'Cadete C'      },
   { key: 'infantil-a', label: 'Infantil A'   },
   { key: 'infantil-b', label: 'Infantil B'   },
   { key: 'alevin-a',  label: 'Alevín A'      },
