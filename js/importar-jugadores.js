@@ -35,7 +35,8 @@ export const CAMPO_LABEL = {
   foot: 'Lateralidad', residencia: 'Residencia', maturationalAge: 'Edad madurativa', teamKey: 'Equipo',
   positionKey: 'Posición', weight: 'Peso', height: 'Altura', complexion: 'Complexión', aniosClub: 'Años en el club',
 };
-const RESIDENCIAS = ['Residente en Madrid', 'En residencia', 'Media pensión'];
+const RESIDENCIAS = ['Residencia', 'Madrid', 'Media pensión'];
+const RESI_ALIAS = { 'residente en madrid': 'Madrid', 'en residencia': 'Residencia', 'resi': 'Residencia', 'media pension': 'Media pensión' }; // nombres antiguos
 
 export function campoDeCabecera(h) {
   const n = norm(h);
@@ -158,7 +159,7 @@ export async function leerTablaJugadores(origen, positions) {
       if (f === null) avisos.push(`Lateralidad no reconocida: "${txt('foot')}"`); else data.foot = f;
     }
     if (crudo.residencia !== undefined) {
-      const r = RESIDENCIAS.find(x => norm(x) === norm(crudo.residencia));
+      const r = RESIDENCIAS.find(x => norm(x) === norm(crudo.residencia)) || RESI_ALIAS[norm(crudo.residencia)];
       if (!r) avisos.push(`Residencia no reconocida: "${txt('residencia')}"`); else data.residencia = r;
     }
     if (crudo.teamKey !== undefined) {
