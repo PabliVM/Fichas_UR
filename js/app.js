@@ -2094,9 +2094,11 @@ async function guardarCondPend(id, cp, evalId) {
   setState({ players: state.players.map(p => p.id === id ? { ...p, ...patch } : p) });
   await registrarCambios(id, prev, patch);
 }
-// Residencia: si no se ha puesto, es «Residente en Madrid» (en residencia o media pensión se ponen a mano).
-const RESI_DEFECTO = 'Residente en Madrid';
-const residenciaDe = p => p?.residencia || RESI_DEFECTO;
+// Residencia: Residencia, Madrid o Media pensión. Si no se ha puesto, es «Madrid».
+// Los nombres antiguos guardados («Residente en Madrid», «En residencia») se leen como los nuevos.
+const RESI_DEFECTO = 'Madrid';
+const RESI_ANTIGUAS = { 'Residente en Madrid': 'Madrid', 'En residencia': 'Residencia' };
+const residenciaDe = p => RESI_ANTIGUAS[p?.residencia] || p?.residencia || RESI_DEFECTO;
 const CAMPOS_COMPLETAR = ['apellidos', 'birthDate', 'foot', 'residencia', 'maturationalAge', 'teamKey', 'positionKey', 'weight', 'height', 'complexion', 'aniosClub'];
 
 // Cambios reales entre el jugador guardado (prev) y lo nuevo, incluidos los datos condicionales.
@@ -2198,7 +2200,7 @@ function buildJugadorFormHTML(player) {
           <div class="field-group" style="min-width:190px;">
             <label class="label">Residencia</label>
             <select class="select" id="jug-residencia">
-              ${['Residente en Madrid', 'En residencia', 'Media pensión'].map(v => `<option value="${v}" ${residenciaDe(p) === v ? 'selected' : ''}>${v}</option>`).join('')}
+              ${['Residencia', 'Madrid', 'Media pensión'].map(v => `<option value="${v}" ${residenciaDe(p) === v ? 'selected' : ''}>${v}</option>`).join('')}
             </select>
           </div>
           <div class="field-group" style="min-width:150px;">
@@ -2738,7 +2740,7 @@ function columnasPlantillaJugadores() {
     { titulo: 'Apellidos', ejemplo: 'Sotres García' },
     { titulo: 'Fecha de nacimiento', ejemplo: '15/03/2004', nota: 'dd/mm/aaaa (o fecha de Excel).' },
     { titulo: 'Lateralidad', ejemplo: 'Diestro', nota: 'Diestro, Zurdo o Ambidiestro.' },
-    { titulo: 'Residencia', ejemplo: 'En residencia', nota: 'Residente en Madrid, En residencia o Media pensión.' },
+    { titulo: 'Residencia', ejemplo: 'Residencia', nota: 'Residencia, Madrid o Media pensión (vacía = Madrid).' },
     { titulo: 'Edad madurativa', ejemplo: '' },
     { titulo: 'Años en el club', ejemplo: '3', nota: 'número entero (3) o por etapas (2+3); cada temporada siguiente suma uno a la última etapa.' },
     { titulo: 'Equipo', ejemplo: TEAMS[1]?.label || '', nota: 'uno de: ' + TEAMS.map(t => safeText(t.label)).join(', ') + '.' },
@@ -5624,13 +5626,13 @@ function plLeyendaCirculo(order) {
 // Mapa de nivel: izquierda = residen en Madrid (Residente / Media pensión), derecha = En residencia.
 // Franjas por la nota elegida (Rendimiento o Proyección): ≥4 verde · 3–<4 amarillo · <3 rojo. Sin esa nota → franja 3-4 con "X".
 const PL_RESI = {
-  'Residente en Madrid': { lado: 'izq', bg: '#ffffff', fg: '#0b2a6b', txt: 'MADRID' },
-  'Media pensión':       { lado: 'izq', bg: '#0b2a6b', fg: '#ffffff', txt: 'MEDIA PENSIÓN' },
-  'En residencia':       { lado: 'der', bg: '#d4a63a', fg: '#111111', txt: 'RESIDENCIA' },
+  'Madrid':        { lado: 'izq', bg: '#ffffff', fg: '#0b2a6b', txt: 'MADRID' },
+  'Media pensión': { lado: 'izq', bg: '#0b2a6b', fg: '#ffffff', txt: 'MEDIA PENSIÓN' },
+  'Residencia':    { lado: 'der', bg: '#d4a63a', fg: '#111111', txt: 'RESIDENCIA' },
 };
 let plMapaModo = 'r';   // nota que ordena el mapa de nivel: 'r' rendimiento · 'p' proyección · 'rp' las dos (2 diapositivas)
 function plMapaNivel(tLabel, temporada, items, modo = 'r') {
-  const conf = it => PL_RESI[it.j.residencia] || PL_RESI['Residente en Madrid'];
+  const conf = it => PL_RESI[residenciaDe(it.j)] || PL_RESI[RESI_DEFECTO];
   const campoN = modo === 'p' ? 'pValue' : 'rValue';
   const notaDe = it => notaNum(it.f1?.player?.[campoN]);
   const bandas = [
