@@ -9,7 +9,7 @@
 // bloque — en blanco cuando aún no hay dato.
 // ================================================
 
-import { safeText } from './utils.js';
+import { safeText, fmtDec } from './utils.js';
 
 // Color de la banda (Configuración → Rango de colores). Propio de este módulo para no depender de la versión de utils.js desplegada.
 const BANDAS_DEF = [{ color: '#22c55e', min: 4 }, { color: '#eab308', min: 3 }, { color: '#ef4444', min: 0 }];
@@ -385,7 +385,7 @@ export function buildFichaHeader(logoPath, pageLabel, refLabel) {
 
 function formatNum(n) {
   if (n == null) return '-';
-  return Number(n).toFixed(2).replace(/\.00$/, '').replace('.', ',');
+  return fmtDec(n) ?? '-'; // 2 decimales como mucho (2,67 · 2,5 · 3)
 }
 
 function parseEsNumber(str) {

@@ -86,3 +86,9 @@ export function scoreColor(value, thresholds) {
   if (value >= thresholds.yellow) return 'yellow';
   return 'red';
 }
+
+/** Nota/media para mostrar: como mucho 2 decimales (redondeado); si tiene 1 o ninguno, se deja así. Coma decimal. */
+export function fmtDec(v) {
+  if (v == null || v === '' || Number.isNaN(Number(v))) return null;
+  return String(Math.round(Number(v) * 100) / 100).replace('.', ',');
+}
