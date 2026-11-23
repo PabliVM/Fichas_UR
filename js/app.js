@@ -2518,7 +2518,7 @@ function renderFichaJugador(container, p) {
         ${dato('Nombre', p.nombre)}${dato('Apellidos', p.apellidos)}${dato('Equipo', teamLabel)}${dato('Posición', posLabel)}
         ${dato('Fecha de nacimiento', p.birthDate)}${dato('Año', year)}${dato('Edad', age != null ? age + ' años' : null)}
         ${dato('Lateralidad', p.foot)}${dato('Edad madurativa', p.maturationalAge)}${dato('Años en el club', aniosEnClub(p))}
-        ${dato('Peso', p.weight != null ? p.weight + ' kg' : null)}${dato('Altura', p.height != null ? p.height + ' m' : null)}${dato('Complexión', p.complexion)}
+        ${dato('Peso', p.weight != null ? fmtDec(p.weight) + ' kg' : null)}${dato('Altura', p.height != null ? fmtDec(p.height) + ' m' : null)}${dato('Complexión', p.complexion)}
       </div>
     </div></div>
     <div class="card mb-16"><div class="card-title">Evaluaciones</div><div class="card-body">${evalHTML}</div></div>
@@ -3013,8 +3013,8 @@ function renderPanelJugadores(container) {
         <td>${aniosEnClub(p) ?? '-'}</td>
         <td>${safeText(teamLabel)}</td>
         <td>${safeText(posLabel)}</td>
-        <td>${p.weight != null ? p.weight + ' kg' : '-'}</td>
-        <td>${p.height != null ? p.height + ' m' : '-'}</td>
+        <td>${p.weight != null ? fmtDec(p.weight) + ' kg' : '-'}</td>
+        <td>${p.height != null ? fmtDec(p.height) + ' m' : '-'}</td>
         <td>
           <div class="flex gap-8" style="align-items:center;justify-content:flex-end;">
           <button class="btn btn-sm btn-primary" data-jug-ficha="${p.id}">Ficha</button>
