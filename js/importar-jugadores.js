@@ -142,8 +142,12 @@ export async function leerTablaJugadores(origen, positions) {
       aniosClub: null,
     };
     if (crudo.aniosClub !== undefined) {
-      const n = typeof crudo.aniosClub === 'number' ? crudo.aniosClub : parseEsNumber(crudo.aniosClub);
-      if (n == null || n < 0 || !Number.isInteger(n)) avisos.push(`Años en el club no válido: "${txt('aniosClub')}"`); else data.aniosClub = n;
+      // Número (3) o por etapas (2+3)
+      const t = txt('aniosClub').replace(/\s+/g, '');
+      if (typeof crudo.aniosClub === 'number' && Number.isInteger(crudo.aniosClub) && crudo.aniosClub >= 0) data.aniosClub = crudo.aniosClub;
+      else if (/^\d+$/.test(t)) data.aniosClub = Number(t);
+      else if (/^\d+(\+\d+)+$/.test(t)) data.aniosClub = t;
+      else avisos.push(`Años en el club no válido: "${txt('aniosClub')}" (usa 3 o 2+3)`);
     }
     if (crudo.birthDate !== undefined) {
       data.birthDate = parseFecha(crudo.birthDate);

@@ -2008,10 +2008,20 @@ function calcAgeAndYear(birthDateStr) {
 // Años en el club: se guarda el número que se metió y la temporada en que se metió
 // (aniosClub, aniosClubTemporada); cada temporada posterior suma uno sola.
 const inicioTemporada = t => parseInt(String(t || '').slice(0, 4), 10);
+// Puede ser por etapas ("2+3": dos etapas en el club); solo la última suma cada temporada → "2+4".
+function etapasAnios(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return Number.isInteger(v) && v >= 0 ? [v] : null;
+  const partes = String(v).split('+').map(x => x.trim());
+  if (!partes.length || partes.some(x => !/^\d+$/.test(x))) return null;
+  return partes.map(Number);
+}
 function aniosEnClub(p) {
-  if (p?.aniosClub == null) return null;
+  const et = etapasAnios(p?.aniosClub);
+  if (!et) return null;
   const dif = inicioTemporada(state.season) - inicioTemporada(p.aniosClubTemporada || state.season);
-  return Math.max(0, p.aniosClub + (Number.isNaN(dif) ? 0 : dif));
+  et[et.length - 1] = Math.max(0, et[et.length - 1] + (Number.isNaN(dif) ? 0 : dif));
+  return et.length === 1 ? et[0] : et.join('+');
 }
 
 // Datos VARIABLES del jugador — llevan histórico (subcolección
@@ -2195,7 +2205,7 @@ function buildJugadorFormHTML(player) {
           </div>
           <div class="field-group" style="min-width:150px;">
             <label class="label">Años en el club</label>
-            <input class="input" type="number" min="0" step="1" id="jug-anios-club" value="${aniosEnClub(p) ?? ''}" title="Temporada ${safeText(state.season)}: cada temporada siguiente suma uno sola" />
+            <input class="input" type="text" inputmode="numeric" id="jug-anios-club" value="${aniosEnClub(p) ?? ''}" placeholder="Ej. 3 o 2+3" title="Temporada ${safeText(state.season)}: cada temporada siguiente suma uno sola. Si estuvo en varias etapas: 2+3 (la última etapa es la que suma)." />
           </div>
         </div>
         <div class="text-xs text-muted mt-16 mb-8" style="font-weight:700;text-transform:uppercase;">Datos con histórico (cada cambio se guarda, no se pierde el anterior)</div>
@@ -2728,7 +2738,7 @@ function columnasPlantillaJugadores() {
     { titulo: 'Lateralidad', ejemplo: 'Diestro', nota: 'Diestro, Zurdo o Ambidiestro.' },
     { titulo: 'Residencia', ejemplo: 'En residencia', nota: 'Residente en Madrid, En residencia o Media pensión.' },
     { titulo: 'Edad madurativa', ejemplo: '' },
-    { titulo: 'Años en el club', ejemplo: '3', nota: 'número entero; cada temporada siguiente suma uno sola.' },
+    { titulo: 'Años en el club', ejemplo: '3', nota: 'número entero (3) o por etapas (2+3); cada temporada siguiente suma uno a la última etapa.' },
     { titulo: 'Equipo', ejemplo: TEAMS[1]?.label || '', nota: 'uno de: ' + TEAMS.map(t => safeText(t.label)).join(', ') + '.' },
     { titulo: 'Posición', ejemplo: state.positions[0]?.label || '', nota: 'una de: ' + state.positions.map(p => safeText(p.label)).join(', ') + '.' },
     { titulo: 'Peso', ejemplo: '78,5', nota: 'en kg.' },
@@ -3708,10 +3718,11 @@ function renderPanelJugadores(container) {
       maturationalAge: container.querySelector('#jug-maturational').value.trim(),
     };
     // Años en el club: si no se toca, se conserva la referencia; si cambia, se apunta en la temporada actual.
-    const aniosTxt = container.querySelector('#jug-anios-club').value.trim();
-    const aniosNum = aniosTxt === '' ? null : parseInt(aniosTxt, 10);
-    if (aniosTxt !== '' && (Number.isNaN(aniosNum) || aniosNum < 0)) { showError('Años en el club debe ser un número entero.'); return; }
-    if (aniosNum !== aniosEnClub(jugadorFormId === 'new' ? null : editingPlayer)) {
+    const aniosTxt = container.querySelector('#jug-anios-club').value.replace(/\s+/g, '');
+    const aniosEt = etapasAnios(aniosTxt);
+    if (aniosTxt !== '' && !aniosEt) { showError('Años en el club: un número entero (3) o por etapas (2+3).'); return; }
+    const aniosNum = !aniosEt ? null : aniosEt.length === 1 ? aniosEt[0] : aniosEt.join('+');
+    if (String(aniosNum ?? '') !== String(aniosEnClub(jugadorFormId === 'new' ? null : editingPlayer) ?? '')) {
       baseData.aniosClub = aniosNum;
       baseData.aniosClubTemporada = aniosNum == null ? null : state.season;
     }
