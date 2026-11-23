@@ -5643,7 +5643,7 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
       const top = y0 + 84 + fila * rowH + Math.max(0, (rowH - D - 44) / 2);
       const cf = conf(it), v = notaDe(it), hex = v != null ? hexDeNota(v) : null;
       const pl = it.f1?.player || {};
-      const txtNota = hex ? fmtDec(v) : 'X'; // 2 decimales como mucho
+      const txtNota = hex ? String(Math.round(v * 10) / 10).replace('.', ',') : 'X'; // mapa de nivel: 1 decimal como mucho
       const bgN = hex || '#ffffff', fgN = hex ? textoSobre(hex) : '#111';
       const cid = `plmn${++plUid}`, R0 = D / 2, dN = Math.min(56, Math.max(String(txtNota).length > 3 ? 42 : 34, Math.round(D * 0.5)));
       const foto = it.j.fotoUrl
