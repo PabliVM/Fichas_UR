@@ -2316,7 +2316,7 @@ function buildHistoricoHTML(entries) {
 }
 
 // ── Jugadores: filtros + ficha de jugador ──────────
-let jugFiltros = { q: '', teamKey: '', positionKey: '', year: '', foot: '' };
+let jugFiltros = { q: '', teamKey: '', positionKey: '', year: '', foot: '', resi: '' };
 let jugVolverA = null;             // 'plantillas' | 'registro': pestaña desde la que se abrió la ficha (botón Volver)
 let jugVolverScroll = 0;           // posición de la página al salir, para volver al mismo sitio
 let jugFichaId = null;             // null = lista; <id> = ficha de ese jugador abierta
@@ -2336,6 +2336,7 @@ function jugadorPasaFiltros(p) {
   if (f.positionKey && p.positionKey !== f.positionKey) return false;
   if (f.year && String(calcAgeAndYear(p.birthDate).year) !== String(f.year)) return false;
   if (f.foot && p.foot !== f.foot) return false;
+  if (f.resi && residenciaDe(p) !== f.resi) return false;
   return true;
 }
 
@@ -2343,7 +2344,7 @@ function buildJugadoresFiltrosHTML() {
   const years = [...new Set(state.players.map(p => calcAgeAndYear(p.birthDate).year).filter(Boolean))].sort((a, b) => b - a);
   const sel = (id, label, opts, val, ancho = 170) => `
     <select class="select" id="${id}" aria-label="${label}" style="width:auto;min-width:${ancho}px;${val ? 'border-color:var(--blue-500, #3b82f6);font-weight:600;' : ''}"><option value="">${label}: todos</option>${opts.map(([v, l]) => `<option value="${safeText(String(v))}" ${String(val) === String(v) ? 'selected' : ''}>${safeText(l)}</option>`).join('')}</select>`;
-  const masActivos = [jugFiltros.year, jugFiltros.foot].filter(Boolean).length;
+  const masActivos = [jugFiltros.year, jugFiltros.foot, jugFiltros.resi].filter(Boolean).length;
   const hayFiltros = jugFiltros.q || jugFiltros.teamKey || jugFiltros.positionKey || masActivos;
   return `
     <div class="card mb-16 rm-sticky"><div class="card-body" style="padding-top:12px;padding-bottom:12px;">
@@ -2356,6 +2357,7 @@ function buildJugadoresFiltrosHTML() {
           <div class="flex gap-8" style="margin-top:8px;flex-wrap:wrap;">
             ${sel('jug-f-year', 'Año nacimiento', years.map(y => [y, String(y)]), jugFiltros.year, 150)}
             ${sel('jug-f-foot', 'Lateralidad', ['Diestro', 'Zurdo', 'Ambidiestro'].map(x => [x, x]), jugFiltros.foot, 150)}
+            ${sel('jug-f-resi', 'Residencia', ['Residencia', 'Madrid', 'Media pensión'].map(x => [x, x]), jugFiltros.resi, 150)}
           </div>
         </details>
         ${hayFiltros ? '<button class="btn btn-sm btn-ghost" id="jug-f-clear">Limpiar filtros</button>' : ''}
@@ -3087,11 +3089,11 @@ function renderPanelJugadores(container) {
     }
   };
   container.querySelector('#jug-f-q')?.addEventListener('input', e => { jugFiltros.q = e.target.value; refiltrar(true); });
-  [['#jug-f-team', 'teamKey'], ['#jug-f-pos', 'positionKey'], ['#jug-f-year', 'year'], ['#jug-f-foot', 'foot']].forEach(([sel, key]) => {
+  [['#jug-f-team', 'teamKey'], ['#jug-f-pos', 'positionKey'], ['#jug-f-year', 'year'], ['#jug-f-foot', 'foot'], ['#jug-f-resi', 'resi']].forEach(([sel, key]) => {
     container.querySelector(sel)?.addEventListener('change', e => { jugFiltros[key] = e.target.value; refiltrar(false); });
   });
   container.querySelector('#jug-f-clear')?.addEventListener('click', () => {
-    jugFiltros = { q: '', teamKey: '', positionKey: '', year: '', foot: '' };
+    jugFiltros = { q: '', teamKey: '', positionKey: '', year: '', foot: '', resi: '' };
     refiltrar(false);
   });
   // Menú ⋯ de cada jugador: flotante (la tabla tiene scroll y lo recortaría); uno abierto a la vez.
