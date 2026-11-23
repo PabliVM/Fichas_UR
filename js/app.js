@@ -2094,6 +2094,9 @@ async function guardarCondPend(id, cp, evalId) {
   setState({ players: state.players.map(p => p.id === id ? { ...p, ...patch } : p) });
   await registrarCambios(id, prev, patch);
 }
+// Residencia: si no se ha puesto, es «Residente en Madrid» (en residencia o media pensión se ponen a mano).
+const RESI_DEFECTO = 'Residente en Madrid';
+const residenciaDe = p => p?.residencia || RESI_DEFECTO;
 const CAMPOS_COMPLETAR = ['apellidos', 'birthDate', 'foot', 'residencia', 'maturationalAge', 'teamKey', 'positionKey', 'weight', 'height', 'complexion', 'aniosClub'];
 
 // Cambios reales entre el jugador guardado (prev) y lo nuevo, incluidos los datos condicionales.
@@ -2195,8 +2198,7 @@ function buildJugadorFormHTML(player) {
           <div class="field-group" style="min-width:190px;">
             <label class="label">Residencia</label>
             <select class="select" id="jug-residencia">
-              <option value="">—</option>
-              ${['Residente en Madrid', 'En residencia', 'Media pensión'].map(v => `<option value="${v}" ${p.residencia === v ? 'selected' : ''}>${v}</option>`).join('')}
+              ${['Residente en Madrid', 'En residencia', 'Media pensión'].map(v => `<option value="${v}" ${residenciaDe(p) === v ? 'selected' : ''}>${v}</option>`).join('')}
             </select>
           </div>
           <div class="field-group" style="min-width:150px;">
@@ -2517,7 +2519,7 @@ function renderFichaJugador(container, p) {
       <div class="flex gap-24" style="flex-wrap:wrap;">
         ${dato('Nombre', p.nombre)}${dato('Apellidos', p.apellidos)}${dato('Equipo', teamLabel)}${dato('Posición', posLabel)}
         ${dato('Fecha de nacimiento', p.birthDate)}${dato('Año', year)}${dato('Edad', age != null ? age + ' años' : null)}
-        ${dato('Lateralidad', p.foot)}${dato('Edad madurativa', p.maturationalAge)}${dato('Años en el club', aniosEnClub(p))}
+        ${dato('Lateralidad', p.foot)}${dato('Residencia', residenciaDe(p))}${dato('Edad madurativa', p.maturationalAge)}${dato('Años en el club', aniosEnClub(p))}
         ${dato('Peso', p.weight != null ? fmtDec(p.weight) + ' kg' : null)}${dato('Altura', p.height != null ? fmtDec(p.height) + ' m' : null)}${dato('Complexión', p.complexion)}
       </div>
     </div></div>
@@ -3313,7 +3315,7 @@ function renderPanelJugadores(container) {
         case 'apellidos': return j.apellidos || '';
         case 'birthDate': return j.birthDate ? j.birthDate.split('-').reverse().join('/') : '';
         case 'foot': return j.foot || '';
-        case 'residencia': return j.residencia || '';
+        case 'residencia': return residenciaDe(j);
         case 'maturationalAge': return j.maturationalAge || '';
         case 'aniosClub': return num(aniosEnClub(j));
         case 'teamKey': return TEAMS.find(x => x.key === j.teamKey)?.label || '';
@@ -3467,7 +3469,8 @@ function renderPanelJugadores(container) {
           completadas++;
           continue;
         }
-        const nuevo = data.aniosClub != null ? { ...data, aniosClubTemporada: state.season } : data;
+        const nuevo0 = { ...data, residencia: data.residencia || RESI_DEFECTO };
+        const nuevo = nuevo0.aniosClub != null ? { ...nuevo0, aniosClubTemporada: state.season } : nuevo0;
         const id = isFirebaseUnconfigured() ? crypto.randomUUID() : await addDocument('jugadores', nuevo);
         setState({ players: [...state.players, { id, ...nuevo }] });
         if (data.teamKey) await añadirAPlantilla(id, data.teamKey, state.season);
@@ -4900,7 +4903,7 @@ async function crearPlantillaDesdeLista(texto, teamKey, temporada, positionKey =
       res.existentes.push(linea.trim()); continue;
     }
     if (m.status === 'dudoso') { res.dudosos.push(`${linea.trim()} ≈ ${m.candidates.map(nombreCompleto).join(' / ')}`); continue; }
-    const data = { nombre: pj.nombre, apellidos: pj.apellidos, birthDate: null, foot: '', maturationalAge: '', teamKey, positionKey: positionKey || null, weight: null, height: null, complexion: null };
+    const data = { nombre: pj.nombre, apellidos: pj.apellidos, birthDate: null, foot: '', residencia: RESI_DEFECTO, maturationalAge: '', teamKey, positionKey: positionKey || null, weight: null, height: null, complexion: null };
     const id = await addDocument('jugadores', data);
     setState({ players: [...state.players, { id, ...data }] });
     await añadirAPlantilla(id, teamKey, temporada);
