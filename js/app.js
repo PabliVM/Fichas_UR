@@ -2519,7 +2519,7 @@ function renderFichaJugador(container, p) {
       <div class="flex gap-24" style="flex-wrap:wrap;">
         ${dato('Nombre', p.nombre)}${dato('Apellidos', p.apellidos)}${dato('Equipo', teamLabel)}${dato('Posición', posLabel)}
         ${dato('Fecha de nacimiento', p.birthDate)}${dato('Año', year)}${dato('Edad', age != null ? age + ' años' : null)}
-        ${dato('Lateralidad', p.foot)}${dato('Residencia', residenciaDe(p))}${dato('Edad madurativa', p.maturationalAge)}${dato('Años en el club', aniosEnClub(p))}
+        ${dato('Lateralidad', p.foot)}${residenciaDe(p) !== RESI_DEFECTO ? dato('Residencia', residenciaDe(p)) : ''}${dato('Edad madurativa', p.maturationalAge)}${dato('Años en el club', aniosEnClub(p))}
         ${dato('Peso', p.weight != null ? fmtDec(p.weight) + ' kg' : null)}${dato('Altura', p.height != null ? fmtDec(p.height) + ' m' : null)}${dato('Complexión', p.complexion)}
       </div>
     </div></div>
