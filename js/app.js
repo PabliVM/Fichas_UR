@@ -2571,7 +2571,7 @@ function renderFichaJugador(container, p) {
       const posKey = posicionDeRegistros(rs, ev, p);
       const media = calcularMediasPorJugador(rs.map(r => ({ ...r, jugadorId: id })), buildAspectoPorCompetencia(state, posKey))[id];
       const idx = (regEvaluaciones || []).findIndex(e => e.id === eid);
-      return { eid, ev, posKey, aviso: avisoPosiciones(rs, posKey), posConteo: posicionesConteo(rs), n: new Set(rs.map(r => r.evaluador)).size, media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
+      return { eid, ev, rs, posKey, aviso: avisoPosiciones(rs, posKey), posConteo: posicionesConteo(rs), n: new Set(rs.map(r => r.evaluador)).size, media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
     }).sort((a, b) => String(b.orden).localeCompare(String(a.orden)));
   }
   let filasEval = filas.filter(f => f.eid !== 'sin-evaluacion' && f.ev);
@@ -2587,6 +2587,7 @@ function renderFichaJugador(container, p) {
   }
   // Por defecto, la final con notas de la encuesta (una evaluación con solo datos condicionales no tapa las medias).
   const evSel = filasEval.find(f => f.eid === jugFichaEvalId) || filasEval.find(f => f.media) || filasEval[0] || null;
+  const extrasPos = evSel?.rs ? fichasExtraPos(evSel.rs, evSel.ev, p, evSel.posKey) : [];
 
   // ── Pestaña "Datos personales"
   const items = state.aspectosComunes.condicional || [];
@@ -2688,7 +2689,7 @@ function renderFichaJugador(container, p) {
       ${evSel?.aviso ? `<div class="mb-8 btn-print-ficha flex gap-8" style="align-items:center;flex-wrap:wrap;background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:8px;padding:8px 12px;font-size:13px;">
         <span style="flex:1 1 300px;">${safeText(evSel.aviso)}</span>
         <label for="jug-ficha-pos" style="font-weight:700;">Ficha como</label>
-        <select class="select" id="jug-ficha-pos" style="width:auto;" title="Se guarda para este jugador y esta evaluación (también en la presentación del equipo)">${Object.entries(evSel.posConteo || {}).sort((a, b) => b[1] - a[1]).map(([k, c]) => `<option value="${safeText(k)}" ${k === evSel.posKey ? 'selected' : ''}>${safeText(posLabel(k))} (${c} encuesta${c === 1 ? '' : 's'})</option>`).join('')}</select>
+        <select class="select" id="jug-ficha-pos" style="width:auto;" title="Se guarda para este jugador y esta evaluación (también en la presentación del equipo)">${Object.entries(evSel.posConteo || {}).sort((a, b) => b[1] - a[1]).map(([k, c]) => `<option value="${safeText(k)}" ${k === evSel.posKey ? 'selected' : ''}>${safeText(posLabel(k))} (${c} encuesta${c === 1 ? '' : 's'})</option>`).join('')}<option value="ambas" ${p.fichaPosPorEval?.[evSel.eid] === 'ambas' ? 'selected' : ''}>Las dos (duplicar ficha)</option></select>
       </div>` : ''}
       <div class="mb-8 flex gap-8 btn-print-ficha" style="flex-wrap:wrap;align-items:center;">
         <b>Ficha 1</b>
@@ -2704,7 +2705,14 @@ function renderFichaJugador(container, p) {
         <b>Ficha 2</b>
         <button class="btn btn-sm btn-print-ficha" id="jug-ficha2-pdf">⬇ Solo Ficha 2</button>
       </div>
-      <div id="jug-ficha2-wrap" class="ficha-wrap"></div>`;
+      <div id="jug-ficha2-wrap" class="ficha-wrap"></div>
+      ${extrasPos.map((x, i) => `
+      <div class="mb-8 mt-16 flex gap-8 btn-print-ficha" style="flex-wrap:wrap;align-items:center;border-top:2px dashed var(--border-emphasis, #cbd5e1);padding-top:12px;">
+        <b>Ficha 1 y 2 como ${safeText(posLabel(x.fPos))}</b> <span class="text-xs text-muted">(duplicada: los textos se editan en la de arriba)</span>
+        <button class="btn btn-sm btn-print-ficha" data-jug-extra-pdf="${i}">⬇ PDF Ficha 1 + 2 (${safeText(posLabel(x.fPos))})</button>
+      </div>
+      <div class="ficha-wrap mb-16" data-jug-extra-f1="${i}"></div>
+      <div class="ficha-wrap" data-jug-extra-f2="${i}"></div>`).join('')}`;
 
   container.innerHTML = `
     ${firebaseNotice()}
@@ -2733,7 +2741,25 @@ function renderFichaJugador(container, p) {
     renderFichaPagina1(container.querySelector('#jug-ficha1-wrap'), buildFicha1RealData(fPos, fMedia, p, aspectosTxt, evSel?.eid), LOGO_PATH, state.fichaColors);
     setGpsTolerance(state.condicionalTolerance);
     renderFichaDetalle(container.querySelector('#jug-ficha2-wrap'), buildFichaRealData(fPos, fMedia, p, evSel?.eid, refData), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
+    extrasPos.forEach((x, i) => {
+      const w1 = container.querySelector(`[data-jug-extra-f1="${i}"]`), w2 = container.querySelector(`[data-jug-extra-f2="${i}"]`);
+      renderFichaPagina1(w1, buildFicha1RealData(x.fPos, x.fMedia, p, aspectosTxt, evSel?.eid), LOGO_PATH, state.fichaColors);
+      renderFichaDetalle(w2, buildFichaRealData(x.fPos, x.fMedia, p, evSel?.eid, refData), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
+      [w1, w2].forEach(w => w.querySelectorAll('[contenteditable]').forEach(el => { el.contentEditable = 'false'; }));
+    });
   }
+  container.querySelectorAll('[data-jug-extra-pdf]').forEach(btn => btn.addEventListener('click', async () => {
+    const i = btn.dataset.jugExtraPdf, x = extrasPos[i];
+    const f1 = container.querySelector(`[data-jug-extra-f1="${i}"] .p1-detalle`), f2 = container.querySelector(`[data-jug-extra-f2="${i}"] .ficha-detalle`);
+    if (!f1 || !f2) return;
+    f1.dataset.pie = f2.dataset.pie = pieEvaluacion(evSel?.ev);
+    const txt = btn.textContent; btn.disabled = true; btn.textContent = 'Generando PDF…';
+    try {
+      const nombre = `${p.nombre || ''} ${p.apellidos || ''}`.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'jugador';
+      await exportFichasAsPDF([f1, f2], `${nombre}-fichas-${x.fPos}.pdf`);
+    } catch (err) { showError('No se pudo generar el PDF: ' + err.message); }
+    finally { btn.disabled = false; btn.textContent = txt; }
+  }));
 
   container.querySelector('#jug-fichas-pdf')?.addEventListener('click', async e => {
     const btn = e.currentTarget;
@@ -5465,7 +5491,7 @@ function posicionDeRegistros(rs, ev, jugador = null) {
   (rs || []).forEach(r => { if (r.posicionKey) n[r.posicionKey] = (n[r.posicionKey] || 0) + 1; });
   const claves = Object.keys(n).sort((a, b) => n[b] - n[a]);
   const elegida = ev?.id ? jugador?.fichaPosPorEval?.[ev.id] : null;
-  if (claves.length > 1 && elegida && n[elegida]) return elegida;
+  if (claves.length > 1 && elegida && elegida !== 'ambas' && n[elegida]) return elegida;
   if (claves.length > 1 && jugador?.positionKey && n[jugador.positionKey]) return jugador.positionKey;
   return claves[0] || ev?.posicionKey || null;
 }
@@ -5479,6 +5505,13 @@ function avisoPosiciones(rs, posUsada) {
   if (claves.length < 2) return '';
   const detalle = claves.sort((a, b) => n[b] - n[a]).map(k => `${n[k]} como ${posLabel(k)}`).join(' · ');
   return `⚠ Evaluado en varias posiciones (${detalle}). La ficha usa ${posLabel(posUsada)} (solo cuentan sus competencias); se puede cambiar en la ficha del jugador.`;
+}
+// "Las dos": además de la principal, una ficha por cada otra posición de sus encuestas (con su media).
+function fichasExtraPos(rs, ev, jugador, posPrincipal) {
+  if (!ev?.id || jugador?.fichaPosPorEval?.[ev.id] !== 'ambas') return [];
+  return Object.keys(posicionesConteo(rs)).filter(k => k !== posPrincipal).map(k => ({
+    fPos: k, fMedia: calcularMediasPorJugador(rs.map(r => ({ ...r, jugadorId: jugador.id })), buildAspectoPorCompetencia(state, k))[jugador.id] || null,
+  }));
 }
 const posicionesConteo = rs => { const n = {}; (rs || []).forEach(r => { if (r.posicionKey) n[r.posicionKey] = (n[r.posicionKey] || 0) + 1; }); return n; };
 
@@ -5509,7 +5542,7 @@ function prepararFichaJugador(p, regs, temporada, evalPreferida = null) { // eva
   const cinco = arr => Array.from({ length: 5 }, (_, i) => arr[i] || '');
   const mediaRP = k => { const v = regsEval.map(r => r.rp?.[k]).filter(x => typeof x === 'number'); if (!v.length) return null; const m = v.reduce((x, y) => x + y, 0) / v.length; return fmtDec(m); };
   return {
-    evSel, textosKey, avisoPos: evSel?.aviso || '',
+    evSel, textosKey, avisoPos: evSel?.aviso || '', extrasPos: evSel ? fichasExtraPos(regsEval, evSel.ev, p, evSel.posKey) : [],
     fPos: evSel?.posKey || p.positionKey, fMedia: evSel?.media || null,
     aspectosTxt: {
       desc: p.fichaTextos?.[textosKey]?.desc || '',
@@ -6210,8 +6243,11 @@ async function renderPlantillaPresentacion(container) {
     };
   };
   // Agrupa por la posición del jugador (la de su ficha / plantilla); si no tiene, la de su evaluación.
-  const posDe = x => (state.positions.some(pos => pos.key === x.j.positionKey) ? x.j.positionKey : x.prep.fPos);
-  const grupos = state.positions.map(pos => ({ titulo: pos.label, items: preps.filter(x => posDe(x) === pos.key) }));
+  const posDe = x => x.dup ? x.prep.fPos : (state.positions.some(pos => pos.key === x.j.positionKey) ? x.j.positionKey : x.prep.fPos);
+  // "Las dos": el jugador sale también en el grupo de la otra posición, con su ficha de esa posición.
+  const dups = preps.flatMap(x => (x.prep.extrasPos || []).map(e => ({ j: x.j, dup: true, prep: { ...x.prep, fPos: e.fPos, fMedia: e.fMedia } })));
+  const todosItems = [...preps, ...dups];
+  const grupos = state.positions.map(pos => ({ titulo: pos.label, items: todosItems.filter(x => posDe(x) === pos.key) }));
   grupos.push({ titulo: 'Sin posición', items: preps.filter(x => !posDe(x) || !state.positions.some(pos => pos.key === posDe(x))) });
 
   let hechas = 0;
@@ -6222,7 +6258,7 @@ async function renderPlantillaPresentacion(container) {
     // (La diapositiva de resumen por posición ya no se genera: las notas van en la portada de la posición. plResumenPosicion queda sin usar.)
     await aplicarSinFondo(lista);
     ajustarSlides(lista);
-    for (const { j, prep } of g.items) {
+    for (const { j, prep, dup } of g.items) {
       const sec = document.createElement('div');
       sec.className = 'mb-16';
       sec.innerHTML = `
@@ -6230,24 +6266,29 @@ async function renderPlantillaPresentacion(container) {
           <b style="font-size:18px;">${safeText(nombreCompleto(j))}</b>
           <span class="text-xs text-muted">${safeText(prep.evSel ? `${prep.evSel.ev.temporada} · ${prep.evSel.ev.nombre}` : 'Sin evaluaciones')}</span>
           ${prep.avisoPos ? `<span class="text-xs" style="color:#b45309;font-weight:700;" title="${safeText(prep.avisoPos)}">${safeText(prep.avisoPos)}</span>` : ''}
+          ${dup ? `<span class="text-xs" style="font-weight:700;">Duplicada como ${safeText(posLabel(prep.fPos))} · los textos se editan en su otra ficha</span>` : `
           ${prep.fPos ? `<button class="btn btn-sm" data-pr-desc="${j.id}" title="La IA propone la descripción con sus notas y los comentarios de los evaluadores">✨ Proponer descripción</button>` : ''}
-          <button class="btn btn-sm btn-primary" data-pr-textos="${j.id}">💾 Guardar textos</button>
+          <button class="btn btn-sm btn-primary" data-pr-textos="${j.id}">💾 Guardar textos</button>`}
           <button class="btn btn-sm" data-pr-editar="${j.id}">Editar datos</button>
         </div>
         ${prep.fPos ? '<div class="ficha-wrap mb-16" data-pr-f1></div><div class="ficha-wrap" data-pr-f2></div>' : '<p class="text-xs text-muted">Sin posición ni evaluación: asigna una posición en Datos (no entra en el PDF).</p>'}`;
       lista.appendChild(sec);
       if (!prep.fPos) continue;
       sec.querySelectorAll('[data-pr-f1],[data-pr-f2]').forEach(w => { w.dataset.pie = pieEvaluacion(prep.evSel?.ev); });
-      sec.querySelector('[data-pr-f1]').dataset.plObs = `j1.${j.id}`; sec.querySelector('[data-pr-f2]').dataset.plObs = `j2.${j.id}`;
+      const sufijo = dup ? `.${prep.fPos}` : '';
+      sec.querySelector('[data-pr-f1]').dataset.plObs = `j1.${j.id}${sufijo}`; sec.querySelector('[data-pr-f2]').dataset.plObs = `j2.${j.id}${sufijo}`;
       obsMontar();
       renderFichaPagina1(sec.querySelector('[data-pr-f1]'), buildFicha1RealData(prep.fPos, prep.fMedia, j, prep.aspectosTxt, prep.evSel?.eid), LOGO_PATH, state.fichaColors);
       renderFichaDetalle(sec.querySelector('[data-pr-f2]'), buildFichaRealData(prep.fPos, prep.fMedia, j, prep.evSel?.eid, refDe(j, prep)), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
       sec.querySelector('[data-pr-desc]')?.addEventListener('click', e => proponerDescripcion(e.currentTarget, sec.querySelector('[data-pr-f1] .p1-desc-text'), j, prep.evSel, prep.aspectosTxt, sec.querySelector('[data-pr-textos]')));
       const f1Pr = sec.querySelector('[data-pr-f1]'), f2Pr = sec.querySelector('[data-pr-f2]');
-      sec.querySelector('[data-pr-textos]').addEventListener('click', e => guardarTextosFicha(j, prep.textosKey, f1Pr, f2Pr, { btn: e.currentTarget, aviso: true }));
-      autoGuardarTextosFicha([f1Pr, f2Pr], () => guardarTextosFicha(j, prep.textosKey, f1Pr, f2Pr, { pendienteBtn: sec.querySelector('[data-pr-textos]') }), sec.querySelector('[data-pr-textos]'));
+      if (dup) [f1Pr, f2Pr].forEach(w => w.querySelectorAll('[contenteditable]').forEach(el => { el.contentEditable = 'false'; })); // la duplicada no se edita
+      else {
+        sec.querySelector('[data-pr-textos]').addEventListener('click', e => guardarTextosFicha(j, prep.textosKey, f1Pr, f2Pr, { btn: e.currentTarget, aviso: true }));
+        autoGuardarTextosFicha([f1Pr, f2Pr], () => guardarTextosFicha(j, prep.textosKey, f1Pr, f2Pr, { pendienteBtn: sec.querySelector('[data-pr-textos]') }), sec.querySelector('[data-pr-textos]'));
+      }
       sec.querySelector('[data-pr-editar]').addEventListener('click', () => { jugFichaId = null; jugadorFormId = j.id; switchTab('jugadores'); });
-      estado.textContent = `Fichas ${++hechas}/${preps.length}…`;
+      estado.textContent = `Fichas ${++hechas}/${todosItems.length}…`;
       await new Promise(r => setTimeout(r, 0)); // deja respirar al navegador entre fichas
     }
   }
