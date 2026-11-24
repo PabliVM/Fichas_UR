@@ -31,7 +31,8 @@ export function infoEvaluador(nombre) {
 export function tituloEvaluador(nombre) {
   const i = infoEvaluador(nombre);
   if (!i) return 'Sin identificar: ponle nombre y rol en Configuración › Evaluadores';
-  return [i.nombre || nombre, i.rol, TEAMS.find(t => t.key === i.teamKey)?.label].filter(Boolean).join(' · ');
+  const eq = [i.teamKey, i.teamKey2].map(k => TEAMS.find(t => t.key === k)?.label).filter(Boolean).join(' / ');
+  return [i.nombre || nombre, i.rol, eq].filter(Boolean).join(' · ');
 }
 
 let _cache = null; // { clave: { variantes:Set, n } } de los registros (se carga una vez por sesión)
@@ -55,7 +56,7 @@ export async function renderEvaluadores(wrap) {
   const opt = (v, l, sel) => `<option value="${safeText(v)}" ${v === sel ? 'selected' : ''}>${safeText(l)}</option>`;
   wrap.innerHTML = !claves.length ? '<p class="text-sm text-muted">Todavía no hay evaluadores: aparecen solos al importar encuestas.</p>' : `
     <div style="overflow-x:auto;"><table class="table table-compact">
-      <thead><tr><th>En la encuesta</th><th>Registros</th><th>Es el mismo que</th><th>Nombre completo</th><th>Rol</th><th>Equipo</th></tr></thead>
+      <thead><tr><th>En la encuesta</th><th>Registros</th><th>Es el mismo que</th><th>Nombre completo</th><th>Rol</th><th>Equipo</th><th>2º equipo</th></tr></thead>
       <tbody>${claves.map(k => {
         const c = _cache[k], g = guardados[k] || {};
         const etiqueta = x => _cache[x] ? [..._cache[x].variantes].join(' · ') : (guardados[x]?.alias || x);
@@ -70,6 +71,7 @@ export async function renderEvaluadores(wrap) {
           <td><input class="input" data-ev-k="${safeText(k)}" data-ev-campo="nombre" value="${safeText(g.nombre || '')}" placeholder="Nombre y apellidos" style="min-width:200px;" ${dis} /></td>
           <td><select class="select" data-ev-k="${safeText(k)}" data-ev-campo="rol" ${dis}><option value="">—</option>${ROLES_EVALUADOR.map(r => opt(r, r, g.rol)).join('')}</select></td>
           <td><select class="select" data-ev-k="${safeText(k)}" data-ev-campo="teamKey" ${dis}><option value="">—</option>${TEAMS.map(t => opt(t.key, t.label, g.teamKey)).join('')}</select></td>
+          <td><select class="select" data-ev-k="${safeText(k)}" data-ev-campo="teamKey2" ${dis}><option value="">—</option>${TEAMS.map(t => opt(t.key, t.label, g.teamKey2)).join('')}</select></td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>`;
