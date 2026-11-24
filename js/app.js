@@ -2505,7 +2505,7 @@ function renderFichaJugador(container, p) {
     regs.forEach(r => { const k = r.evaluacionId || 'sin-evaluacion'; (grupos[k] = grupos[k] || []).push(r); });
     filas = Object.entries(grupos).map(([eid, rs]) => {
       const ev = evInfo(eid);
-      const posKey = ev?.posicionKey || rs[0]?.posicionKey;
+      const posKey = posicionDeRegistros(rs, ev);
       const media = calcularMediasPorJugador(rs.map(r => ({ ...r, jugadorId: id })), buildAspectoPorCompetencia(state, posKey))[id];
       const idx = (regEvaluaciones || []).findIndex(e => e.id === eid);
       return { eid, ev, posKey, n: new Set(rs.map(r => r.evaluador)).size, media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
@@ -5379,13 +5379,22 @@ function pieEvaluacion(ev) {
   const fechas = a && b && a !== b ? `${a} – ${b}` : (b || a);
   return `Evaluación: ${[ev.temporada, ev.nombre].filter(Boolean).join(' · ')}${fechas ? ' · ' + fechas : ''}`;
 }
+// Posición con la que se hizo la encuesta de un jugador en una evaluación: la de sus registros (la más repetida);
+// la de la evaluación solo si los registros no la tienen (evaluaciones antiguas). Así una encuesta de laterales
+// subida a una evaluación antigua de centrales se ve con los criterios de lateral.
+function posicionDeRegistros(rs, ev) {
+  const n = {};
+  (rs || []).forEach(r => { if (r.posicionKey) n[r.posicionKey] = (n[r.posicionKey] || 0) + 1; });
+  return Object.keys(n).sort((a, b) => n[b] - n[a])[0] || ev?.posicionKey || null;
+}
+
 function prepararFichaJugador(p, regs, temporada, evalPreferida = null) { // evalPreferida: la elegida para todo el equipo
   const evInfo = eid => (regEvaluaciones || []).find(e => e.id === eid);
   const grupos = {};
   (regs || []).forEach(r => { const k = r.evaluacionId || 'sin-evaluacion'; (grupos[k] = grupos[k] || []).push(r); });
   let filasEval = Object.entries(grupos).map(([eid, rs]) => {
     const ev = evInfo(eid);
-    const posKey = ev?.posicionKey || rs[0]?.posicionKey;
+    const posKey = posicionDeRegistros(rs, ev);
     const media = calcularMediasPorJugador(rs.map(r => ({ ...r, jugadorId: p.id })), buildAspectoPorCompetencia(state, posKey))[p.id];
     const idx = (regEvaluaciones || []).findIndex(e => e.id === eid);
     return { eid, ev, posKey, media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
