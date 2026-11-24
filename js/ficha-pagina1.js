@@ -282,7 +282,7 @@ function buildAspectos(title, data) {
 // Sin escudo (quitado a petición) — logoPath ya no se usa aquí.
 // La(s) camiseta(s) salen ya puestas en el campo (nada que arrastrar desde
 // fuera): portero → portería izquierda; jugador → centro del campo, y el
-// botón "+" deja poner una segunda (máx. 2, solo para jugador de campo).
+// botón "+" deja poner más (máx. 3, solo para jugador de campo).
 function buildPitchAndLegend(isGoalkeeper) {
   return `
     <div class="p1-pitch">
@@ -303,6 +303,7 @@ function buildPitchAndLegend(isGoalkeeper) {
 // se pinta tal cual (para cuando sí se cargue guardada) y no se aplica la
 // posición por defecto.
 let nextMarkerId = 1;
+const MAX_CAMISETAS = 3; // camisetas de jugador de campo en el campograma de la Ficha 1
 
 // Posición por defecto en el campo según la posición del jugador (clave de
 // PROFILES en constants.js). El TIPO de camiseta (imagen) sigue siendo
@@ -349,7 +350,7 @@ function renderMarkers(pitchEl, markers, onRemove) {
     wrap.querySelector('.p1-jersey-img').src = m.type === 'portero' ? '../camisetaportero.png' : '../camiseta.png';
     wrap.style.left = `${m.xPct}%`;
     wrap.style.top = `${m.yPct}%`;
-    // Solo se puede quitar una camiseta de jugador cuando hay 2 puestas (la extra).
+    // Solo se puede quitar una camiseta de jugador cuando hay más de una puesta.
     const quitable = m.type === 'jugador' && jugadorCount > 1;
     wrap.dataset.removable = quitable ? '1' : '0';
     wrap.title = quitable ? 'Doble clic para quitar la camiseta' : '';
@@ -372,7 +373,7 @@ function initPitchDragDrop(container, data, positionKey) {
   const syncAddBtn = () => {
     if (!addBtn) return;
     const count = markers.filter(m => m.type === 'jugador').length;
-    addBtn.style.display = count >= 2 ? 'none' : '';
+    addBtn.style.display = count >= MAX_CAMISETAS ? 'none' : '';
   };
 
   const removeMarker = id => {
@@ -387,8 +388,10 @@ function initPitchDragDrop(container, data, positionKey) {
 
   if (addBtn) {
     addBtn.addEventListener('click', () => {
-      if (markers.filter(m => m.type === 'jugador').length >= 2) return;
-      markers.push({ id: nextMarkerId++, type: 'jugador', xPct: 60, yPct: 65 });
+      const n = markers.filter(m => m.type === 'jugador').length;
+      if (n >= MAX_CAMISETAS) return;
+      const xy = n === 1 ? { xPct: 60, yPct: 65 } : { xPct: 40, yPct: 35 }; // 2ª y 3ª en sitios distintos (luego se arrastran)
+      markers.push({ id: nextMarkerId++, type: 'jugador', ...xy });
       renderMarkers(pitchEl, markers, removeMarker);
       syncAddBtn();
       emitChange();
