@@ -5034,6 +5034,7 @@ let plOpcionesAbiertas = false;
 let plEvalSel = null;            // presentación: evaluación elegida para todo el equipo ('auto' = cada uno la suya)  // presentación: panel ⚙ Opciones desplegado   // equipos que muestran la pestaña Datos en su tarjeta
 let plAddCierreGlobal = false;   // listener único para cerrar los "+ Añadir"
 let plIrJugador = null; // jugador al que saltar al abrir la presentación (clic en su nombre)
+const plRegsEvalCache = {}; // { evaluacionId: registros[] } para comparar con toda la cantera (misma generación y posición)
 let plRefModo = 'team';   // comparación de las medias en la Presentación: 'team' (precargado) | 'teampos' | 'none'  // 'grid' | 'datos' | 'pres'
 
 const nombreCompleto = j => `${j.apellidos || ''}, ${j.nombre || ''}`.replace(/^, |, $/g, '').trim();
@@ -6044,6 +6045,7 @@ async function renderPlantillaPresentacion(container) {
               <select class="select" id="pl-ref" style="max-width:240px;">
                 <option value="team" ${plRefModo === 'team' ? 'selected' : ''}>Equipo (toda la plantilla)</option>
                 <option value="teampos" ${plRefModo === 'teampos' ? 'selected' : ''}>Equipo · misma posición</option>
+                <option value="genpos" ${plRefModo === 'genpos' ? 'selected' : ''}>Misma generación y posición (todos los equipos)</option>
                 <option value="none" ${plRefModo === 'none' ? 'selected' : ''}>Sin comparar</option>
               </select>
               <label class="text-xs" title="La portada de cada posición lleva las notas del campograma. Desmarcada: portada solo con fotos y nombres."><input type="checkbox" id="pl-notas-portada" ${plNotasPortada() ? 'checked' : ''} /> Notas en las portadas</label>
@@ -6268,9 +6270,39 @@ async function renderPlantillaPresentacion(container) {
   dibujarMapa();
   dibujarCampo();
 
+  // Misma generación y posición: hacen falta las encuestas de toda la evaluación (todos los equipos).
+  if (plRefModo === 'genpos' && !isFirebaseUnconfigured()) {
+    const eids = [...new Set(preps.map(x => x.prep.evSel?.eid).filter(id => id && !plRegsEvalCache[id]))];
+    await Promise.all(eids.map(eid => queryRegistros({ evaluacionId: eid }).then(r => { plRegsEvalCache[eid] = r; }).catch(err => { console.error('[Firestore] Registros de la evaluación:', err); })));
+  }
+  const genCache = {};
+  const refGenPos = (j, prep) => {
+    const eid = prep.evSel?.eid, year = calcAgeAndYear(j.birthDate).year, pos = prep.fPos;
+    const regs = plRegsEvalCache[eid];
+    if (!eid || !year || !pos || !regs) return { label: 'Comparación: sin datos (falta año de nacimiento o evaluación)' };
+    const clave = `${eid}|${year}|${pos}`;
+    if (!genCache[clave]) {
+      const porJug = {};
+      regs.forEach(r => { if (r.jugadorId) (porJug[r.jugadorId] = porJug[r.jugadorId] || []).push(r); });
+      const aspecto = buildAspectoPorCompetencia(state, pos), medias = {};
+      Object.entries(porJug).forEach(([jid, rs]) => {
+        const pl = state.players.find(x => x.id === jid);
+        if (!pl || calcAgeAndYear(pl.birthDate).year !== year || posicionDeRegistros(rs, prep.evSel.ev, pl) !== pos) return;
+        const m = calcularMediasPorJugador(rs, aspecto)[jid];
+        if (m) medias[jid] = m;
+      });
+      const n = Object.keys(medias).length;
+      genCache[clave] = !n ? { label: 'Comparación: sin datos' } : {
+        mental: calcularMediaGrupo(medias, 'mental'), tecnico: calcularMediaGrupo(medias, 'tecnico'), tactico: calcularMediaGrupo(medias, 'tactico'),
+        label: `Comparado con: ${nombrePos(pos)} nacidos en ${year}, todos los equipos (${n} jug.)`,
+      };
+    }
+    return genCache[clave];
+  };
   // Media de comparación = media de las medias de cada jugador de la plantilla (cada uno pesa 1; sin consultas extra).
   const refDe = (j, prep) => {
     if (plRefModo === 'none') return null;
+    if (plRefModo === 'genpos') return refGenPos(j, prep);
     const pool = preps.filter(x => x.prep.fMedia && (plRefModo === 'team' || x.prep.fPos === prep.fPos));
     if (!pool.length) return { label: 'Comparación: sin datos' };
     const medias = Object.fromEntries(pool.map(x => [x.j.id, x.prep.fMedia]));
