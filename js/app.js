@@ -1884,11 +1884,18 @@ function buildOfenDefCheckboxesHTML(role, label) {
   if (!tactico.length) {
     return `<div style="flex:1;min-width:260px;">${titleHTML}<p class="text-xs text-muted">Define antes el Táctico de esta posición (pestaña Ficha 2).</p></div>`;
   }
-  const boxes = tactico.map(label2 => `
-    <label class="flex gap-8" style="align-items:center;">
-      <input type="checkbox" data-toggle-comp data-role="${role}" data-label="${safeText(label2)}" ${selected.includes(label2) ? 'checked' : ''} />
-      <span class="text-xs">${safeText(label2)}</span>
-    </label>
+  // ↑↓ = mover en el Táctico (mismo orden en las dos listas, en la encuesta 7-18 y en Ficha 2)
+  const boxes = tactico.map((label2, i) => `
+    <div class="flex gap-8" style="align-items:center;">
+      <span style="display:inline-flex;gap:2px;width:44px;flex-shrink:0;">
+        <button class="btn btn-sm btn-ghost" style="padding:0 4px;" data-move-crit data-cat="tactico" data-idx="${i}" data-dir="-1" title="Subir" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button class="btn btn-sm btn-ghost" style="padding:0 4px;" data-move-crit data-cat="tactico" data-idx="${i}" data-dir="1" title="Bajar" ${i === tactico.length - 1 ? 'disabled' : ''}>↓</button>
+      </span>
+      <label class="flex gap-8" style="align-items:center;">
+        <input type="checkbox" data-toggle-comp data-role="${role}" data-label="${safeText(label2)}" ${selected.includes(label2) ? 'checked' : ''} />
+        <span class="text-xs">${safeText(label2)}</span>
+      </label>
+    </div>
   `).join('');
   return `
     <div style="flex:1;min-width:260px;">
