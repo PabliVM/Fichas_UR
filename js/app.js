@@ -5537,7 +5537,7 @@ function prepararFichaJugador(p, regs, temporada, evalPreferida = null) { // eva
     const posKey = posicionDeRegistros(rs, ev, p);
     const media = calcularMediasPorJugador(rs.map(r => ({ ...r, jugadorId: p.id })), buildAspectoPorCompetencia(state, posKey))[p.id];
     const idx = (regEvaluaciones || []).findIndex(e => e.id === eid);
-    return { eid, ev, posKey, aviso: avisoPosiciones(rs, posKey), media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
+    return { eid, ev, posKey, aviso: avisoPosiciones(rs, posKey), posConteo: posicionesConteo(rs), media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
   }).filter(f => f.eid !== 'sin-evaluacion' && f.ev);
   new Set([...Object.keys(p.condicionalPorEval || {}), ...Object.keys(p.condicionalMaxPorEval || {})]).forEach(eid => {
     const ev = evInfo(eid);
@@ -6278,7 +6278,8 @@ async function renderPlantillaPresentacion(container) {
         <div class="flex gap-8 mb-8 btn-print-ficha" style="align-items:center;flex-wrap:wrap;">
           <b style="font-size:18px;">${safeText(nombreCompleto(j))}</b>
           <span class="text-xs text-muted">${safeText(prep.evSel ? `${prep.evSel.ev.temporada} · ${prep.evSel.ev.nombre}` : 'Sin evaluaciones')}</span>
-          ${prep.avisoPos ? `<span class="text-xs" style="color:#b45309;font-weight:700;" title="${safeText(prep.avisoPos)}">${safeText(prep.avisoPos)}</span>` : ''}
+          ${prep.avisoPos && !dup ? `<span class="text-xs" style="color:#b45309;font-weight:700;">⚠ Varias posiciones · Ficha como</span>
+            <select class="select btn-print-ficha" data-pr-pos="${j.id}" style="width:auto;" title="${safeText(prep.avisoPos)}">${Object.entries(prep.evSel?.posConteo || {}).sort((a, b) => b[1] - a[1]).map(([k, c]) => `<option value="${safeText(k)}" ${k === prep.fPos && j.fichaPosPorEval?.[prep.evSel?.eid] !== 'ambas' ? 'selected' : ''}>${safeText(nombrePos(k))} (${c})</option>`).join('')}<option value="ambas" ${j.fichaPosPorEval?.[prep.evSel?.eid] === 'ambas' ? 'selected' : ''}>Las dos</option></select>` : ''}
           ${dup ? `<span class="text-xs" style="font-weight:700;">Duplicada como ${safeText(nombrePos(prep.fPos))} · los textos se editan en su otra ficha</span>` : `
           ${prep.fPos ? `<button class="btn btn-sm" data-pr-desc="${j.id}" title="La IA propone la descripción con sus notas y los comentarios de los evaluadores">✨ Proponer descripción</button>` : ''}
           <button class="btn btn-sm btn-primary" data-pr-textos="${j.id}">💾 Guardar textos</button>`}
@@ -6300,6 +6301,13 @@ async function renderPlantillaPresentacion(container) {
         sec.querySelector('[data-pr-textos]').addEventListener('click', e => guardarTextosFicha(j, prep.textosKey, f1Pr, f2Pr, { btn: e.currentTarget, aviso: true }));
         autoGuardarTextosFicha([f1Pr, f2Pr], () => guardarTextosFicha(j, prep.textosKey, f1Pr, f2Pr, { pendienteBtn: sec.querySelector('[data-pr-textos]') }), sec.querySelector('[data-pr-textos]'));
       }
+      sec.querySelector('[data-pr-pos]')?.addEventListener('change', async e => {
+        const eid = prep.evSel?.eid, pos = e.target.value; if (!eid) return;
+        j.fichaPosPorEval = { ...(j.fichaPosPorEval || {}), [eid]: pos };
+        try { await updateMapEntry('jugadores', j.id, 'fichaPosPorEval', eid, pos); showSuccess(pos === 'ambas' ? `${nombreCompleto(j)}: en las dos posiciones.` : `${nombreCompleto(j)}: como ${nombrePos(pos)}.`); }
+        catch (err) { console.error(err); showError('No se pudo guardar la posición de la ficha.'); return; }
+        const y = window.scrollY; await renderPlantillaPresentacion(container); window.scrollTo(0, y);
+      });
       sec.querySelector('[data-pr-editar]').addEventListener('click', () => { jugFichaId = null; jugadorFormId = j.id; switchTab('jugadores'); });
       estado.textContent = `Fichas ${++hechas}/${todosItems.length}…`;
       await new Promise(r => setTimeout(r, 0)); // deja respirar al navegador entre fichas
