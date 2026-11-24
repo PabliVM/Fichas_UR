@@ -135,6 +135,7 @@ let regEvalSel       = null;  // id de la evaluación activa para importar
 let regImport        = null;  // estado del wizard de importación (ver resetRegImport)
 let regHuerfanos     = null;  // { res: {registros, mediasPorJugador} } registros cuya evaluación ya no existe
 let regVerEquipo     = '';    // filtro de equipo en "Ver registros" ('' = todos)
+let regVerJugador    = '';    // búsqueda de jugador en "Ver registros"
 let regVer           = null;  // { evId, res: { registros, mediasPorJugador } | null } registros desplegados en una tarjeta
 
 let bbddFiltros  = { temporada: '', evaluacionId: '', jugadorId: '', posicionKey: '', evaluador: '', vista: 'individuales' };
@@ -469,11 +470,22 @@ function buildEvaluacionesListHTML() {
           const enEquipo = (jid, tk) => state.players.find(x => x.id === jid)?.teamKey === tk
             || !!plantillasCache?.find(d => d.id === plantillaDocId(ev.temporada, tk))?.jugadorIds?.includes(jid);
           const equipos = TEAMS.filter(t => r.registros.some(x => x.jugadorId && enEquipo(x.jugadorId, t.key)));
-          const regs = regVerEquipo ? r.registros.filter(x => x.jugadorId && enEquipo(x.jugadorId, regVerEquipo)) : r.registros;
-          const filtro = `<div class="flex gap-8 mt-8" style="align-items:center;"><label class="text-xs text-muted" for="reg-ver-equipo">Equipo</label>
+          // Búsqueda de jugador: por el jugador de la app o por el nombre tal cual viene en el archivo.
+          const palabras = normalizeTxt(regVerJugador).split(/\s+/).filter(Boolean);
+          const coincide = x => { const t = normalizeTxt(`${label(x.jugadorId)} ${x.jugadorNombreArchivo || ''}`); return palabras.every(w => t.includes(w)); };
+          const regs = r.registros.filter(x => (!regVerEquipo || (x.jugadorId && enEquipo(x.jugadorId, regVerEquipo))) && (!palabras.length || coincide(x)));
+          const filtrando = regVerEquipo || palabras.length;
+          // Jugadores con encuestas de varias posiciones en esta evaluación
+          const posPorJug = {};
+          r.registros.forEach(x => { if (x.jugadorId && x.posicionKey) (posPorJug[x.jugadorId] = posPorJug[x.jugadorId] || new Set()).add(x.posicionKey); });
+          const varias = Object.entries(posPorJug).filter(([, set]) => set.size > 1);
+          const avisoVarias = varias.length ? `<div class="mt-8" style="background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:8px;padding:8px 12px;font-size:13px;">⚠ <b>${varias.length} jugador${varias.length === 1 ? '' : 'es'} evaluado${varias.length === 1 ? '' : 's'} en varias posiciones:</b> ${varias.map(([jid, set]) => `${safeText(label(jid))} (${[...set].map(k => safeText(posLabel(k))).join(' / ')})`).join(' · ')}. En su ficha manda la posición asignada al jugador (si es una de esas; si no, la más repetida).</div>` : '';
+          const filtro = `<div class="flex gap-8 mt-8" style="align-items:center;flex-wrap:wrap;">
+            <input class="input" type="search" id="reg-ver-jugador" value="${safeText(regVerJugador)}" placeholder="🔎 Buscar jugador" style="width:220px;" />
+            <label class="text-xs text-muted" for="reg-ver-equipo">Equipo</label>
             <select class="select" id="reg-ver-equipo" style="width:auto;min-width:180px;${regVerEquipo ? 'border-color:var(--blue-500, #3b82f6);font-weight:600;' : ''}"><option value="">Todos los equipos</option>${equipos.map(t => `<option value="${t.key}" ${t.key === regVerEquipo ? 'selected' : ''}>${safeText(t.label)}</option>`).join('')}</select>
-            ${regVerEquipo ? `<span class="text-xs text-muted">${regs.length} de ${r.registros.length} registros</span>` : ''}</div>`;
-          if (!regs.length) return filtro + '<p class="text-xs text-muted mt-8">Ningún registro de ese equipo.</p>';
+            ${filtrando ? `<span class="text-xs text-muted">${regs.length} de ${r.registros.length} registros</span>` : ''}</div>${avisoVarias}`;
+          if (!regs.length) return filtro + '<p class="text-xs text-muted mt-8">Ningún registro con esos filtros.</p>';
           const pks = [...new Set(regs.map(x => x.posicionKey || ev.posicionKey || ''))].sort((a, b) => orden.indexOf(a) - orden.indexOf(b));
           return filtro + pks.map(pk => `<div class="mt-16"><div style="font-weight:800;margin-bottom:6px;">${safeText(state.positions.find(p => p.key === pk)?.label || pk || 'Sin posición')}</div>
             ${pk ? buildTablaEncuestaHTML(regs.filter(x => (x.posicionKey || ev.posicionKey || '') === pk), pk, label) : ''}</div>`).join('');
@@ -904,6 +916,12 @@ function renderRegistroSub(container) {
     renderRegistroSub(container);
   });
   container.querySelector('#reg-ver-equipo')?.addEventListener('change', e => { regVerEquipo = e.target.value; preservandoScroll(() => renderRegistroSub(container)); });
+  container.querySelector('#reg-ver-jugador')?.addEventListener('input', e => {
+    regVerJugador = e.target.value;
+    preservandoScroll(() => renderRegistroSub(container));
+    const inp = container.querySelector('#reg-ver-jugador'); // mantener el foco al re-pintar
+    if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  });
   container.querySelectorAll('[data-ev-ver]').forEach(btn => btn.addEventListener('click', async () => {
     const evId = btn.dataset.evVer;
     if (regVer?.evId === evId) { regVer = null; renderRegistroSub(container); return; }
@@ -2544,10 +2562,10 @@ function renderFichaJugador(container, p) {
     regs.forEach(r => { const k = r.evaluacionId || 'sin-evaluacion'; (grupos[k] = grupos[k] || []).push(r); });
     filas = Object.entries(grupos).map(([eid, rs]) => {
       const ev = evInfo(eid);
-      const posKey = posicionDeRegistros(rs, ev);
+      const posKey = posicionDeRegistros(rs, ev, p);
       const media = calcularMediasPorJugador(rs.map(r => ({ ...r, jugadorId: id })), buildAspectoPorCompetencia(state, posKey))[id];
       const idx = (regEvaluaciones || []).findIndex(e => e.id === eid);
-      return { eid, ev, posKey, n: new Set(rs.map(r => r.evaluador)).size, media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
+      return { eid, ev, posKey, aviso: avisoPosiciones(rs, posKey), n: new Set(rs.map(r => r.evaluador)).size, media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
     }).sort((a, b) => String(b.orden).localeCompare(String(a.orden)));
   }
   let filasEval = filas.filter(f => f.eid !== 'sin-evaluacion' && f.ev);
@@ -2661,6 +2679,7 @@ function renderFichaJugador(container, p) {
         </select>` : ''}
         ${refLista && !refData ? '<span class="text-xs text-muted">Calculando…</span>' : ''}
       </div>` : ''}
+      ${evSel?.aviso ? `<div class="mb-8 btn-print-ficha" style="background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:8px;padding:8px 12px;font-size:13px;">${safeText(evSel.aviso)}</div>` : ''}
       <div class="mb-8 flex gap-8 btn-print-ficha" style="flex-wrap:wrap;align-items:center;">
         <b>Ficha 1</b>
         <button class="btn btn-primary btn-print-ficha" id="jug-fichas-pdf">⬇ PDF Ficha 1 + 2</button>
@@ -5421,10 +5440,24 @@ function pieEvaluacion(ev) {
 // Posición con la que se hizo la encuesta de un jugador en una evaluación: la de sus registros (la más repetida);
 // la de la evaluación solo si los registros no la tienen (evaluaciones antiguas). Así una encuesta de laterales
 // subida a una evaluación antigua de centrales se ve con los criterios de lateral.
-function posicionDeRegistros(rs, ev) {
+// Si hay encuestas de varias posiciones, manda la posición asignada al jugador (Equipos/Jugadores) si es una de ellas.
+function posicionDeRegistros(rs, ev, jugador = null) {
   const n = {};
   (rs || []).forEach(r => { if (r.posicionKey) n[r.posicionKey] = (n[r.posicionKey] || 0) + 1; });
-  return Object.keys(n).sort((a, b) => n[b] - n[a])[0] || ev?.posicionKey || null;
+  const claves = Object.keys(n).sort((a, b) => n[b] - n[a]);
+  if (claves.length > 1 && jugador?.positionKey && n[jugador.positionKey]) return jugador.positionKey;
+  return claves[0] || ev?.posicionKey || null;
+}
+
+// Aviso si un jugador tiene, en una misma evaluación, encuestas de varias posiciones. '' si no.
+const posLabel = k => state.positions.find(p => p.key === k)?.label || k;
+function avisoPosiciones(rs, posUsada) {
+  const n = {};
+  (rs || []).forEach(r => { if (r.posicionKey) n[r.posicionKey] = (n[r.posicionKey] || 0) + 1; });
+  const claves = Object.keys(n);
+  if (claves.length < 2) return '';
+  const detalle = claves.sort((a, b) => n[b] - n[a]).map(k => `${n[k]} como ${posLabel(k)}`).join(' · ');
+  return `⚠ Evaluado en varias posiciones (${detalle}). La ficha usa ${posLabel(posUsada)}: solo cuentan las competencias de esa posición.`;
 }
 
 function prepararFichaJugador(p, regs, temporada, evalPreferida = null) { // evalPreferida: la elegida para todo el equipo
@@ -5433,10 +5466,10 @@ function prepararFichaJugador(p, regs, temporada, evalPreferida = null) { // eva
   (regs || []).forEach(r => { const k = r.evaluacionId || 'sin-evaluacion'; (grupos[k] = grupos[k] || []).push(r); });
   let filasEval = Object.entries(grupos).map(([eid, rs]) => {
     const ev = evInfo(eid);
-    const posKey = posicionDeRegistros(rs, ev);
+    const posKey = posicionDeRegistros(rs, ev, p);
     const media = calcularMediasPorJugador(rs.map(r => ({ ...r, jugadorId: p.id })), buildAspectoPorCompetencia(state, posKey))[p.id];
     const idx = (regEvaluaciones || []).findIndex(e => e.id === eid);
-    return { eid, ev, posKey, media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
+    return { eid, ev, posKey, aviso: avisoPosiciones(rs, posKey), media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
   }).filter(f => f.eid !== 'sin-evaluacion' && f.ev);
   new Set([...Object.keys(p.condicionalPorEval || {}), ...Object.keys(p.condicionalMaxPorEval || {})]).forEach(eid => {
     const ev = evInfo(eid);
@@ -5454,7 +5487,7 @@ function prepararFichaJugador(p, regs, temporada, evalPreferida = null) { // eva
   const cinco = arr => Array.from({ length: 5 }, (_, i) => arr[i] || '');
   const mediaRP = k => { const v = regsEval.map(r => r.rp?.[k]).filter(x => typeof x === 'number'); if (!v.length) return null; const m = v.reduce((x, y) => x + y, 0) / v.length; return fmtDec(m); };
   return {
-    evSel, textosKey,
+    evSel, textosKey, avisoPos: evSel?.aviso || '',
     fPos: evSel?.posKey || p.positionKey, fMedia: evSel?.media || null,
     aspectosTxt: {
       desc: p.fichaTextos?.[textosKey]?.desc || '',
@@ -6174,6 +6207,7 @@ async function renderPlantillaPresentacion(container) {
         <div class="flex gap-8 mb-8 btn-print-ficha" style="align-items:center;flex-wrap:wrap;">
           <b style="font-size:18px;">${safeText(nombreCompleto(j))}</b>
           <span class="text-xs text-muted">${safeText(prep.evSel ? `${prep.evSel.ev.temporada} · ${prep.evSel.ev.nombre}` : 'Sin evaluaciones')}</span>
+          ${prep.avisoPos ? `<span class="text-xs" style="color:#b45309;font-weight:700;" title="${safeText(prep.avisoPos)}">${safeText(prep.avisoPos)}</span>` : ''}
           ${prep.fPos ? `<button class="btn btn-sm" data-pr-desc="${j.id}" title="La IA propone la descripción con sus notas y los comentarios de los evaluadores">✨ Proponer descripción</button>` : ''}
           <button class="btn btn-sm btn-primary" data-pr-textos="${j.id}">💾 Guardar textos</button>
           <button class="btn btn-sm" data-pr-editar="${j.id}">Editar datos</button>
