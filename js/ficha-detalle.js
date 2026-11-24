@@ -660,4 +660,14 @@ export function fitFichaToFrame(container) {
 
   frame.style.width  = `${fichaRect.width * scale}px`;
   frame.style.height = `${fichaRect.height * scale}px`;
+
+  // Navegadores sin overflow:clip (Safari antiguo): si al escribir se desplaza el marco o la ficha, se devuelve a su sitio.
+  if (!frame.dataset.sinScroll) {
+    frame.dataset.sinScroll = '1';
+    frame.addEventListener('scroll', e => {
+      const t = e.target;
+      if ((t === frame || t.classList?.contains('ficha-detalle')) && (t.scrollLeft || t.scrollTop)) { t.scrollLeft = 0; t.scrollTop = 0; }
+    }, true);
+  }
+  frame.scrollLeft = 0; frame.scrollTop = 0; ficha.scrollLeft = 0; ficha.scrollTop = 0;
 }
