@@ -12,6 +12,7 @@
 .ficha-a4-frame {
   margin: 0 auto;
   overflow: hidden;
+  overflow: clip; /* no desplazable: al escribir en un texto de la ficha el navegador no puede "mover" la ficha dentro del marco */
   position: relative;
   background: #24313d;
   border-radius: var(--radius-md);
