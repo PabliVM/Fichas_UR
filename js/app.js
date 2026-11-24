@@ -134,6 +134,7 @@ let regEvalEditId    = null;  // id de la evaluación que se está editando (nul
 let regEvalSel       = null;  // id de la evaluación activa para importar
 let regImport        = null;  // estado del wizard de importación (ver resetRegImport)
 let regHuerfanos     = null;  // { res: {registros, mediasPorJugador} } registros cuya evaluación ya no existe
+let regVerEquipo     = '';    // filtro de equipo en "Ver registros" ('' = todos)
 let regVer           = null;  // { evId, res: { registros, mediasPorJugador } | null } registros desplegados en una tarjeta
 
 let bbddFiltros  = { temporada: '', evaluacionId: '', jugadorId: '', posicionKey: '', evaluador: '', vista: 'individuales' };
@@ -464,9 +465,18 @@ function buildEvaluacionesListHTML() {
         : (() => { // una tabla por posición (cada una con sus columnas de encuesta)
           const label = id => { const p = state.players.find(x => x.id === id); return p ? `${p.nombre} ${p.apellidos}` : '(sin identificar)'; };
           const orden = state.positions.map(p => p.key);
-          const pks = [...new Set(r.registros.map(x => x.posicionKey || ev.posicionKey || ''))].sort((a, b) => orden.indexOf(a) - orden.indexOf(b));
-          return pks.map(pk => `<div class="mt-16"><div style="font-weight:800;margin-bottom:6px;">${safeText(state.positions.find(p => p.key === pk)?.label || pk || 'Sin posición')}</div>
-            ${pk ? buildTablaEncuestaHTML(r.registros.filter(x => (x.posicionKey || ev.posicionKey || '') === pk), pk, label) : ''}</div>`).join('');
+          // Filtro de equipo: el equipo del jugador o su plantilla de la temporada de la evaluación.
+          const enEquipo = (jid, tk) => state.players.find(x => x.id === jid)?.teamKey === tk
+            || !!plantillasCache?.find(d => d.id === plantillaDocId(ev.temporada, tk))?.jugadorIds?.includes(jid);
+          const equipos = TEAMS.filter(t => r.registros.some(x => x.jugadorId && enEquipo(x.jugadorId, t.key)));
+          const regs = regVerEquipo ? r.registros.filter(x => x.jugadorId && enEquipo(x.jugadorId, regVerEquipo)) : r.registros;
+          const filtro = `<div class="flex gap-8 mt-8" style="align-items:center;"><label class="text-xs text-muted" for="reg-ver-equipo">Equipo</label>
+            <select class="select" id="reg-ver-equipo" style="width:auto;min-width:180px;${regVerEquipo ? 'border-color:var(--blue-500, #3b82f6);font-weight:600;' : ''}"><option value="">Todos los equipos</option>${equipos.map(t => `<option value="${t.key}" ${t.key === regVerEquipo ? 'selected' : ''}>${safeText(t.label)}</option>`).join('')}</select>
+            ${regVerEquipo ? `<span class="text-xs text-muted">${regs.length} de ${r.registros.length} registros</span>` : ''}</div>`;
+          if (!regs.length) return filtro + '<p class="text-xs text-muted mt-8">Ningún registro de ese equipo.</p>';
+          const pks = [...new Set(regs.map(x => x.posicionKey || ev.posicionKey || ''))].sort((a, b) => orden.indexOf(a) - orden.indexOf(b));
+          return filtro + pks.map(pk => `<div class="mt-16"><div style="font-weight:800;margin-bottom:6px;">${safeText(state.positions.find(p => p.key === pk)?.label || pk || 'Sin posición')}</div>
+            ${pk ? buildTablaEncuestaHTML(regs.filter(x => (x.posicionKey || ev.posicionKey || '') === pk), pk, label) : ''}</div>`).join('');
         })();
     }
     return `
@@ -893,12 +903,14 @@ function renderRegistroSub(container) {
     }
     renderRegistroSub(container);
   });
+  container.querySelector('#reg-ver-equipo')?.addEventListener('change', e => { regVerEquipo = e.target.value; preservandoScroll(() => renderRegistroSub(container)); });
   container.querySelectorAll('[data-ev-ver]').forEach(btn => btn.addEventListener('click', async () => {
     const evId = btn.dataset.evVer;
     if (regVer?.evId === evId) { regVer = null; renderRegistroSub(container); return; }
     if (isFirebaseUnconfigured()) { showError('Configura Firebase para ver los registros.'); return; }
     regVer = { evId, res: null };
     renderRegistroSub(container);
+    ensurePlantillas().then(() => { if (regVer?.evId === evId && regVer.res && container.isConnected) renderRegistroSub(container); }).catch(() => {});
     try {
       const registros = await queryRegistros({ evaluacionId: evId });
       const ev = regEvaluaciones.find(e => e.id === evId);
