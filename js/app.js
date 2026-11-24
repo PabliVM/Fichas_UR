@@ -482,7 +482,7 @@ function buildEvaluacionesListHTML() {
           const posPorJug = {};
           r.registros.forEach(x => { if (x.jugadorId && x.posicionKey) (posPorJug[x.jugadorId] = posPorJug[x.jugadorId] || new Set()).add(x.posicionKey); });
           const varias = Object.entries(posPorJug).filter(([, set]) => set.size > 1);
-          const avisoVarias = varias.length ? `<div class="mt-8" style="background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:8px;padding:8px 12px;font-size:13px;">⚠ <b>${varias.length} jugador${varias.length === 1 ? '' : 'es'} evaluado${varias.length === 1 ? '' : 's'} en varias posiciones:</b> ${varias.map(([jid, set]) => `<a href="#" data-reg-ficha="${jid}" data-reg-ficha-ev="${safeText(ev.id)}" title="Abrir su ficha para elegir la posición" style="color:inherit;font-weight:700;">${safeText(label(jid))}</a> (${[...set].map(k => safeText(posLabel(k))).join(' / ')})`).join(' · ')}.<br>Por defecto manda la posición asignada al jugador (si es una de esas; si no, la más repetida). <b>Para elegir otra:</b> pulsa su nombre › en su ficha, «Ficha como».</div>` : '';
+          const avisoVarias = varias.length ? `<div class="mt-8" style="background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:8px;padding:8px 12px;font-size:13px;">⚠ <b>${varias.length} jugador${varias.length === 1 ? '' : 'es'} evaluado${varias.length === 1 ? '' : 's'} en varias posiciones:</b> ${varias.map(([jid, set]) => `<a href="#" data-reg-ficha="${jid}" data-reg-ficha-ev="${safeText(ev.id)}" title="Abrir su ficha para elegir la posición" style="color:inherit;font-weight:700;">${safeText(label(jid))}</a> (${[...set].map(k => safeText(nombrePos(k))).join(' / ')})`).join(' · ')}.<br>Por defecto manda la posición asignada al jugador (si es una de esas; si no, la más repetida). <b>Para elegir otra:</b> pulsa su nombre › en su ficha, «Ficha como».</div>` : '';
           const filtro = `<div class="flex gap-8 mt-8" style="align-items:center;flex-wrap:wrap;">
             <input class="input" type="search" id="reg-ver-jugador" value="${safeText(regVerJugador)}" placeholder="🔎 Buscar jugador" style="width:220px;" />
             <label class="text-xs text-muted" for="reg-ver-equipo">Equipo</label>
@@ -2689,7 +2689,7 @@ function renderFichaJugador(container, p) {
       ${evSel?.aviso ? `<div class="mb-8 btn-print-ficha flex gap-8" style="align-items:center;flex-wrap:wrap;background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:8px;padding:8px 12px;font-size:13px;">
         <span style="flex:1 1 300px;">${safeText(evSel.aviso)}</span>
         <label for="jug-ficha-pos" style="font-weight:700;">Ficha como</label>
-        <select class="select" id="jug-ficha-pos" style="width:auto;" title="Se guarda para este jugador y esta evaluación (también en la presentación del equipo)">${Object.entries(evSel.posConteo || {}).sort((a, b) => b[1] - a[1]).map(([k, c]) => `<option value="${safeText(k)}" ${k === evSel.posKey ? 'selected' : ''}>${safeText(posLabel(k))} (${c} encuesta${c === 1 ? '' : 's'})</option>`).join('')}<option value="ambas" ${p.fichaPosPorEval?.[evSel.eid] === 'ambas' ? 'selected' : ''}>Las dos (duplicar ficha)</option></select>
+        <select class="select" id="jug-ficha-pos" style="width:auto;" title="Se guarda para este jugador y esta evaluación (también en la presentación del equipo)">${Object.entries(evSel.posConteo || {}).sort((a, b) => b[1] - a[1]).map(([k, c]) => `<option value="${safeText(k)}" ${k === evSel.posKey ? 'selected' : ''}>${safeText(nombrePos(k))} (${c} encuesta${c === 1 ? '' : 's'})</option>`).join('')}<option value="ambas" ${p.fichaPosPorEval?.[evSel.eid] === 'ambas' ? 'selected' : ''}>Las dos (duplicar ficha)</option></select>
       </div>` : ''}
       <div class="mb-8 flex gap-8 btn-print-ficha" style="flex-wrap:wrap;align-items:center;">
         <b>Ficha 1</b>
@@ -2708,8 +2708,8 @@ function renderFichaJugador(container, p) {
       <div id="jug-ficha2-wrap" class="ficha-wrap"></div>
       ${extrasPos.map((x, i) => `
       <div class="mb-8 mt-16 flex gap-8 btn-print-ficha" style="flex-wrap:wrap;align-items:center;border-top:2px dashed var(--border-emphasis, #cbd5e1);padding-top:12px;">
-        <b>Ficha 1 y 2 como ${safeText(posLabel(x.fPos))}</b> <span class="text-xs text-muted">(duplicada: los textos se editan en la de arriba)</span>
-        <button class="btn btn-sm btn-print-ficha" data-jug-extra-pdf="${i}">⬇ PDF Ficha 1 + 2 (${safeText(posLabel(x.fPos))})</button>
+        <b>Ficha 1 y 2 como ${safeText(nombrePos(x.fPos))}</b> <span class="text-xs text-muted">(duplicada: los textos se editan en la de arriba)</span>
+        <button class="btn btn-sm btn-print-ficha" data-jug-extra-pdf="${i}">⬇ PDF Ficha 1 + 2 (${safeText(nombrePos(x.fPos))})</button>
       </div>
       <div class="ficha-wrap mb-16" data-jug-extra-f1="${i}"></div>
       <div class="ficha-wrap" data-jug-extra-f2="${i}"></div>`).join('')}`;
@@ -2828,7 +2828,7 @@ function renderFichaJugador(container, p) {
     const eid = evSel?.eid, pos = e.target.value; if (!eid) return;
     p.fichaPosPorEval = { ...(p.fichaPosPorEval || {}), [eid]: pos };
     const enEstado = state.players.find(x => x.id === p.id); if (enEstado && enEstado !== p) enEstado.fichaPosPorEval = p.fichaPosPorEval;
-    try { await updateMapEntry('jugadores', p.id, 'fichaPosPorEval', eid, pos); showSuccess(`La ficha se ve como ${posLabel(pos)} en esta evaluación.`); }
+    try { await updateMapEntry('jugadores', p.id, 'fichaPosPorEval', eid, pos); showSuccess(`La ficha se ve como ${nombrePos(pos)} en esta evaluación.`); }
     catch (err) { console.error(err); showError('No se pudo guardar la posición de la ficha.'); }
     preservandoScroll(() => renderPanelJugadores(container));
   });
@@ -5497,14 +5497,14 @@ function posicionDeRegistros(rs, ev, jugador = null) {
 }
 
 // Aviso si un jugador tiene, en una misma evaluación, encuestas de varias posiciones. '' si no.
-const posLabel = k => state.positions.find(p => p.key === k)?.label || k;
+const nombrePos = k => state.positions.find(p => p.key === k)?.label || k;
 function avisoPosiciones(rs, posUsada) {
   const n = {};
   (rs || []).forEach(r => { if (r.posicionKey) n[r.posicionKey] = (n[r.posicionKey] || 0) + 1; });
   const claves = Object.keys(n);
   if (claves.length < 2) return '';
-  const detalle = claves.sort((a, b) => n[b] - n[a]).map(k => `${n[k]} como ${posLabel(k)}`).join(' · ');
-  return `⚠ Evaluado en varias posiciones (${detalle}). La ficha usa ${posLabel(posUsada)} (solo cuentan sus competencias); se puede cambiar en la ficha del jugador.`;
+  const detalle = claves.sort((a, b) => n[b] - n[a]).map(k => `${n[k]} como ${nombrePos(k)}`).join(' · ');
+  return `⚠ Evaluado en varias posiciones (${detalle}). La ficha usa ${nombrePos(posUsada)} (solo cuentan sus competencias); se puede cambiar en la ficha del jugador.`;
 }
 // "Las dos": además de la principal, una ficha por cada otra posición de sus encuestas (con su media).
 function fichasExtraPos(rs, ev, jugador, posPrincipal) {
@@ -6266,7 +6266,7 @@ async function renderPlantillaPresentacion(container) {
           <b style="font-size:18px;">${safeText(nombreCompleto(j))}</b>
           <span class="text-xs text-muted">${safeText(prep.evSel ? `${prep.evSel.ev.temporada} · ${prep.evSel.ev.nombre}` : 'Sin evaluaciones')}</span>
           ${prep.avisoPos ? `<span class="text-xs" style="color:#b45309;font-weight:700;" title="${safeText(prep.avisoPos)}">${safeText(prep.avisoPos)}</span>` : ''}
-          ${dup ? `<span class="text-xs" style="font-weight:700;">Duplicada como ${safeText(posLabel(prep.fPos))} · los textos se editan en su otra ficha</span>` : `
+          ${dup ? `<span class="text-xs" style="font-weight:700;">Duplicada como ${safeText(nombrePos(prep.fPos))} · los textos se editan en su otra ficha</span>` : `
           ${prep.fPos ? `<button class="btn btn-sm" data-pr-desc="${j.id}" title="La IA propone la descripción con sus notas y los comentarios de los evaluadores">✨ Proponer descripción</button>` : ''}
           <button class="btn btn-sm btn-primary" data-pr-textos="${j.id}">💾 Guardar textos</button>`}
           <button class="btn btn-sm" data-pr-editar="${j.id}">Editar datos</button>
