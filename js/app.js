@@ -627,6 +627,7 @@ function buildImportWizardHTML() {
         <label class="label" for="import-posicion" style="margin:0;">Posición de esta encuesta</label>
         <select class="select" id="import-posicion" style="width:auto;min-width:180px;">${state.positions.map(pp => `<option value="${pp.key}" ${pp.key === posImp ? 'selected' : ''}>${safeText(pp.label)}</option>`).join('')}</select>
         ${regImport.hoja ? `<span class="text-xs text-muted">pestaña del Excel: «${safeText(regImport.hoja)}»</span>` : ''}
+        <span class="text-xs text-muted">· columnas según Configuración › Columnas de la encuesta (${safeText(state.positions.find(pp => pp.key === posImp)?.label || '')})${Object.keys(state.columnasEncuesta?.[posImp] || {}).length ? ', con tus cambios' : ''}</span>
       </div>
       ${aviso}
       <p class="text-xs text-muted mb-16">${regImport.rows.length} filas leídas${regImport.omitidas ? ` (${regImport.omitidas} filas de cabecera omitidas)` : ''}${regImport.precargado ? '. Mapeo precargado desde Configuración › Columnas de la encuesta' : ''}. Indica qué es cada columna (obligatorio: Jugador y Evaluador). Posición: ${safeText(posLabel)}.</p>
@@ -1033,10 +1034,10 @@ function renderRegistroSub(container) {
     // Estructura fija de las encuestas: se omiten filas de cabecera (números/aspecto/preguntas),
     // la fecha se normaliza a ISO y el mapeo de columnas 7+ llega precargado (editable).
     const evImp = regEvaluaciones.find(x => x.id === regEvalSel);
-    // Posición de esta encuesta: la de la evaluación antigua (si tenía), o la que diga la pestaña del Excel ("Laterales" → Lateral).
+    // Posición de esta encuesta: la que diga la pestaña del Excel ("Laterales" → Lateral); si no, la de la evaluación antigua (si tenía).
     const raiz = t => normalizeTxt(t).replace(/[^a-z]/g, '').slice(0, 5);
     const porHoja = parsed.hoja ? state.positions.find(p => raiz(p.label) && raiz(p.label) === raiz(parsed.hoja))?.key : null;
-    regImport.posicionKey = evImp?.posicionKey || porHoja || regImport.posicionKey || state.positions[0]?.key || null;
+    regImport.posicionKey = porHoja || evImp?.posicionKey || regImport.posicionKey || state.positions[0]?.key || null;
     regImport.hoja = parsed.hoja || '';
     const mapeoInicial = mapeoPorDefecto(state, regImport.posicionKey, parsed.headers.length);
     const colFechaImp = Object.keys(mapeoInicial).find(h => mapeoInicial[h] === '@fecha') || 'Columna 1';
