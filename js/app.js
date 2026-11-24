@@ -1755,6 +1755,7 @@ function buildAspectoComunCategoryHTML(cat) {
       ${i > 0 ? `<button data-move-crit data-scope="comun" data-cat="${cat.key}" data-idx="${i}" data-dir="-1" title="Subir">↑</button>` : ''}
       ${i < items.length - 1 ? `<button data-move-crit data-scope="comun" data-cat="${cat.key}" data-idx="${i}" data-dir="1" title="Bajar">↓</button>` : ''}
       ${safeText(label)}
+      ${cat.key !== 'condicional' ? `<button data-ren-crit data-scope="comun" data-cat="${cat.key}" data-idx="${i}" title="Renombrar (sin cambiar de sitio)">✎</button>` : ''}
       <button data-del-crit data-scope="comun" data-cat="${cat.key}" data-idx="${i}" title="Quitar">×</button>
     </span>
   `).join('');
@@ -1797,6 +1798,7 @@ function buildTecnicoCategoryHTML() {
       ${i > 0 ? `<button data-move-crit data-cat="tecnico" data-idx="${i}" data-dir="-1" title="Subir">↑</button>` : ''}
       ${i < items.length - 1 ? `<button data-move-crit data-cat="tecnico" data-idx="${i}" data-dir="1" title="Bajar">↓</button>` : ''}
       ${safeText(label)}
+      <button data-ren-crit data-cat="tecnico" data-idx="${i}" title="Renombrar (sin cambiar de sitio)">✎</button>
       <button data-del-crit data-cat="tecnico" data-idx="${i}" title="Quitar">×</button>
     </span>
   ` : `<span class="chip" style="opacity:0.6;">${safeText(label)}</span>`).join('');
@@ -1857,6 +1859,7 @@ function buildTacticoCategoryHTML() {
       ${i > 0 ? `<button data-move-crit data-cat="tactico" data-idx="${i}" data-dir="-1" title="Subir">↑</button>` : ''}
       ${i < items.length - 1 ? `<button data-move-crit data-cat="tactico" data-idx="${i}" data-dir="1" title="Bajar">↓</button>` : ''}
       ${safeText(label)}
+      <button data-ren-crit data-cat="tactico" data-idx="${i}" title="Renombrar (sin cambiar de sitio)">✎</button>
       <button data-del-crit data-cat="tactico" data-idx="${i}" title="Quitar">×</button>
     </span>
   `).join('');
@@ -1873,6 +1876,33 @@ function buildTacticoCategoryHTML() {
       </div>
     </div>
   `;
+}
+
+// Columnas de la encuesta = la referencia. Antes de cambiar una lista de Items (mover, quitar, renombrar),
+// se fijan las columnas tal como están, para que la encuesta no se descoloque. Devuelve el nuevo columnasEncuesta.
+function congelarColumnasEncuesta(posiciones, { de = null, a = null, quitar = null } = {}) {
+  const todo = JSON.parse(JSON.stringify(state.columnasEncuesta || {}));
+  posiciones.forEach(pos => {
+    todo[pos] = todo[pos] || {};
+    columnasEfectivas(state, pos).forEach(c => {
+      if (c.num <= 3) return;
+      let { nombre, destino } = c;
+      const base = String(destino || '').replace(/::[AB]$/, ''), suf = String(destino || '').slice(base.length);
+      if (de && base === de) { destino = a + suf; if (nombre === de) nombre = a; }
+      if (quitar && base === quitar) destino = '';
+      todo[pos][c.num] = { ...(todo[pos][c.num] || {}), nombre, destino };
+    });
+  });
+  return todo;
+}
+
+// Cambia un nombre de competencia/perfil en todo lo que lo usa dentro de un schema de posición.
+function renombrarEnSchema(schema, de, a) {
+  const r = arr => Array.isArray(arr) ? arr.map(x => x === de ? a : x) : arr;
+  const out = { ...schema };
+  ['tactico', 'tecnico', 'perfiles', 'competenciasOfensivas', 'competenciasDefensivas'].forEach(k => { if (out[k]) out[k] = r(out[k]); });
+  if (out.perfilCompetencias) out.perfilCompetencias = Object.fromEntries(Object.entries(out.perfilCompetencias).map(([k, v]) => [k === de ? a : k, r(v)]));
+  return out;
 }
 
 // Ofensivas/Defensivas: checkboxes SOBRE el Táctico ya creado (no texto libre).
@@ -1913,6 +1943,7 @@ function buildPerfilesCategoryHTML() {
       ${i > 0 ? `<button data-move-crit data-cat="perfiles" data-idx="${i}" data-dir="-1" title="Subir">↑</button>` : ''}
       ${i < items.length - 1 ? `<button data-move-crit data-cat="perfiles" data-idx="${i}" data-dir="1" title="Bajar">↓</button>` : ''}
       ${safeText(label)}
+      <button data-ren-crit data-cat="perfiles" data-idx="${i}" title="Renombrar (sin cambiar de sitio)">✎</button>
       <button data-del-crit data-cat="perfiles" data-idx="${i}" title="Quitar">×</button>
     </span>
   `).join('');
@@ -4019,7 +4050,7 @@ function renderPanelConfig(container) {
             ? buildTacticoCategoryHTML()
             : `<div class="mb-8" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Competencias</div>`
               + buildPositionSelectorHTML()
-              + `<div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;"><span class="text-xs text-muted">Orden del Táctico (encuesta columnas 7-18 y Ficha 2):</span>
+              + `<div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;"><span class="text-xs text-muted">Orden del Táctico (fichas; la encuesta se ordena en Columnas de la encuesta):</span>
                   <button class="btn btn-sm" data-tact-orden="def">Defensivas primero</button>
                   <button class="btn btn-sm" data-tact-orden="of">Ofensivas primero</button>
                   <button class="btn btn-sm btn-primary" data-tact-orden="def" data-tact-todas="1" title="Aplica Defensivas primero a todas las posiciones">Defensivas primero en todas las posiciones</button></div>`
@@ -4677,17 +4708,40 @@ function renderPanelConfig(container) {
     });
   });
 
+  // ✎ Renombrar sin cambiar de sitio: se cambia también en Ofensivas/Defensivas, perfiles y Columnas de la encuesta.
+  container.querySelectorAll('[data-ren-crit]').forEach(btn => btn.addEventListener('click', () => {
+    const cat = btn.dataset.cat, idx = Number(btn.dataset.idx), comun = btn.dataset.scope === 'comun';
+    const lista = comun ? state.aspectosComunes[cat] || [] : state.criteriaSchemas[configCriteriaPosition]?.[cat] || [];
+    const de = lista[idx]; if (!de) return;
+    const a = (prompt(`Nuevo nombre para «${de}»:`, de) || '').trim();
+    if (!a || a === de) return;
+    if (lista.includes(a)) { showError(`Ya existe «${a}» en esta lista.`); return; }
+    const posiciones = comun ? state.positions.map(p => p.key) : [configCriteriaPosition];
+    const columnasEncuesta = congelarColumnasEncuesta(posiciones, { de, a });
+    const criteriaSchemas = { ...state.criteriaSchemas };
+    posiciones.forEach(pos => { if (criteriaSchemas[pos]) criteriaSchemas[pos] = renombrarEnSchema(criteriaSchemas[pos], de, a); });
+    const patch = { criteriaSchemas, columnasEncuesta };
+    if (comun) patch.aspectosComunes = { ...state.aspectosComunes, [cat]: lista.map(x => x === de ? a : x) };
+    setState(patch);
+    document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
+    showSuccess(`«${de}» → «${a}». Las notas ya importadas siguen con el nombre antiguo: vuelve a subir el Excel para pasarlas.`);
+    renderPanelConfig(container);
+  }));
+
   container.querySelectorAll('[data-del-crit]').forEach(btn => {
     btn.addEventListener('click', () => {
       const cat = btn.dataset.cat;
       const idx = Number(btn.dataset.idx);
       if (btn.dataset.scope === 'comun') {
+        const quitar = (state.aspectosComunes[cat] || [])[idx];
+        const columnasEncuesta = congelarColumnasEncuesta(state.positions.map(p => p.key), { quitar });
         const items = (state.aspectosComunes[cat] || []).filter((_, i) => i !== idx);
-        setState({ aspectosComunes: { ...state.aspectosComunes, [cat]: items } });
+        setState({ aspectosComunes: { ...state.aspectosComunes, [cat]: items }, columnasEncuesta });
       } else {
         const schema = state.criteriaSchemas[configCriteriaPosition] || {};
+        const columnasEncuesta = congelarColumnasEncuesta([configCriteriaPosition], { quitar: (schema[cat] || [])[idx] });
         const items = (schema[cat] || []).filter((_, i) => i !== idx);
-        setState({ criteriaSchemas: { ...state.criteriaSchemas, [configCriteriaPosition]: { ...schema, [cat]: items } } });
+        setState({ criteriaSchemas: { ...state.criteriaSchemas, [configCriteriaPosition]: { ...schema, [cat]: items } }, columnasEncuesta });
       }
       document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
       renderPanelConfig(container);
@@ -4695,21 +4749,20 @@ function renderPanelConfig(container) {
   });
 
   // Reordena el Táctico (de la posición o de todas): primero las marcadas como Defensivas (u Ofensivas), cada grupo en su orden actual.
-  // Las columnas 7-18 de la encuesta vuelven a seguir el Táctico (se quitan sus cambios a mano en Columnas de la encuesta).
+  // Las columnas de la encuesta NO cambian (son la referencia).
   container.querySelectorAll('[data-tact-orden]').forEach(btn => btn.addEventListener('click', () => {
     const def = btn.dataset.tactOrden === 'def';
     const posiciones = btn.dataset.tactTodas ? state.positions.map(p => p.key) : [configCriteriaPosition];
     const schemas = { ...state.criteriaSchemas };
-    const colEnc = JSON.parse(JSON.stringify(state.columnasEncuesta || {}));
+    const colEnc = congelarColumnasEncuesta(posiciones);
     posiciones.forEach(pos => {
       const schema = schemas[pos] || {};
       const tact = schema.tactico || [];
       const primero = new Set(def ? schema.competenciasDefensivas || [] : schema.competenciasOfensivas || []);
       schemas[pos] = { ...schema, tactico: [...tact.filter(t => primero.has(t)), ...tact.filter(t => !primero.has(t))] };
-      if (colEnc[pos]) for (let n = 7; n <= 18; n++) delete colEnc[pos][n];
     });
     setState({ criteriaSchemas: schemas, columnasEncuesta: colEnc });
-    showSuccess(`${def ? 'Defensivas' : 'Ofensivas'} primero${btn.dataset.tactTodas ? ' en todas las posiciones' : ''}. La encuesta (columnas 7-18) sigue este orden.`);
+    showSuccess(`${def ? 'Defensivas' : 'Ofensivas'} primero${btn.dataset.tactTodas ? ' en todas las posiciones' : ''}. Las columnas de la encuesta no cambian.`);
     renderPanelConfig(container);
   }));
   container.querySelectorAll('[data-move-crit]').forEach(btn => {
@@ -4722,11 +4775,12 @@ function renderPanelConfig(container) {
       const target = idx + dir;
       if (target < 0 || target >= items.length) return;
       [items[idx], items[target]] = [items[target], items[idx]];
+      const columnasEncuesta = congelarColumnasEncuesta(isComun ? state.positions.map(p => p.key) : [configCriteriaPosition]);
       if (isComun) {
-        setState({ aspectosComunes: { ...state.aspectosComunes, [cat]: items } });
+        setState({ aspectosComunes: { ...state.aspectosComunes, [cat]: items }, columnasEncuesta });
       } else {
         const schema = state.criteriaSchemas[configCriteriaPosition] || {};
-        setState({ criteriaSchemas: { ...state.criteriaSchemas, [configCriteriaPosition]: { ...schema, [cat]: items } } });
+        setState({ criteriaSchemas: { ...state.criteriaSchemas, [configCriteriaPosition]: { ...schema, [cat]: items } }, columnasEncuesta });
       }
       document.dispatchEvent(new CustomEvent('rm:criteria-changed'));
       renderPanelConfig(container);
