@@ -11,13 +11,20 @@ import { queryRegistros } from './evaluaciones-service.js';
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { safeText, showError } from './utils.js';
 
-export const ROLES_EVALUADOR = ['Entrenador', '2º entrenador', 'Preparador físico', 'Analista', 'Coordinador', 'Psicólogo', 'Ojeador', 'Otro'];
+export const ROLES_EVALUADOR = ['Entrenador', '2º entrenador', 'Asistente', 'Asistente UR', 'Preparador físico', 'Analista', 'Coordinador', 'Psicólogo', 'Ojeador', 'Otro'];
 
 export const claveEvaluador = nombre => String(nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
-/** Datos guardados de un evaluador (por el nombre tal cual sale en el registro) o null. */
+// Unificar: un evaluador puede ser "el mismo que" otro (MARC = Marc Carrasco) → se usan los datos de ese otro.
+function claveFinal(k) {
+  const ev = state.evaluadores || {};
+  for (let i = 0; i < 5 && ev[k]?.igualA && ev[ev[k].igualA]; i++) k = ev[k].igualA;
+  return k;
+}
+
+/** Datos guardados de un evaluador (por el nombre tal cual sale en el registro; si está unificado, los del otro) o null. */
 export function infoEvaluador(nombre) {
-  return (state.evaluadores || {})[claveEvaluador(nombre)] || null;
+  return (state.evaluadores || {})[claveFinal(claveEvaluador(nombre))] || null;
 }
 
 /** Texto para el "title" de una celda: "Jesús García · Entrenador · Infantil A". */
@@ -48,16 +55,21 @@ export async function renderEvaluadores(wrap) {
   const opt = (v, l, sel) => `<option value="${safeText(v)}" ${v === sel ? 'selected' : ''}>${safeText(l)}</option>`;
   wrap.innerHTML = !claves.length ? '<p class="text-sm text-muted">Todavía no hay evaluadores: aparecen solos al importar encuestas.</p>' : `
     <div style="overflow-x:auto;"><table class="table table-compact">
-      <thead><tr><th>En la encuesta</th><th>Registros</th><th>Nombre completo</th><th>Rol</th><th>Equipo</th></tr></thead>
+      <thead><tr><th>En la encuesta</th><th>Registros</th><th>Es el mismo que</th><th>Nombre completo</th><th>Rol</th><th>Equipo</th></tr></thead>
       <tbody>${claves.map(k => {
         const c = _cache[k], g = guardados[k] || {};
-        const variantes = c ? [...c.variantes].join(' · ') : (g.alias || k);
-        return `<tr>
+        const etiqueta = x => _cache[x] ? [..._cache[x].variantes].join(' · ') : (guardados[x]?.alias || x);
+        const variantes = etiqueta(k);
+        const unido = g.igualA && claves.includes(g.igualA);
+        const otros = claves.filter(x => x !== k && !guardados[x]?.igualA); // solo a uno "principal" (sin cadenas)
+        const dis = unido ? 'disabled title="Usa los datos del evaluador con el que está unificado"' : '';
+        return `<tr ${unido ? 'style="opacity:.6;"' : ''}>
           <td style="font-weight:700;">${safeText(variantes)}</td>
           <td class="text-muted">${c ? c.n : 0}</td>
-          <td><input class="input" data-ev-k="${safeText(k)}" data-ev-campo="nombre" value="${safeText(g.nombre || '')}" placeholder="Nombre y apellidos" style="min-width:200px;" /></td>
-          <td><select class="select" data-ev-k="${safeText(k)}" data-ev-campo="rol"><option value="">—</option>${ROLES_EVALUADOR.map(r => opt(r, r, g.rol)).join('')}</select></td>
-          <td><select class="select" data-ev-k="${safeText(k)}" data-ev-campo="teamKey"><option value="">—</option>${TEAMS.map(t => opt(t.key, t.label, g.teamKey)).join('')}</select></td>
+          <td><select class="select" data-ev-k="${safeText(k)}" data-ev-campo="igualA" title="Unificar: MARC = Marc Carrasco"><option value="">— (es él mismo)</option>${otros.map(x => opt(x, etiqueta(x), g.igualA)).join('')}</select></td>
+          <td><input class="input" data-ev-k="${safeText(k)}" data-ev-campo="nombre" value="${safeText(g.nombre || '')}" placeholder="Nombre y apellidos" style="min-width:200px;" ${dis} /></td>
+          <td><select class="select" data-ev-k="${safeText(k)}" data-ev-campo="rol" ${dis}><option value="">—</option>${ROLES_EVALUADOR.map(r => opt(r, r, g.rol)).join('')}</select></td>
+          <td><select class="select" data-ev-k="${safeText(k)}" data-ev-campo="teamKey" ${dis}><option value="">—</option>${TEAMS.map(t => opt(t.key, t.label, g.teamKey)).join('')}</select></td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>`;
@@ -69,5 +81,6 @@ export async function renderEvaluadores(wrap) {
     if (v) fila[campo] = v; else delete fila[campo];
     actual[k] = fila;
     setState({ evaluadores: actual }); // se guarda en la configuración (como el resto de Configuración)
+    if (campo === 'igualA') renderEvaluadores(wrap);
   }));
 }
