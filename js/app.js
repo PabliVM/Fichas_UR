@@ -1787,6 +1787,80 @@ let cfgGruposAbiertos = (() => { try { return JSON.parse(localStorage.getItem('r
 let cfgMenuOculto = (() => { try { return localStorage.getItem('rm-cfg-menu-oculto') === '1'; } catch (_) { return false; } })();
 let configSubTab = localStorage.getItem('rm-config-subtab') || 'posiciones'; // pestaña interna activa dentro de Configuración — persiste al refrescar
 
+// ── Configuración › Datos pendientes: jugadores con datos sin rellenar, editables en la propia tabla ──
+const PEND_CAMPOS = [
+  { k: 'birthDate',  l: 'F. nacimiento', falta: p => !p.birthDate },
+  { k: 'aniosClub',  l: 'Años en el club', falta: p => aniosEnClub(p) == null },
+  { k: 'teamKey',    l: 'Equipo', falta: p => !TEAMS.some(t => t.key === p.teamKey) },
+  { k: 'positionKey', l: 'Posición', falta: p => !state.positions.some(x => x.key === p.positionKey) },
+  { k: 'foot',       l: 'Lateralidad', falta: p => !p.foot },
+  { k: 'height',     l: 'Altura', falta: p => p.height == null || p.height === '' },
+  { k: 'weight',     l: 'Peso', falta: p => p.weight == null || p.weight === '' },
+  { k: 'fotoUrl',    l: 'Foto', falta: p => !p.fotoUrl },
+];
+let pendCampo = '';   // '' = cualquier dato; si no, solo los que les falte ese
+let pendEquipo = '';
+function renderPendientes(wrap) {
+  const campos = pendCampo ? PEND_CAMPOS.filter(c => c.k === pendCampo) : PEND_CAMPOS;
+  const faltan = p => campos.filter(c => c.falta(p));
+  const jugs = [...state.players].filter(p => (!pendEquipo || p.teamKey === pendEquipo) && faltan(p).length).sort(ordenJugadores);
+  const cuenta = Object.fromEntries(PEND_CAMPOS.map(c => [c.k, state.players.filter(p => (!pendEquipo || p.teamKey === pendEquipo) && c.falta(p)).length]));
+  const vacio = (p, k) => PEND_CAMPOS.find(c => c.k === k).falta(p) ? 'border-color:#f59e0b;background:#fffbeb;' : '';
+  const inp = (p, k, tipo, extra, valor) => `<input class="input" type="${tipo}" ${extra} data-pend-k="${k}" data-pend-id="${p.id}" value="${safeText(valor ?? '')}" style="min-width:${tipo === 'date' ? 130 : 80}px;${vacio(p, k)}" />`;
+  const sel = (p, k, opts) => `<select class="select" data-pend-k="${k}" data-pend-id="${p.id}" style="min-width:130px;${vacio(p, k)}"><option value="">—</option>${opts.map(([v, l]) => `<option value="${safeText(v)}" ${p[k] === v ? 'selected' : ''}>${safeText(l)}</option>`).join('')}</select>`;
+  wrap.innerHTML = `
+    <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
+      <label class="text-xs text-muted" for="pend-campo">Falta</label>
+      <select class="select" id="pend-campo" style="width:auto;"><option value="">Cualquier dato</option>${PEND_CAMPOS.map(c => `<option value="${c.k}" ${pendCampo === c.k ? 'selected' : ''}>${safeText(c.l)} (${cuenta[c.k]})</option>`).join('')}</select>
+      <label class="text-xs text-muted" for="pend-equipo">Equipo</label>
+      <select class="select" id="pend-equipo" style="width:auto;"><option value="">Todos</option>${TEAMS.map(t => `<option value="${t.key}" ${pendEquipo === t.key ? 'selected' : ''}>${safeText(t.label)}</option>`).join('')}</select>
+      <b class="text-sm">${jugs.length} jugador${jugs.length === 1 ? '' : 'es'} con datos pendientes</b>
+    </div>
+    ${!jugs.length ? '<p class="text-sm text-muted">✓ No falta nada con estos filtros.</p>' : `
+    <div style="overflow-x:auto;"><table class="table table-compact">
+      <thead><tr><th>Jugador</th><th>Falta</th><th>F. nacimiento</th><th>Años club</th><th>Equipo</th><th>Posición</th><th>Lateralidad</th><th>Altura (m)</th><th>Peso (kg)</th><th></th></tr></thead>
+      <tbody>${jugs.map(p => `<tr>
+        <td style="font-weight:700;white-space:nowrap;">${safeText(nombreCompleto(p))}</td>
+        <td class="text-xs" style="color:#b45309;">${faltan(p).map(c => safeText(c.l)).join(', ')}</td>
+        <td>${inp(p, 'birthDate', 'date', '', p.birthDate)}</td>
+        <td>${inp(p, 'aniosClub', 'text', 'placeholder="3 o 2+3"', aniosEnClub(p))}</td>
+        <td>${sel(p, 'teamKey', TEAMS.map(t => [t.key, t.label]))}</td>
+        <td>${sel(p, 'positionKey', state.positions.map(x => [x.key, x.label]))}</td>
+        <td>${sel(p, 'foot', ['Diestro', 'Zurdo', 'Ambidiestro'].map(x => [x, x]))}</td>
+        <td>${inp(p, 'height', 'number', 'step="0.01" min="0"', p.height)}</td>
+        <td>${inp(p, 'weight', 'number', 'step="0.1" min="0"', p.weight)}</td>
+        <td><button class="btn btn-sm" data-pend-ficha="${p.id}" title="${PEND_CAMPOS.find(c => c.k === 'fotoUrl').falta(p) ? 'Sin foto: se pone en Editar' : 'Abrir su ficha'}">${PEND_CAMPOS.find(c => c.k === 'fotoUrl').falta(p) ? '📷 Editar' : 'Ficha'}</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`}`;
+  const rerender = () => preservandoScroll(() => renderPendientes(wrap));
+  wrap.querySelector('#pend-campo')?.addEventListener('change', e => { pendCampo = e.target.value; rerender(); });
+  wrap.querySelector('#pend-equipo')?.addEventListener('change', e => { pendEquipo = e.target.value; rerender(); });
+  wrap.querySelectorAll('[data-pend-k]').forEach(el => el.addEventListener('change', async () => {
+    const id = el.dataset.pendId, k = el.dataset.pendK;
+    let v = el.value;
+    try {
+      if (k === 'aniosClub') {
+        const t = v.replace(/\s+/g, ''), et = etapasAnios(t);
+        if (t !== '' && !et) { showError('Años en el club: un número entero (3) o por etapas (2+3).'); return; }
+        await guardarCampoJugador(id, 'aniosClub', !et ? null : et.length === 1 ? et[0] : et.join('+'));
+        await guardarCampoJugador(id, 'aniosClubTemporada', et ? state.season : null);
+      } else {
+        if (k === 'height' || k === 'weight') v = v === '' ? null : parseFloat(v);
+        else v = v || null;
+        if (k === 'foot') v = v || '';
+        await guardarCampoJugador(id, k, v);
+      }
+      showSuccess('Guardado.');
+      rerender();
+    } catch (err) { console.error('[Firestore] Pendientes:', err); showError('No se pudo guardar el cambio.'); }
+  }));
+  wrap.querySelectorAll('[data-pend-ficha]').forEach(btn => btn.addEventListener('click', () => {
+    const p = state.players.find(x => x.id === btn.dataset.pendFicha);
+    if (p && !p.fotoUrl) { jugFichaId = null; jugadorFormId = p.id; } else { jugFichaId = btn.dataset.pendFicha; jugadorFormId = null; jugFichaTab = 'datos'; }
+    switchTab('jugadores');
+  }));
+}
+
 const CONFIG_GROUPS = [
   {
     label: 'Encuesta y criterios',
@@ -1811,6 +1885,7 @@ const CONFIG_GROUPS = [
   {
     label: 'Datos y ayuda',
     tabs: [
+      { key: 'pendientes',      label: 'Datos pendientes' },
       { key: 'copia-seguridad', label: 'Copia de seguridad' },
       { key: 'flujo',           label: 'Cómo funciona (flujo)' },
     ],
@@ -4388,6 +4463,15 @@ function renderPanelConfig(container) {
     </div>
     `}
 
+    ${configSubTab !== 'pendientes' ? '' : `
+    <div class="card mb-16">
+      <div class="card-title">Datos pendientes de los jugadores</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">Jugadores a los que les falta algún dato. Se cambia aquí mismo: se guarda al salir de la casilla y desaparece de la lista cuando ya no le falta nada (de lo que estés mirando).</p>
+        <div id="pendientes-wrap"></div>
+      </div>
+    </div>
+    `}
     ${configSubTab !== 'evaluadores' ? '' : `
     <div class="card mb-16">
       <div class="card-title">Evaluadores</div>
@@ -4575,6 +4659,9 @@ function renderPanelConfig(container) {
 
   const fichasTipoWrap = container.querySelector('#fichas-tipo-wrap');
   if (fichasTipoWrap) renderPanelFichas(fichasTipoWrap, fichaTipoPosition);
+
+  const pendientesWrap = container.querySelector('#pendientes-wrap');
+  if (pendientesWrap) renderPendientes(pendientesWrap);
 
   const evaluadoresWrap = container.querySelector('#evaluadores-wrap');
   if (evaluadoresWrap) renderEvaluadores(evaluadoresWrap);

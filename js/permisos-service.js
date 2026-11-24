@@ -66,6 +66,7 @@ export const SUBPANTALLAS = {
     { key: 'ficha-matriz', label: 'Fichas › Matriz' },
     { key: 'flujo', label: 'Datos y ayuda › Flujo de evaluaciones' },
     { key: 'frases', label: 'Encuesta y criterios › Frases modelo' },
+    { key: 'pendientes', label: 'Datos y ayuda › Datos pendientes' },
     { key: 'copia-seguridad', label: 'Datos y ayuda › Copia de seguridad' },
   ],
 };
