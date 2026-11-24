@@ -135,6 +135,7 @@ let regEvalSel       = null;  // id de la evaluación activa para importar
 let regImport        = null;  // estado del wizard de importación (ver resetRegImport)
 let regHuerfanos     = null;  // { res: {registros, mediasPorJugador} } registros cuya evaluación ya no existe
 let regVerEquipo     = '';    // filtro de equipo en "Ver registros" ('' = todos)
+let regVerPos        = '';    // filtro de posición (de la encuesta) en "Ver registros"
 let regVerJugador    = '';    // búsqueda de jugador en "Ver registros"
 let regVer           = null;  // { evId, res: { registros, mediasPorJugador } | null } registros desplegados en una tarjeta
 
@@ -473,8 +474,10 @@ function buildEvaluacionesListHTML() {
           // Búsqueda de jugador: por el jugador de la app o por el nombre tal cual viene en el archivo.
           const palabras = normalizeTxt(regVerJugador).split(/\s+/).filter(Boolean);
           const coincide = x => { const t = normalizeTxt(`${label(x.jugadorId)} ${x.jugadorNombreArchivo || ''}`); return palabras.every(w => t.includes(w)); };
-          const regs = r.registros.filter(x => (!regVerEquipo || (x.jugadorId && enEquipo(x.jugadorId, regVerEquipo))) && (!palabras.length || coincide(x)));
-          const filtrando = regVerEquipo || palabras.length;
+          const posDeReg = x => x.posicionKey || ev.posicionKey || '';
+          const posiciones = state.positions.filter(pp => r.registros.some(x => posDeReg(x) === pp.key));
+          const regs = r.registros.filter(x => (!regVerEquipo || (x.jugadorId && enEquipo(x.jugadorId, regVerEquipo))) && (!regVerPos || posDeReg(x) === regVerPos) && (!palabras.length || coincide(x)));
+          const filtrando = regVerEquipo || regVerPos || palabras.length;
           // Jugadores con encuestas de varias posiciones en esta evaluación
           const posPorJug = {};
           r.registros.forEach(x => { if (x.jugadorId && x.posicionKey) (posPorJug[x.jugadorId] = posPorJug[x.jugadorId] || new Set()).add(x.posicionKey); });
@@ -484,6 +487,8 @@ function buildEvaluacionesListHTML() {
             <input class="input" type="search" id="reg-ver-jugador" value="${safeText(regVerJugador)}" placeholder="🔎 Buscar jugador" style="width:220px;" />
             <label class="text-xs text-muted" for="reg-ver-equipo">Equipo</label>
             <select class="select" id="reg-ver-equipo" style="width:auto;min-width:180px;${regVerEquipo ? 'border-color:var(--blue-500, #3b82f6);font-weight:600;' : ''}"><option value="">Todos los equipos</option>${equipos.map(t => `<option value="${t.key}" ${t.key === regVerEquipo ? 'selected' : ''}>${safeText(t.label)}</option>`).join('')}</select>
+            <label class="text-xs text-muted" for="reg-ver-pos">Posición</label>
+            <select class="select" id="reg-ver-pos" style="width:auto;min-width:160px;${regVerPos ? 'border-color:var(--blue-500, #3b82f6);font-weight:600;' : ''}"><option value="">Todas</option>${posiciones.map(pp => `<option value="${pp.key}" ${pp.key === regVerPos ? 'selected' : ''}>${safeText(pp.label)}</option>`).join('')}</select>
             ${filtrando ? `<span class="text-xs text-muted">${regs.length} de ${r.registros.length} registros</span>` : ''}</div>${avisoVarias}`;
           if (!regs.length) return filtro + '<p class="text-xs text-muted mt-8">Ningún registro con esos filtros.</p>';
           const pks = [...new Set(regs.map(x => x.posicionKey || ev.posicionKey || ''))].sort((a, b) => orden.indexOf(a) - orden.indexOf(b));
@@ -916,6 +921,7 @@ function renderRegistroSub(container) {
     renderRegistroSub(container);
   });
   container.querySelector('#reg-ver-equipo')?.addEventListener('change', e => { regVerEquipo = e.target.value; preservandoScroll(() => renderRegistroSub(container)); });
+  container.querySelector('#reg-ver-pos')?.addEventListener('change', e => { regVerPos = e.target.value; preservandoScroll(() => renderRegistroSub(container)); });
   container.querySelector('#reg-ver-jugador')?.addEventListener('input', e => {
     regVerJugador = e.target.value;
     preservandoScroll(() => renderRegistroSub(container));
