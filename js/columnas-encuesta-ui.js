@@ -35,7 +35,9 @@ export function renderColumnasEncuesta(container) {
   const filas = cols.map(c => {
     const dup = c.destino && usos[c.destino] > 1;
     return `<tr>
-      <td style="font-weight:700;">${c.num}</td>
+      <td style="font-weight:700;white-space:nowrap;">${c.num}${c.num >= 4 ? ` <span style="display:inline-flex;gap:2px;margin-left:4px;">
+        <button class="btn btn-sm btn-ghost" style="padding:0 5px;" data-ce-mover="${c.num}|-1" title="Subir (intercambia con la de arriba)" ${c.num === 4 ? 'disabled' : ''}>↑</button>
+        <button class="btn btn-sm btn-ghost" style="padding:0 5px;" data-ce-mover="${c.num}|1" title="Bajar (intercambia con la de abajo)" ${c.num === cols.length ? 'disabled' : ''}>↓</button></span>` : ''}</td>
       <td class="text-muted">${safeText(c.tipo)}</td>
       <td><input class="input" type="text" style="min-width:260px;" data-ce-nombre="${c.num}" value="${safeText(c.nombre)}" /></td>
       <td><select class="select" data-ce-destino="${c.num}">
@@ -69,6 +71,15 @@ export function renderColumnasEncuesta(container) {
     const patch = { destino: sel.value };
     if (sel.value && !(state.columnasEncuesta?.[cePos]?.[n]?.nombre)) patch.nombre = ESPECIALES[sel.value] || sel.value; // el nombre sigue al destino si no lo has cambiado
     guardar(cePos, n, patch);
+    rerender();
+  }));
+  // ↑↓: intercambia nombre y destino con la columna de al lado (cambia el orden de las preguntas).
+  container.querySelectorAll('[data-ce-mover]').forEach(btn => btn.addEventListener('click', () => {
+    const [n, dir] = btn.dataset.ceMover.split('|').map(Number);
+    const a = cols.find(c => c.num === n), b = cols.find(c => c.num === n + dir);
+    if (!a || !b || b.num < 4) return;
+    guardar(cePos, a.num, { nombre: b.nombre, destino: b.destino });
+    guardar(cePos, b.num, { nombre: a.nombre, destino: a.destino });
     rerender();
   }));
   container.querySelector('#ce-reset')?.addEventListener('click', () => {
