@@ -362,8 +362,19 @@ function resetRegImport() {
   };
 }
 
+let evPosMigrando = false;
+const evPosIntentadas = new Set(); // una vez por sesión cada evaluación (si falla no se reintenta en bucle)
 async function ensureEvaluacionesLoaded(container) {
-  if (regEvaluaciones !== null) return;
+  if (regEvaluaciones !== null) {
+    // Ya cargadas desde otra pestaña: si queda alguna antigua con posición, se pasa a todas las posiciones.
+    if (!evPosMigrando && !isFirebaseUnconfigured() && regEvaluaciones.some(e => e.posicionKey && !evPosIntentadas.has(e.id)) && puedeEditar('registro.registro')) {
+      evPosMigrando = true;
+      await evaluacionesParaTodasLasPosiciones();
+      evPosMigrando = false;
+      if (container.isConnected) renderPanelRegistro(container);
+    }
+    return;
+  }
   if (isFirebaseUnconfigured()) { regEvaluaciones = []; return; }
   try {
     regEvaluaciones = await listarEvaluaciones();
@@ -380,7 +391,8 @@ async function ensureEvaluacionesLoaded(container) {
 // se pasan solas: antes, cada registro suyo sin posición se queda con la de la evaluación (no se pierde nada).
 async function evaluacionesParaTodasLasPosiciones() {
   if (!puedeEditar('registro.registro')) return;
-  for (const ev of (regEvaluaciones || []).filter(e => e.posicionKey)) {
+  for (const ev of (regEvaluaciones || []).filter(e => e.posicionKey && !evPosIntentadas.has(e.id))) {
+    evPosIntentadas.add(ev.id);
     try {
       const regs = await queryRegistros({ evaluacionId: ev.id });
       for (const r of regs.filter(r => !r.posicionKey)) await actualizarRegistro(r.id, { posicionKey: ev.posicionKey });
