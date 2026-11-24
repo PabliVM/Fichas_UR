@@ -361,7 +361,8 @@ function initPitchDragDrop(container, data, positionKey) {
   const pitchEl = container.querySelector('.p1-pitch');
   if (!pitchEl) return;
   const addBtn = container.querySelector('.p1-jersey-add');
-  let markers = data.pitchMarkers || defaultMarkers(positionKey);
+  let markers = data.pitchMarkers?.length ? data.pitchMarkers.map(m => ({ ...m })) : defaultMarkers(positionKey);
+  nextMarkerId = Math.max(nextMarkerId, ...markers.map(m => Number(m.id) + 1 || 0)); // las guardadas no chocan con las nuevas
 
   const emitChange = () => {
     container.dispatchEvent(new CustomEvent('p1:pitch-markers-changed', {

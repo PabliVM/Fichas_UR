@@ -244,6 +244,27 @@ function buildFichaRealData(positionKey, media, jugador, evalId, ref) {
 
 const PERFIL_AJUSTE = 0; // puntos que se restan a la nota de los 3 perfiles en la Ficha 1 (0 = nota real)
 
+// Camisetas del campograma (Ficha 1): jugadores/{id}.fichaCamisetas[evaluación] = { pos, markers }.
+// Solo se usan si son de la misma posición de la ficha (la ficha duplicada de otra posición sale con la de por defecto).
+function camisetasGuardadas(jugador, evalId, positionKey) {
+  const g = jugador?.fichaCamisetas?.[evalId || 'sin-evaluacion'];
+  return g && g.pos === positionKey && Array.isArray(g.markers) && g.markers.length ? g.markers : null;
+}
+function guardarCamisetasAlCambiar(wrap, jugador, evalId, positionKey) {
+  if (!wrap || !jugador?.id) return;
+  wrap._camCtx = { jugador, key: evalId || 'sin-evaluacion', pos: positionKey };
+  if (wrap._camEscucha) return;
+  wrap._camEscucha = true;
+  wrap.addEventListener('p1:pitch-markers-changed', async e => {
+    const { jugador: j, key, pos } = wrap._camCtx;
+    const valor = { pos, markers: (e.detail?.markers || []).map(m => ({ id: m.id, type: m.type, xPct: Math.round(m.xPct * 10) / 10, yPct: Math.round(m.yPct * 10) / 10 })) };
+    j.fichaCamisetas = { ...(j.fichaCamisetas || {}), [key]: valor };
+    const enEstado = state.players.find(x => x.id === j.id); if (enEstado && enEstado !== j) enEstado.fichaCamisetas = j.fichaCamisetas;
+    try { await updateMapEntry('jugadores', j.id, 'fichaCamisetas', key, valor); }
+    catch (err) { console.error('[Firestore] Camisetas:', err); showError('No se pudieron guardar las camisetas del campo.'); }
+  });
+}
+
 function buildFicha1RealData(positionKey, media, jugador, aspectos, evalId) {
   const schema = state.criteriaSchemas[positionKey] || {};
   const mental = state.aspectosComunes.mental || [];
@@ -289,6 +310,7 @@ function buildFicha1RealData(positionKey, media, jugador, aspectos, evalId) {
 
   return {
     ...FICHA1_DEMO_DATA,
+    pitchMarkers: camisetasGuardadas(jugador, evalId, positionKey),
     circleColors,
     gridOrder: state.fichaGridOrder,
     player: {
@@ -2753,6 +2775,7 @@ function renderFichaJugador(container, p) {
   if (jugFichaTab !== 'datos' && regs && (evSel || p.positionKey)) {
     const fPos = evSel?.posKey || p.positionKey, fMedia = evSel?.media || null;
     renderFichaPagina1(container.querySelector('#jug-ficha1-wrap'), buildFicha1RealData(fPos, fMedia, p, aspectosTxt, evSel?.eid), LOGO_PATH, state.fichaColors);
+    guardarCamisetasAlCambiar(container.querySelector('#jug-ficha1-wrap'), p, evSel?.eid, fPos);
     setGpsTolerance(state.condicionalTolerance);
     renderFichaDetalle(container.querySelector('#jug-ficha2-wrap'), buildFichaRealData(fPos, fMedia, p, evSel?.eid, refData), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
     extrasPos.forEach((x, i) => {
@@ -6294,6 +6317,7 @@ async function renderPlantillaPresentacion(container) {
       sec.querySelector('[data-pr-f1]').dataset.plObs = `j1.${j.id}${sufijo}`; sec.querySelector('[data-pr-f2]').dataset.plObs = `j2.${j.id}${sufijo}`;
       obsMontar();
       renderFichaPagina1(sec.querySelector('[data-pr-f1]'), buildFicha1RealData(prep.fPos, prep.fMedia, j, prep.aspectosTxt, prep.evSel?.eid), LOGO_PATH, state.fichaColors);
+      if (!dup) guardarCamisetasAlCambiar(sec.querySelector('[data-pr-f1]'), j, prep.evSel?.eid, prep.fPos);
       renderFichaDetalle(sec.querySelector('[data-pr-f2]'), buildFichaRealData(prep.fPos, prep.fMedia, j, prep.evSel?.eid, refDe(j, prep)), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
       sec.querySelector('[data-pr-desc]')?.addEventListener('click', e => proponerDescripcion(e.currentTarget, sec.querySelector('[data-pr-f1] .p1-desc-text'), j, prep.evSel, prep.aspectosTxt, sec.querySelector('[data-pr-textos]')));
       const f1Pr = sec.querySelector('[data-pr-f1]'), f2Pr = sec.querySelector('[data-pr-f2]');
