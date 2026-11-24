@@ -4014,7 +4014,8 @@ function renderPanelConfig(container) {
               + buildPositionSelectorHTML()
               + `<div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;"><span class="text-xs text-muted">Orden del Táctico (encuesta columnas 7-18 y Ficha 2):</span>
                   <button class="btn btn-sm" data-tact-orden="def">Defensivas primero</button>
-                  <button class="btn btn-sm" data-tact-orden="of">Ofensivas primero</button></div>`
+                  <button class="btn btn-sm" data-tact-orden="of">Ofensivas primero</button>
+                  <button class="btn btn-sm btn-primary" data-tact-orden="def" data-tact-todas="1" title="Aplica Defensivas primero a todas las posiciones">Defensivas primero en todas las posiciones</button></div>`
               + `<div class="flex gap-24" style="flex-wrap:wrap;">${buildOfenDefCheckboxesHTML('of', 'Ofensivas')}${buildOfenDefCheckboxesHTML('def', 'Defensivas')}</div>`
               + `<div class="mb-8 mt-16" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Perfiles</div>`
               + buildPositionSelectorHTML(false)
@@ -4686,15 +4687,22 @@ function renderPanelConfig(container) {
     });
   });
 
-  // Reordena el Táctico de la posición: primero las marcadas como Defensivas (u Ofensivas), cada grupo en su orden actual.
+  // Reordena el Táctico (de la posición o de todas): primero las marcadas como Defensivas (u Ofensivas), cada grupo en su orden actual.
+  // Las columnas 7-18 de la encuesta vuelven a seguir el Táctico (se quitan sus cambios a mano en Columnas de la encuesta).
   container.querySelectorAll('[data-tact-orden]').forEach(btn => btn.addEventListener('click', () => {
-    const schema = state.criteriaSchemas[configCriteriaPosition] || {};
-    const tact = schema.tactico || [];
-    const primero = new Set(btn.dataset.tactOrden === 'def' ? schema.competenciasDefensivas || [] : schema.competenciasOfensivas || []);
-    const nuevo = [...tact.filter(t => primero.has(t)), ...tact.filter(t => !primero.has(t))];
-    if (nuevo.join('|') === tact.join('|')) { showSuccess('Ya estaba en ese orden.'); return; }
-    setState({ criteriaSchemas: { ...state.criteriaSchemas, [configCriteriaPosition]: { ...schema, tactico: nuevo } } });
-    showSuccess(btn.dataset.tactOrden === 'def' ? 'Defensivas primero.' : 'Ofensivas primero.');
+    const def = btn.dataset.tactOrden === 'def';
+    const posiciones = btn.dataset.tactTodas ? state.positions.map(p => p.key) : [configCriteriaPosition];
+    const schemas = { ...state.criteriaSchemas };
+    const colEnc = JSON.parse(JSON.stringify(state.columnasEncuesta || {}));
+    posiciones.forEach(pos => {
+      const schema = schemas[pos] || {};
+      const tact = schema.tactico || [];
+      const primero = new Set(def ? schema.competenciasDefensivas || [] : schema.competenciasOfensivas || []);
+      schemas[pos] = { ...schema, tactico: [...tact.filter(t => primero.has(t)), ...tact.filter(t => !primero.has(t))] };
+      if (colEnc[pos]) for (let n = 7; n <= 18; n++) delete colEnc[pos][n];
+    });
+    setState({ criteriaSchemas: schemas, columnasEncuesta: colEnc });
+    showSuccess(`${def ? 'Defensivas' : 'Ofensivas'} primero${btn.dataset.tactTodas ? ' en todas las posiciones' : ''}. La encuesta (columnas 7-18) sigue este orden.`);
     renderPanelConfig(container);
   }));
   container.querySelectorAll('[data-move-crit]').forEach(btn => {
