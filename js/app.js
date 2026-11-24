@@ -2783,6 +2783,7 @@ function renderFichaJugador(container, p) {
       renderFichaPagina1(w1, buildFicha1RealData(x.fPos, x.fMedia, p, aspectosTxt, evSel?.eid), LOGO_PATH, state.fichaColors);
       renderFichaDetalle(w2, buildFichaRealData(x.fPos, x.fMedia, p, evSel?.eid, refData), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
       [w1, w2].forEach(w => w.querySelectorAll('[contenteditable]').forEach(el => { el.contentEditable = 'false'; }));
+      w2.querySelectorAll('.ficha-manual').forEach(i => { i.disabled = true; }); // la duplicada no guarda notas M (pisaría las de la principal)
     });
   }
   container.querySelectorAll('[data-jug-extra-pdf]').forEach(btn => btn.addEventListener('click', async () => {
@@ -5630,6 +5631,8 @@ function injectPlantillaStyles() {
     #pl-pres-lista.pl-solo .pl-foto-btn{display:none !important;}
     #pl-pres-lista.pl-solo .pl-pend{display:none !important;}
     #pl-pres-lista.pl-sin-obs .pl-obs{display:none !important;}
+    #pl-pres-lista.pl-sin-m .ficha-manual,#pl-pres-lista.pl-sin-m .ficha-manual-h,#pl-pres-lista.pl-sin-m .ficha-m-legend{visibility:hidden !important;}
+    #pl-pres-lista.pl-sin-m .ficha-q-manual,#pl-pres-lista.pl-sin-m .ficha-q-guion{display:none !important;}
     #pl-pres-lista.pl-sin-obs:fullscreen > *{max-width:calc((100vh - 120px) * ${PL_W} / ${PL_H});}
     #pl-solo-nav,#pl-solo-top{display:none;}
     #pl-pres-lista.pl-solo > #pl-solo-top{display:flex;position:fixed;top:0;left:0;right:0;z-index:10;gap:6px;justify-content:center;flex-wrap:wrap;padding:6px;background:rgba(0,0,0,0.75);}
@@ -5646,6 +5649,7 @@ let plUid = 0;
 // Textos editables de las diapositivas fijas (portadas y separadores). Se guardan en la plantilla: 'portada.*' en la general de la temporada, el resto por equipo.
 let plTextos = {};
 const plNotasPortada = () => { try { return localStorage.getItem('rm-pl-notas-portada') !== '0'; } catch { return true; } };
+const plVerM = () => { try { return localStorage.getItem('rm-pl-ver-m') !== '0'; } catch { return true; } }; // notas M (metodología) en la Ficha 2
 const plVerObs = () => { try { return localStorage.getItem('rm-pl-ver-obs') !== '0'; } catch { return true; } };
 const plT = (key, def) => safeText(plTextos[key] ?? def);
 const plEd = key => `data-pl-ed="${key}" contenteditable="true" spellcheck="false"`;
@@ -6050,6 +6054,7 @@ async function renderPlantillaPresentacion(container) {
               </select>
               <label class="text-xs" title="La portada de cada posición lleva las notas del campograma. Desmarcada: portada solo con fotos y nombres."><input type="checkbox" id="pl-notas-portada" ${plNotasPortada() ? 'checked' : ''} /> Notas en las portadas</label>
               <label class="text-xs"><input type="checkbox" id="pl-ver-obs" ${plVerObs() ? 'checked' : ''} /> Ver observaciones</label>
+              <label class="text-xs" title="Columna M (metodología) de la Ficha 2. Desmarcada: solo las medias (también en el PDF)."><input type="checkbox" id="pl-ver-m" ${plVerM() ? 'checked' : ''} /> Notas M (metodología)</label>
             </div>
           </div>
         </div>
@@ -6353,7 +6358,7 @@ async function renderPlantillaPresentacion(container) {
       renderFichaDetalle(sec.querySelector('[data-pr-f2]'), buildFichaRealData(prep.fPos, prep.fMedia, j, prep.evSel?.eid, refDe(j, prep)), LOGO_PATH, state.scoreBands, undefined, state.fichaColors, state.fichaGridOrder);
       sec.querySelector('[data-pr-desc]')?.addEventListener('click', e => proponerDescripcion(e.currentTarget, sec.querySelector('[data-pr-f1] .p1-desc-text'), j, prep.evSel, prep.aspectosTxt, sec.querySelector('[data-pr-textos]')));
       const f1Pr = sec.querySelector('[data-pr-f1]'), f2Pr = sec.querySelector('[data-pr-f2]');
-      if (dup) [f1Pr, f2Pr].forEach(w => w.querySelectorAll('[contenteditable]').forEach(el => { el.contentEditable = 'false'; })); // la duplicada no se edita
+      if (dup) [f1Pr, f2Pr].forEach(w => { w.querySelectorAll('[contenteditable]').forEach(el => { el.contentEditable = 'false'; }); w.querySelectorAll('.ficha-manual').forEach(i => { i.disabled = true; }); }); // la duplicada no se edita
       else {
         sec.querySelector('[data-pr-textos]').addEventListener('click', e => guardarTextosFicha(j, prep.textosKey, f1Pr, f2Pr, { btn: e.currentTarget, aviso: true }));
         autoGuardarTextosFicha([f1Pr, f2Pr], () => guardarTextosFicha(j, prep.textosKey, f1Pr, f2Pr, { pendienteBtn: sec.querySelector('[data-pr-textos]') }), sec.querySelector('[data-pr-textos]'));
@@ -6437,6 +6442,11 @@ async function renderPlantillaPresentacion(container) {
   aplicarVerObs(plVerObs());
   if (plIrJugador) { const jid = plIrJugador; plIrJugador = null; let n = 0; const t0 = setInterval(() => { if (lista.querySelector(`[data-pl-obs="j1.${jid}"]`) || ++n > 40) { clearInterval(t0); irA(k => k === `j1.${jid}`); } }, 150); }
   container.querySelector('#pl-ver-obs').addEventListener('change', e => aplicarVerObs(e.target.checked));
+  lista.classList.toggle('pl-sin-m', !plVerM());
+  container.querySelector('#pl-ver-m')?.addEventListener('change', e => {
+    lista.classList.toggle('pl-sin-m', !e.target.checked);
+    try { localStorage.setItem('rm-pl-ver-m', e.target.checked ? '1' : '0'); } catch {}
+  });
   nav.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.obs) { aplicarVerObs(lista.classList.contains('pl-sin-obs')); return; }
