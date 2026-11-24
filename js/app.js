@@ -2612,12 +2612,25 @@ function renderFichaJugador(container, p) {
     evalHTML = filas.length ? `
       <div style="overflow-x:auto;"><table class="table table-compact">
         <thead><tr><th>Evaluación</th><th>Posición</th><th>Evaluadores</th><th>Mental</th><th>Técnico</th><th>Táctico</th><th>Media general</th></tr></thead>
-        <tbody>${filas.map((f, i) => `<tr>
-          <td>${safeText(f.eid === 'sin-evaluacion' ? '(sin evaluación asociada)' : evLabel(f.eid))}${f === filasEval[0] ? ' <b>(final)</b>' : ''}</td>
-          <td>${safeText(state.positions.find(x => x.key === f.posKey)?.label || f.posKey || '—')}</td>
-          <td>${f.n}</td>
-          <td>${fmt(f.media?.porAspecto?.mental)}</td><td>${fmt(f.media?.porAspecto?.tecnico)}</td><td>${fmt(f.media?.porAspecto?.tactico)}</td>
-          <td><b>${fmt(mediaGeneralDe(f.media))}</b></td></tr>`).join('')}</tbody>
+        <tbody>${filas.flatMap(f => {
+          const evTxt = `${safeText(f.eid === 'sin-evaluacion' ? '(sin evaluación asociada)' : evLabel(f.eid))}${f === filasEval[0] ? ' <b>(final)</b>' : ''}`;
+          const conteo = f.posConteo || {}, claves = Object.keys(conteo).sort((a, b) => conteo[b] - conteo[a]);
+          const fila = (pos, media, n, extra, estilo = '') => `<tr${estilo}>
+            <td>${evTxt}</td>
+            <td>${safeText(state.positions.find(x => x.key === pos)?.label || pos || '—')}${extra}</td>
+            <td>${n}</td>
+            <td>${fmt(media?.porAspecto?.mental)}</td><td>${fmt(media?.porAspecto?.tecnico)}</td><td>${fmt(media?.porAspecto?.tactico)}</td>
+            <td><b>${fmt(mediaGeneralDe(media))}</b></td></tr>`;
+          if (claves.length < 2) return [fila(f.posKey, f.media, f.n, '')];
+          // Encuestas de varias posiciones: una fila por posición (solo con sus encuestas). La menos habitual, en otro color.
+          const max = conteo[claves[0]];
+          return claves.map(k => {
+            const rsK = (f.rs || []).filter(r => r.posicionKey === k);
+            const mediaK = calcularMediasPorJugador(rsK.map(r => ({ ...r, jugadorId: id })), buildAspectoPorCompetencia(state, k))[id];
+            const extra = ` <span class="text-xs text-muted">(${conteo[k]} encuesta${conteo[k] === 1 ? '' : 's'}${k === f.posKey ? ' · en la ficha' : ''})</span>`;
+            return fila(k, mediaK, new Set(rsK.map(r => r.evaluador)).size, extra, conteo[k] < max ? ' style="background:#fff7ed;color:#9a3412;" title="Posición menos habitual en esta evaluación"' : '');
+          });
+        }).join('')}</tbody>
       </table></div>` : '<p class="text-xs text-muted">Todavía no hay evaluaciones importadas de este jugador.</p>';
   }
 
