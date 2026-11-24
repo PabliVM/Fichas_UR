@@ -700,7 +700,7 @@ function gruposPendientes() {
 function buildResumenImportHTML(r) {
   if (!r) return '';
   const grupos = gruposPendientes();
-  const todos = [...state.players].sort((x, y) => `${x.apellidos} ${x.nombre}`.localeCompare(`${y.apellidos} ${y.nombre}`, 'es'));
+  const todos = [...state.players].sort(ordenPorNombre); // mismo orden que lo que se lee: Nombre Apellidos
   const etiqueta = p => `${p.nombre || ''} ${p.apellidos || ''}`.trim() + (p.teamKey ? ` (${TEAMS.find(t => t.key === p.teamKey)?.label || p.teamKey})` : '');
   const pendHTML = grupos.length ? `
     <div class="mb-16">
@@ -2897,7 +2897,7 @@ function buildJugImportHTML() {
   const ignoradas = columnas.filter(c => !c.campo && c.titulo && !condCols.some(cc => cc.titulo === c.titulo)).map(c => safeText(c.titulo)).join(', ');
   const n = filas.filter(f => f.crear).length;
   const nCompletar = filas.filter(f => f.crear && f.estado === 'completar').length;
-  const todosOrdenados = [...state.players].sort(ordenPorNombre);
+  const todosOrdenados = [...state.players].sort(ordenJugadores); // la lista muestra "Apellidos, Nombre"
   const nCrear = n - nCompletar;
   const textoBoton = [nCrear ? `Crear ${nCrear} jugador${nCrear === 1 ? '' : 'es'}` : '', nCompletar ? `actualizar ${nCompletar} ficha${nCompletar === 1 ? '' : 's'}` : ''].filter(Boolean).join(' y ') || 'Nada que aplicar';
   const ESTADO = {
