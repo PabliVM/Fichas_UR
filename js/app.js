@@ -5904,11 +5904,11 @@ function plLeyendaCirculo(order) {
   return svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}"><defs>${defs.join('')}</defs>${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#94a3b8" stroke-width="1"/>${textos.join('')}</svg>`, R * 2, R * 2, 'position:absolute;right:60px;bottom:45px;'); // centro hueco: se ve el campo (como el hueco de la foto)
 }
 
-// Mapa de nivel: izquierda = residen en Madrid (Residente / Media pensión), derecha = En residencia.
+// Mapa de nivel: izquierda = Madrid, derecha = Residencia y Media pensión.
 // Franjas por la nota elegida (Rendimiento o Proyección): ≥4 verde · 3–<4 amarillo · <3 rojo. Sin esa nota → franja 3-4 con "X".
 const PL_RESI = {
   'Madrid':        { lado: 'izq', bg: '#ffffff', fg: '#0b2a6b', txt: 'MADRID' },
-  'Media pensión': { lado: 'izq', bg: '#0b2a6b', fg: '#ffffff', txt: 'MEDIA PENSIÓN' },
+  'Media pensión': { lado: 'der', bg: '#0b2a6b', fg: '#ffffff', txt: 'MEDIA PENSIÓN' },
   'Residencia':    { lado: 'der', bg: '#d4a63a', fg: '#111111', txt: 'RESIDENCIA' },
 };
 let plMapaModo = 'r';   // nota que ordena el mapa de nivel: 'r' rendimiento · 'p' proyección · 'rp' las dos (2 diapositivas)
