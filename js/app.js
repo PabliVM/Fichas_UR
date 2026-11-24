@@ -2475,6 +2475,7 @@ async function cargarDatosFicha(container, id) {
       jugadorHistoricoCache[id] = jugadorHistoricoCache[id] || [];
     } else {
       await Promise.all([
+        cargarEvaluacionesSilencioso(), // nombres de las evaluaciones (si no, sale su id y no hay "final")
         jugFichaRegs[id] ? null : queryRegistros({ jugadorId: id }).then(r => { jugFichaRegs[id] = r; }).catch(err => { console.error('[Firestore] Registros del jugador:', err); jugFichaRegs[id] = []; }),
         jugadorHistoricoCache[id] ? null : readSubCollection('jugadores', id, 'historico').then(h => { jugadorHistoricoCache[id] = h; }).catch(err => { console.error('[Firestore] Histórico:', err); jugadorHistoricoCache[id] = []; }),
       ]);
