@@ -4012,6 +4012,9 @@ function renderPanelConfig(container) {
             ? buildTacticoCategoryHTML()
             : `<div class="mb-8" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Competencias</div>`
               + buildPositionSelectorHTML()
+              + `<div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;"><span class="text-xs text-muted">Orden del Táctico (encuesta columnas 7-18 y Ficha 2):</span>
+                  <button class="btn btn-sm" data-tact-orden="def">Defensivas primero</button>
+                  <button class="btn btn-sm" data-tact-orden="of">Ofensivas primero</button></div>`
               + `<div class="flex gap-24" style="flex-wrap:wrap;">${buildOfenDefCheckboxesHTML('of', 'Ofensivas')}${buildOfenDefCheckboxesHTML('def', 'Defensivas')}</div>`
               + `<div class="mb-8 mt-16" style="font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.02em;">Perfiles</div>`
               + buildPositionSelectorHTML(false)
@@ -4683,6 +4686,17 @@ function renderPanelConfig(container) {
     });
   });
 
+  // Reordena el Táctico de la posición: primero las marcadas como Defensivas (u Ofensivas), cada grupo en su orden actual.
+  container.querySelectorAll('[data-tact-orden]').forEach(btn => btn.addEventListener('click', () => {
+    const schema = state.criteriaSchemas[configCriteriaPosition] || {};
+    const tact = schema.tactico || [];
+    const primero = new Set(btn.dataset.tactOrden === 'def' ? schema.competenciasDefensivas || [] : schema.competenciasOfensivas || []);
+    const nuevo = [...tact.filter(t => primero.has(t)), ...tact.filter(t => !primero.has(t))];
+    if (nuevo.join('|') === tact.join('|')) { showSuccess('Ya estaba en ese orden.'); return; }
+    setState({ criteriaSchemas: { ...state.criteriaSchemas, [configCriteriaPosition]: { ...schema, tactico: nuevo } } });
+    showSuccess(btn.dataset.tactOrden === 'def' ? 'Defensivas primero.' : 'Ofensivas primero.');
+    renderPanelConfig(container);
+  }));
   container.querySelectorAll('[data-move-crit]').forEach(btn => {
     btn.addEventListener('click', () => {
       const cat = btn.dataset.cat;
