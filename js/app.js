@@ -367,12 +367,27 @@ async function ensureEvaluacionesLoaded(container) {
   if (isFirebaseUnconfigured()) { regEvaluaciones = []; return; }
   try {
     regEvaluaciones = await listarEvaluaciones();
+    await evaluacionesParaTodasLasPosiciones();
   } catch (err) {
     console.error('[Firestore] No se pudieron cargar las evaluaciones:', err);
     regEvaluaciones = [];
     showError('No se pudieron cargar las evaluaciones.');
   }
   renderPanelRegistro(container);
+}
+
+// Una evaluación es un periodo para TODAS las posiciones. Las antiguas que quedaron marcadas con una posición
+// se pasan solas: antes, cada registro suyo sin posición se queda con la de la evaluación (no se pierde nada).
+async function evaluacionesParaTodasLasPosiciones() {
+  if (!puedeEditar('registro.registro')) return;
+  for (const ev of (regEvaluaciones || []).filter(e => e.posicionKey)) {
+    try {
+      const regs = await queryRegistros({ evaluacionId: ev.id });
+      for (const r of regs.filter(r => !r.posicionKey)) await actualizarRegistro(r.id, { posicionKey: ev.posicionKey });
+      await actualizarEvaluacion(ev.id, { posicionKey: null });
+      ev.posicionKey = null;
+    } catch (err) { console.error('[Evaluaciones] No se pudo pasar a todas las posiciones:', ev.id, err); }
+  }
 }
 
 function mediaGeneralDe(media) {
