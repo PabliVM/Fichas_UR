@@ -2565,7 +2565,7 @@ function renderFichaJugador(container, p) {
       const posKey = posicionDeRegistros(rs, ev, p);
       const media = calcularMediasPorJugador(rs.map(r => ({ ...r, jugadorId: id })), buildAspectoPorCompetencia(state, posKey))[id];
       const idx = (regEvaluaciones || []).findIndex(e => e.id === eid);
-      return { eid, ev, posKey, aviso: avisoPosiciones(rs, posKey), n: new Set(rs.map(r => r.evaluador)).size, media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
+      return { eid, ev, posKey, aviso: avisoPosiciones(rs, posKey), posConteo: posicionesConteo(rs), n: new Set(rs.map(r => r.evaluador)).size, media, orden: `${ev?.fechaFin || ev?.fechaInicio || ''}|${String(idx).padStart(5, '0')}` };
     }).sort((a, b) => String(b.orden).localeCompare(String(a.orden)));
   }
   let filasEval = filas.filter(f => f.eid !== 'sin-evaluacion' && f.ev);
@@ -2679,7 +2679,11 @@ function renderFichaJugador(container, p) {
         </select>` : ''}
         ${refLista && !refData ? '<span class="text-xs text-muted">Calculando…</span>' : ''}
       </div>` : ''}
-      ${evSel?.aviso ? `<div class="mb-8 btn-print-ficha" style="background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:8px;padding:8px 12px;font-size:13px;">${safeText(evSel.aviso)}</div>` : ''}
+      ${evSel?.aviso ? `<div class="mb-8 btn-print-ficha flex gap-8" style="align-items:center;flex-wrap:wrap;background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:8px;padding:8px 12px;font-size:13px;">
+        <span style="flex:1 1 300px;">${safeText(evSel.aviso)}</span>
+        <label for="jug-ficha-pos" style="font-weight:700;">Ficha como</label>
+        <select class="select" id="jug-ficha-pos" style="width:auto;" title="Se guarda para este jugador y esta evaluación (también en la presentación del equipo)">${Object.entries(evSel.posConteo || {}).sort((a, b) => b[1] - a[1]).map(([k, c]) => `<option value="${safeText(k)}" ${k === evSel.posKey ? 'selected' : ''}>${safeText(posLabel(k))} (${c} encuesta${c === 1 ? '' : 's'})</option>`).join('')}</select>
+      </div>` : ''}
       <div class="mb-8 flex gap-8 btn-print-ficha" style="flex-wrap:wrap;align-items:center;">
         <b>Ficha 1</b>
         <button class="btn btn-primary btn-print-ficha" id="jug-fichas-pdf">⬇ PDF Ficha 1 + 2</button>
@@ -2787,6 +2791,14 @@ function renderFichaJugador(container, p) {
       try { localStorage.setItem(JUG_REF_LS, JSON.stringify(jugRef)); } catch (_) { /* ignorar */ }
       preservandoScroll(() => renderPanelJugadores(container));
     });
+  });
+  container.querySelector('#jug-ficha-pos')?.addEventListener('change', async e => {
+    const eid = evSel?.eid, pos = e.target.value; if (!eid) return;
+    p.fichaPosPorEval = { ...(p.fichaPosPorEval || {}), [eid]: pos };
+    const enEstado = state.players.find(x => x.id === p.id); if (enEstado && enEstado !== p) enEstado.fichaPosPorEval = p.fichaPosPorEval;
+    try { await updateMapEntry('jugadores', p.id, 'fichaPosPorEval', eid, pos); showSuccess(`La ficha se ve como ${posLabel(pos)} en esta evaluación.`); }
+    catch (err) { console.error(err); showError('No se pudo guardar la posición de la ficha.'); }
+    preservandoScroll(() => renderPanelJugadores(container));
   });
   container.querySelector('#jug-ficha-eval')?.addEventListener('change', e => {
     jugFichaEvalId = e.target.value;
@@ -5440,11 +5452,14 @@ function pieEvaluacion(ev) {
 // Posición con la que se hizo la encuesta de un jugador en una evaluación: la de sus registros (la más repetida);
 // la de la evaluación solo si los registros no la tienen (evaluaciones antiguas). Así una encuesta de laterales
 // subida a una evaluación antigua de centrales se ve con los criterios de lateral.
-// Si hay encuestas de varias posiciones, manda la posición asignada al jugador (Equipos/Jugadores) si es una de ellas.
+// Si hay encuestas de varias posiciones: la elegida a mano en su ficha (fichaPosPorEval[evaluación]);
+// si no, la posición asignada al jugador (Equipos/Jugadores) si es una de ellas; si no, la más repetida.
 function posicionDeRegistros(rs, ev, jugador = null) {
   const n = {};
   (rs || []).forEach(r => { if (r.posicionKey) n[r.posicionKey] = (n[r.posicionKey] || 0) + 1; });
   const claves = Object.keys(n).sort((a, b) => n[b] - n[a]);
+  const elegida = ev?.id ? jugador?.fichaPosPorEval?.[ev.id] : null;
+  if (claves.length > 1 && elegida && n[elegida]) return elegida;
   if (claves.length > 1 && jugador?.positionKey && n[jugador.positionKey]) return jugador.positionKey;
   return claves[0] || ev?.posicionKey || null;
 }
@@ -5457,8 +5472,9 @@ function avisoPosiciones(rs, posUsada) {
   const claves = Object.keys(n);
   if (claves.length < 2) return '';
   const detalle = claves.sort((a, b) => n[b] - n[a]).map(k => `${n[k]} como ${posLabel(k)}`).join(' · ');
-  return `⚠ Evaluado en varias posiciones (${detalle}). La ficha usa ${posLabel(posUsada)}: solo cuentan las competencias de esa posición.`;
+  return `⚠ Evaluado en varias posiciones (${detalle}). La ficha usa ${posLabel(posUsada)} (solo cuentan sus competencias); se puede cambiar en la ficha del jugador.`;
 }
+const posicionesConteo = rs => { const n = {}; (rs || []).forEach(r => { if (r.posicionKey) n[r.posicionKey] = (n[r.posicionKey] || 0) + 1; }); return n; };
 
 function prepararFichaJugador(p, regs, temporada, evalPreferida = null) { // evalPreferida: la elegida para todo el equipo
   const evInfo = eid => (regEvaluaciones || []).find(e => e.id === eid);
