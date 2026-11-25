@@ -32,6 +32,7 @@ import { buildCatalogo, slugify } from './ficha-espejo.js';
 import { quitarCabeceras, normalizarFechas, mapeoPorDefecto, columnasEfectivas, TEXTOS_DESTINOS, RP_DESTINOS, EXTRAS_DESTINOS } from './importar-plantilla.js';
 import { renderColumnasEncuesta } from './columnas-encuesta-ui.js';
 import { renderEvaluadores, tituloEvaluador, infoEvaluador } from './evaluadores-ui.js';
+import { ponerTildes } from './tildes.js';
 
 // ── EVITAR SALTO DE SCROLL AL RE-RENDERIZAR ───────
 // Reemplazar innerHTML de un panel entero resetea el scroll del navegador.
@@ -1818,6 +1819,7 @@ const PEND_CAMPOS = [
   { k: 'weight',     l: 'Peso', falta: p => p.weight == null || p.weight === '' },
   { k: 'fotoUrl',    l: 'Foto', falta: p => !p.fotoUrl },
 ];
+let pendTildesAbierto = false;
 let pendCampo = '';   // '' = cualquier dato; si no, solo los que les falte ese
 let pendEquipo = '';
 function renderPendientes(wrap) {
@@ -1828,7 +1830,26 @@ function renderPendientes(wrap) {
   const vacio = (p, k) => PEND_CAMPOS.find(c => c.k === k).falta(p) ? 'border-color:#f59e0b;background:#fffbeb;' : '';
   const inp = (p, k, tipo, extra, valor) => `<input class="input" type="${tipo}" ${extra} data-pend-k="${k}" data-pend-id="${p.id}" value="${safeText(valor ?? '')}" style="min-width:${tipo === 'date' ? 130 : 80}px;${vacio(p, k)}" />`;
   const sel = (p, k, opts) => `<select class="select" data-pend-k="${k}" data-pend-id="${p.id}" style="min-width:130px;${vacio(p, k)}"><option value="">—</option>${opts.map(([v, l]) => `<option value="${safeText(v)}" ${p[k] === v ? 'selected' : ''}>${safeText(l)}</option>`).join('')}</select>`;
+  // Tildes que faltan en nombre y apellidos (ADRIAN → ADRIÁN): se revisan y se aplican de una vez.
+  const tildes = [...state.players].map(p => ({ p, nombre: ponerTildes(p.nombre), apellidos: ponerTildes(p.apellidos) }))
+    .filter(x => x.nombre !== (x.p.nombre || '') || x.apellidos !== (x.p.apellidos || '')).sort((a, b) => ordenJugadores(a.p, b.p));
+  const tildesHTML = !tildes.length ? '' : `
+    <details id="pend-tildes" class="mb-16" ${pendTildesAbierto ? 'open' : ''} style="border:1px solid #fcd34d;background:#fffbeb;border-radius:10px;padding:10px 14px;">
+      <summary style="cursor:pointer;"><b>✍ ${tildes.length} jugador${tildes.length === 1 ? '' : 'es'} con nombres sin tilde</b> <span class="text-xs text-muted">(pulsa para revisar y ponerlas)</span></summary>
+      <div class="flex gap-8 mt-8 mb-8" style="align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-sm btn-primary" id="pend-tildes-ok">Poner tildes a los marcados</button>
+        <label class="text-xs"><input type="checkbox" id="pend-tildes-todos" checked /> Marcar todos</label>
+        <span class="text-xs text-muted">Desmarca los que no sean españoles (p. ej. un "Martin" extranjero).</span>
+      </div>
+      <div style="max-height:45vh;overflow:auto;background:#fff;border-radius:8px;"><table class="table table-compact">
+        <thead><tr><th></th><th>Ahora</th><th>Con tildes</th></tr></thead>
+        <tbody>${tildes.map(x => `<tr><td><input type="checkbox" data-tilde="${x.p.id}" checked /></td>
+          <td class="text-muted">${safeText(`${x.p.nombre || ''} ${x.p.apellidos || ''}`)}</td>
+          <td style="font-weight:700;">${safeText(`${x.nombre} ${x.apellidos}`)}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </details>`;
   wrap.innerHTML = `
+    ${tildesHTML}
     <div class="flex gap-8 mb-16" style="align-items:center;flex-wrap:wrap;">
       <label class="text-xs text-muted" for="pend-campo">Falta</label>
       <select class="select" id="pend-campo" style="width:auto;"><option value="">Cualquier dato</option>${PEND_CAMPOS.map(c => `<option value="${c.k}" ${pendCampo === c.k ? 'selected' : ''}>${safeText(c.l)} (${cuenta[c.k]})</option>`).join('')}</select>
@@ -1854,6 +1875,24 @@ function renderPendientes(wrap) {
     </table></div>`}`;
   const rerender = () => preservandoScroll(() => renderPendientes(wrap));
   wrap.querySelector('#pend-campo')?.addEventListener('change', e => { pendCampo = e.target.value; rerender(); });
+  wrap.querySelector('#pend-tildes')?.addEventListener('toggle', e => { pendTildesAbierto = e.target.open; });
+  wrap.querySelector('#pend-tildes-todos')?.addEventListener('change', e => wrap.querySelectorAll('[data-tilde]').forEach(c => { c.checked = e.target.checked; }));
+  wrap.querySelector('#pend-tildes-ok')?.addEventListener('click', async e => {
+    const ids = [...wrap.querySelectorAll('[data-tilde]:checked')].map(c => c.dataset.tilde);
+    if (!ids.length) { showError('No hay ninguno marcado.'); return; }
+    const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Guardando…';
+    let n = 0, fallos = 0;
+    for (const id of ids) {
+      const x = tildes.find(t => t.p.id === id); if (!x) continue;
+      try {
+        if (x.nombre !== (x.p.nombre || '')) await guardarCampoJugador(id, 'nombre', x.nombre);
+        if (x.apellidos !== (x.p.apellidos || '')) await guardarCampoJugador(id, 'apellidos', x.apellidos);
+        n++;
+      } catch (err) { console.error('[Tildes]', id, err); fallos++; }
+    }
+    fallos ? showError(`Tildes puestas en ${n}; ${fallos} no se pudieron guardar.`) : showSuccess(`Tildes puestas en ${n} jugador${n === 1 ? '' : 'es'}.`);
+    rerender();
+  });
   wrap.querySelector('#pend-equipo')?.addEventListener('change', e => { pendEquipo = e.target.value; rerender(); });
   wrap.querySelectorAll('[data-pend-k]').forEach(el => el.addEventListener('change', async () => {
     const id = el.dataset.pendId, k = el.dataset.pendK;
@@ -6817,10 +6856,33 @@ function setupEvents() {
     e.preventDefault();
     irAFicha(el.dataset.irFicha, { evalId: el.dataset.irEv || null, pestana: el.dataset.irPestana || 'datos' });
   });
+  // Números en celdas de tabla, centrados (en todas las tablas de la app, también las que se pintan después).
+  const RE_NUM = /^\s*(?:[-–—]|[-+]?\d+(?:[.,]\d+)?(?:\s?(?:kg|m|cm|%|años))?|\d+(?:\+\d+)+|\d+\s*\/\s*\d+)\s*$/i;
+  const centrarNumeros = () => document.querySelectorAll('table td:not([data-nchk])').forEach(td => {
+    td.dataset.nchk = '';
+    if (td.querySelector('input:not([type=number]),select,button,textarea,img,a')) return;
+    if (td.querySelector('input[type=number]') || RE_NUM.test(td.textContent)) td.style.textAlign = 'center';
+  }) || document.querySelectorAll('table:not([data-nthchk])').forEach(tb => {
+    // Título de la columna centrado si la mayoría de sus celdas con dato son números.
+    const filas = [...(tb.tBodies[0]?.rows || [])].filter(r => r.cells.length > 1).slice(0, 40);
+    const cab = tb.tHead?.rows[tb.tHead.rows.length - 1];
+    if (!filas.length || !cab) return;
+    tb.dataset.nthchk = '';
+    [...cab.cells].forEach((th, i) => {
+      if (th.style.textAlign) return;
+      const celdas = filas.map(r => r.cells[i]).filter(td => td && td.textContent.trim() && !/^[-–—]$/.test(td.textContent.trim()));
+      if (celdas.length && celdas.filter(td => td.style.textAlign === 'center').length / celdas.length >= 0.6) th.style.textAlign = 'center';
+    });
+  });
+  let numPend = false;
+  new MutationObserver(() => { if (numPend) return; numPend = true; requestAnimationFrame(() => { numPend = false; centrarNumeros(); }); })
+    .observe(document.body, { childList: true, subtree: true });
+  centrarNumeros();
   if (!document.getElementById('rm-nombres-css')) {
     const st = document.createElement('style'); st.id = 'rm-nombres-css';
     // Nombres de jugador: se pueden pulsar, pero sin subrayado.
-    st.textContent = `[data-ir-ficha],[data-reg-ficha],[data-pl-ir],a[data-jug-ficha]{text-decoration:none !important;border-bottom:none !important;cursor:pointer;}
+    st.textContent = `table td input[type=number]{text-align:center;}
+      [data-ir-ficha],[data-reg-ficha],[data-pl-ir],a[data-jug-ficha]{text-decoration:none !important;border-bottom:none !important;cursor:pointer;}
       [data-ir-ficha]:hover,[data-reg-ficha]:hover,[data-pl-ir]:hover,a[data-jug-ficha]:hover{color:var(--blue-600,#1d4ed8) !important;}`;
     document.head.appendChild(st);
   }
