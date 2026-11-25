@@ -611,7 +611,8 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
     blockColorsM[k] = v.length ? (scoreColor(v.reduce((a, b) => a + b, 0) / v.length, bands) || null) : null;
   });
 
-  const rpText = rp => (rp && rp[0] != null && rp[1] != null) ? `${formatNum(rp[0])}/${formatNum(rp[1])}` : null;
+  const uno = v => String(Math.round((Number(v) + Number.EPSILON) * 10) / 10).replace('.', ','); // en el círculo, 1 decimal
+  const rpText = rp => (rp && rp[0] != null && rp[1] != null) ? `${uno(rp[0])}/${uno(rp[1])}` : null;
   const rpTexts = {
     mental:      rpText(blocks.mental.rp),
     tecnico:     rpText(blocks.tecnico.rp),
