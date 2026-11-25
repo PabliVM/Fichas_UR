@@ -1834,7 +1834,7 @@ function renderPendientes(wrap) {
   const sel = (p, k, opts) => `<select class="select" data-pend-k="${k}" data-pend-id="${p.id}" style="min-width:130px;${vacio(p, k)}"><option value="">—</option>${opts.map(([v, l]) => `<option value="${safeText(v)}" ${p[k] === v ? 'selected' : ''}>${safeText(l)}</option>`).join('')}</select>`;
   // Tildes que faltan en nombre y apellidos (ADRIAN → ADRIÁN): se revisan y se aplican de una vez.
   const tildes = jugadoresSinTilde();
-  const tildesHTML = !tildes.length ? '' : `
+  const tildesHTML = !tildes.length ? `<div class="mb-16" style="border:1px solid #bbf7d0;background:#f0fdf4;color:#166534;border-radius:10px;padding:10px 14px;">✍ <b>Tildes:</b> todos los nombres y apellidos están bien escritos. Si entra alguno sin tilde (Excel, alta a mano…), aparecerá aquí para corregirlo.</div>` : `
     <details id="pend-tildes" class="mb-16" ${pendTildesAbierto ? 'open' : ''} style="border:1px solid #fcd34d;background:#fffbeb;border-radius:10px;padding:10px 14px;">
       <summary style="cursor:pointer;"><b>✍ ${tildes.length} jugador${tildes.length === 1 ? '' : 'es'} con nombres sin tilde</b> <span class="text-xs text-muted">(pulsa para revisar y ponerlas)</span></summary>
       <div class="flex gap-8 mt-8 mb-8" style="align-items:center;flex-wrap:wrap;">
