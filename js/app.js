@@ -6188,7 +6188,16 @@ function plLeyendaCirculo(order) {
     textos.push(`<text font-size="12.5" font-weight="800" fill="#111" font-family="system-ui,sans-serif"><textPath xlink:href="#plleg${u}${pos}" href="#plleg${u}${pos}" startOffset="50%" text-anchor="middle">${nombres[order[pos]] || ''}</textPath></text>`);
     return `<path d="M${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2} L${x3},${y3} A${r},${r} 0 0 0 ${x4},${y4} Z" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>`;
   }).join('');
-  return svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}"><defs>${defs.join('')}</defs>${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#94a3b8" stroke-width="1"/>${textos.join('')}</svg>`, R * 2, R * 2, 'position:absolute;right:60px;bottom:45px;'); // centro hueco: se ve el campo (como el hueco de la foto)
+  const aro = svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}"><defs>${defs.join('')}</defs>${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#94a3b8" stroke-width="1"/>${textos.join('')}</svg>`, R * 2, R * 2, 'position:absolute;left:0;top:34px;'); // centro hueco: se ve el campo (como el hueco de la foto)
+  // Igual que la tarjeta de cada jugador: círculos R y P arriba y los 3 perfiles a la derecha.
+  const k = R / 84, D = Math.round(58 * k), arriba = 34 + R - Math.round(101 * k);
+  const circ = (t, left) => `<div style="position:absolute;left:${left}px;top:${arriba}px;width:${D}px;height:${D}px;border-radius:50%;background:#ffffff;color:#0b2a6b;border:3px solid #0b2a6b;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:900 28px system-ui,sans-serif;">${t}</div>`;
+  const barra = t => `<div style="width:${Math.round(240 * k)}px;height:${Math.round(30 * k)}px;box-sizing:border-box;margin-bottom:${Math.round(4 * k)}px;background:#ffffff;color:#000;border:3px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font:400 ${Math.round(18 * k)}px system-ui,sans-serif;text-transform:uppercase;">${t}</div>`;
+  const ancho = R * 2 + Math.round(28 * k) + Math.round(240 * k);
+  return `<div style="position:absolute;right:40px;bottom:40px;width:${ancho}px;height:${34 + R * 2}px;">
+    ${aro}${circ('R', R - Math.round(101 * k))}${circ('P', R + Math.round(43 * k))}
+    <div style="position:absolute;left:${R * 2 + Math.round(28 * k)}px;top:${34 + R - Math.round(46 * k)}px;">${barra('Perfil 1')}${barra('Perfil 2')}${barra('Perfil 3')}</div>
+  </div>`;
 }
 
 // Mapa de nivel: izquierda = Madrid, derecha = Residencia y Media pensión.
