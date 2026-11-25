@@ -3818,6 +3818,8 @@ function renderPanelJugadores(container) {
       const filas2D = Array.isArray(origen) ? origen : await leerFilas(origen);
       if (!filas2D) { const fi = container.querySelector('#jug-import-file'); if (fi) fi.value = ''; return; } // pestaña: cancelado
       const { columnas, filas } = await leerTablaJugadores(filas2D, state.positions);
+      // Siempre con tildes: ADRIAN GARCIA → ADRIÁN GARCÍA (nombres y apellidos españoles conocidos).
+      filas.forEach(f => { if (f.data) { f.data.nombre = ponerTildes(f.data.nombre); f.data.apellidos = ponerTildes(f.data.apellidos); } });
       if (!filas.length) { showError('No hay jugadores con nombre en los datos.'); return; }
       // Columnas de datos condicionales en el mismo Excel (las que ya son un dato personal, p. ej. Edad madurativa, se quedan como dato personal).
       let condColumnas = [];
@@ -4188,8 +4190,8 @@ function renderPanelJugadores(container) {
       }
     }
     const baseData = {
-      nombre: container.querySelector('#jug-nombre').value.trim(),
-      apellidos: container.querySelector('#jug-apellidos').value.trim(),
+      nombre: ponerTildes(container.querySelector('#jug-nombre').value.trim()),
+      apellidos: ponerTildes(container.querySelector('#jug-apellidos').value.trim()),
       nombreDeportivo: container.querySelector('#jug-alias')?.value.trim() || null,
       birthDate: container.querySelector('#jug-birthdate').value || null,
       foot: container.querySelector('#jug-foot').value,
@@ -5447,7 +5449,7 @@ async function crearPlantillaDesdeLista(texto, teamKey, temporada, positionKey =
       res.existentes.push(linea.trim()); continue;
     }
     if (m.status === 'dudoso') { res.dudosos.push(`${linea.trim()} ≈ ${m.candidates.map(nombreCompleto).join(' / ')}`); continue; }
-    const data = { nombre: pj.nombre, apellidos: pj.apellidos, birthDate: null, foot: '', residencia: RESI_DEFECTO, maturationalAge: '', teamKey, positionKey: positionKey || null, weight: null, height: null, complexion: null };
+    const data = { nombre: ponerTildes(pj.nombre), apellidos: ponerTildes(pj.apellidos), birthDate: null, foot: '', residencia: RESI_DEFECTO, maturationalAge: '', teamKey, positionKey: positionKey || null, weight: null, height: null, complexion: null };
     const id = await addDocument('jugadores', data);
     setState({ players: [...state.players, { id, ...data }] });
     await añadirAPlantilla(id, teamKey, temporada);
