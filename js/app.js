@@ -3440,7 +3440,7 @@ function renderPanelJugadores(container) {
         <td><button type="button" data-jug-foto="${p.id}" title="${p.fotoUrl ? 'Cambiar foto' : 'Poner foto'} (pegar o elegir archivo)" style="width:36px;height:36px;border-radius:50%;padding:0;border:${p.fotoUrl ? 'none' : '1px dashed var(--border-emphasis)'};background:var(--bg-hover);cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:15px;">${p.fotoUrl ? `<img src="${p.fotoUrl}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;display:block;" />` : '📷'}</button></td>
         <td><a href="#" data-jug-ficha="${p.id}" style="font-weight:600;color:inherit;text-decoration:underline;cursor:pointer;">${safeText(p.nombre || '')}</a></td>
         <td><a href="#" data-jug-ficha="${p.id}" style="font-weight:600;color:inherit;text-decoration:underline;cursor:pointer;">${safeText(p.apellidos || '')}</a></td>
-        <td><input class="input" data-jug-alias="${p.id}" value="${safeText(p.nombreDeportivo || '')}" placeholder="—" title="Nombre deportivo: el que sale en las fichas. Se guarda al salir de la casilla." style="width:120px;padding:2px 6px;min-height:0;font-size:13px;" /></td>
+        <td><input class="input" data-jug-alias="${p.id}" value="${safeText(p.nombreDeportivo || '')}" placeholder="—" title="Nombre deportivo: el que sale en las fichas. Se guarda al salir de la casilla." style="width:100px;padding:2px 6px;min-height:0;font-size:13px;" /></td>
         <td>${year ?? '-'}</td>
         <td>${age ?? '-'}</td>
         <td>${aniosEnClub(p) ?? '-'}</td>
@@ -3490,6 +3490,7 @@ function renderPanelJugadores(container) {
         <div style="overflow-x:auto;">
           <style>
             .jug-lista td { padding-top:3px !important; padding-bottom:3px !important; }
+            .jug-lista th, .jug-lista td { white-space:nowrap; padding-right:18px; } /* cada columna, lo justo; el hueco sobrante va a la de los botones */
             .jug-lista td .btn-sm { padding-top:3px; padding-bottom:3px; min-height:0; }
             .jug-lista [data-jug-foto] { width:30px !important; height:30px !important; }
             .jug-lista [data-jug-foto] img { width:30px !important; height:30px !important; }
@@ -3498,7 +3499,7 @@ function renderPanelJugadores(container) {
             <thead>
               <tr>
                 <th></th><th>Nombre</th><th>Apellidos</th><th title="El que sale en las fichas y en la presentación">Nombre deportivo</th><th>Año</th><th>Edad</th><th>Años club</th>
-                <th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th>Residencia</th><th></th>
+                <th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th>Residencia</th><th style="width:100%;"></th>
               </tr>
             </thead>
             <tbody>${rows || `<tr><td colspan="13" class="text-muted">${state.players.length ? 'Ningún jugador coincide con los filtros.' : 'Sin jugadores todavía.'}</td></tr>`}</tbody>
