@@ -3535,9 +3535,10 @@ function renderPanelJugadores(container) {
             <button class="btn btn-sm" id="jug-tildes-revisar" title="Configuración › Datos pendientes: ver uno a uno y desmarcar los extranjeros">Revisar uno a uno</button>
           </div>`;
         })()}
-        <div class="jug-lista-wrap" style="overflow:auto;max-height:calc(100vh - 220px);border-radius:8px;">
+        <div class="jug-lista-wrap">
           <style>
-            .jug-lista thead th { position:sticky; top:0; z-index:3; background:var(--bg-surface, #fff); box-shadow:0 1px 0 var(--border-default); } /* cabecera fija al bajar */
+            /* Cabecera fija al bajar la página: justo debajo de la barra de filtros (--jug-th-top lo mide el JS). */
+            .jug-lista thead th { position:sticky; top:var(--jug-th-top, 0px); z-index:50; background:var(--bg-surface, #fff); box-shadow:0 1px 0 var(--border-default); }
             .jug-lista td { padding-top:3px !important; padding-bottom:3px !important; }
             .jug-lista th, .jug-lista td { white-space:nowrap; padding-right:18px; } /* cada columna, lo justo; el hueco sobrante va a la de los botones */
             .jug-lista td .btn-sm { padding-top:3px; padding-bottom:3px; min-height:0; }
@@ -3776,6 +3777,15 @@ function renderPanelJugadores(container) {
   }));
 
   container.querySelector('#jug-exportar')?.addEventListener('click', () => abrirExportarExcel());
+  // Altura de lo que ya está fijo arriba (cabecera, pestañas y barra de filtros): ahí se engancha la fila de títulos.
+  const medirTopLista = () => {
+    const w = container.querySelector('.jug-lista-wrap'); if (!w) return;
+    const f = container.querySelector('.rm-sticky');
+    const top = f ? (parseFloat(getComputedStyle(f).top) || 0) + f.getBoundingClientRect().height : 0;
+    w.style.setProperty('--jug-th-top', `${Math.round(top)}px`);
+  };
+  medirTopLista(); requestAnimationFrame(medirTopLista);
+  if (!window.__rmMedirLista) { window.__rmMedirLista = true; window.addEventListener('resize', () => document.querySelector('.tab-panel[data-tab="jugadores"] .jug-lista-wrap') && medirTopLista()); }
   container.querySelector('#jug-tildes-revisar')?.addEventListener('click', () => { configSubTab = 'pendientes'; pendTildesAbierto = true; switchTab('config'); });
   container.querySelector('#jug-tildes-todos')?.addEventListener('click', async e => {
     const lista = jugadoresSinTilde();
