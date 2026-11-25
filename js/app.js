@@ -3085,7 +3085,7 @@ function buildJugImportHTML() {
         <div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;">
           <span class="text-xs"><strong>Datos condicionales</strong> (${condCols.map(c => safeText(c.titulo)).join(', ')}) →</span>
           ${evs.length ? `<select class="select" id="jimp-eval" style="max-width:320px;min-height:30px;font-size:12px;">${evs.map(e => `<option value="${e.id}" ${e.id === jugImport.evalId ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>
-            <span class="text-xs text-muted">alevín/infantil: ✔ ▬ ✘; resto: números. Solo se rellenan los que falten en esa evaluación.</span>`
+            <span class="text-xs text-muted">alevín/infantil: ✔ ▬ ✘; resto: números. Celda vacía = no se toca; dato distinto = se actualiza en esa evaluación.</span>`
           : '<span class="text-xs" style="color:#f59e0b;">no hay evaluaciones: crea una en Evaluaciones para guardarlos (los demás datos sí se guardan).</span>'}
         </div>`;
   const resumenCond = f => {
