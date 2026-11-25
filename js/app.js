@@ -21,7 +21,7 @@ import { renderTabs, switchTab } from './render-tabs.js';
 import { preguntasDeCabecera, comprobarPorBloques } from './comprobar-columnas.js';
 import { renderFooter }  from './render-footer.js';
 import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS, PROFILES, CONDICIONAL_BASE, esEquipoBase } from './constants.js';
-import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore, loadPlayersFromFirestore } from './state.js';
+import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore, loadPlayersFromFirestore, FLUJO_ACTUAL } from './state.js';
 import { renderFichaDetalle, setGpsTolerance, condicionalScore, condicionalBaseScore, fitFichaToFrame, aplicarCirculoM } from './ficha-detalle.js';
 import { renderFichaPagina1 } from './ficha-pagina1.js';
 import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
@@ -4548,6 +4548,7 @@ function renderPanelConfig(container) {
         <p class="text-sm text-muted mb-16">
           Documentación interna — no aparece en las fichas de los jugadores. Se guarda igual que el resto de Configuración.
         </p>
+        <button class="btn btn-sm mb-8" id="flujo-actualizar" title="Sustituye el texto por la versión actualizada con todo lo que hace hoy la app">↻ Cargar texto actualizado</button>
         <textarea class="input" id="flujo-evaluaciones-text" rows="24" style="width:100%;min-height:70vh;font-family:var(--font-mono, monospace);font-size:13px;line-height:1.5;resize:vertical;overflow:hidden;">${safeText(state.flujoEvaluaciones)}</textarea>
       </div>
     </div>
@@ -4642,6 +4643,12 @@ function renderPanelConfig(container) {
     });
   });
 
+  container.querySelector('#flujo-actualizar')?.addEventListener('click', () => {
+    if (!confirm('¿Sustituir el texto por la versión actualizada? Lo que hayas escrito aquí se pierde.')) return;
+    setState({ flujoEvaluaciones: FLUJO_ACTUAL });
+    showSuccess('Texto actualizado.');
+    renderPanelConfig(container);
+  });
   const flujoTextarea = container.querySelector('#flujo-evaluaciones-text');
   if (flujoTextarea) {
     // Crece con el texto: se ve entero, sin barra de desplazamiento propia.
@@ -6854,3 +6861,34 @@ function registrarVista() {
 }
 
 document.addEventListener('DOMContentLoaded', boot);
+
+// ── Aviso de versión nueva: si se publica un cambio con la app abierta, sale un aviso para recargar ──
+(function vigilarVersion() {
+  let inicial = null, avisado = false;
+  const leer = async () => {
+    try {
+      const r = await fetch('/api/version', { cache: 'no-store' });
+      if (!r.ok) return null;
+      return (await r.json()).v || null;
+    } catch { return null; }
+  };
+  const avisar = () => {
+    if (avisado) return; avisado = true;
+    const b = document.createElement('div');
+    b.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9999;display:flex;gap:12px;align-items:center;background:#1d4ed8;color:#fff;padding:10px 16px;border-radius:12px;box-shadow:0 8px 24px rgba(15,23,42,.3);font:600 14px system-ui,sans-serif;';
+    b.innerHTML = '<span>🔄 Hay una versión nueva de la app</span><button type="button" style="border:0;border-radius:8px;padding:6px 12px;font-weight:800;cursor:pointer;">Recargar</button><button type="button" title="Más tarde" style="border:0;background:transparent;color:#fff;font-size:16px;cursor:pointer;">✕</button>';
+    const [recargar, cerrar] = b.querySelectorAll('button');
+    recargar.addEventListener('click', () => location.reload());
+    cerrar.addEventListener('click', () => b.remove());
+    document.body.appendChild(b);
+  };
+  const comprobar = async () => {
+    const v = await leer();
+    if (!v) return;
+    if (inicial == null) inicial = v;
+    else if (v !== inicial) avisar();
+  };
+  comprobar();
+  setInterval(comprobar, 3 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') comprobar(); });
+})();
