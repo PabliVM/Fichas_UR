@@ -6202,11 +6202,13 @@ function plLeyendaCirculo(order) {
   // Igual que la tarjeta de cada jugador: círculos R y P arriba y los 3 perfiles a la derecha.
   const k = R / 84, D = Math.round(58 * k), arriba = 34 + R - Math.round(101 * k);
   const circ = (t, left) => `<div style="position:absolute;left:${left}px;top:${arriba}px;width:${D}px;height:${D}px;border-radius:50%;background:#ffffff;color:#0b2a6b;border:3px solid #0b2a6b;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:900 28px system-ui,sans-serif;">${t}</div>`;
-  const barra = t => `<div style="width:${Math.round(240 * k)}px;height:${Math.round(30 * k)}px;box-sizing:border-box;margin-bottom:${Math.round(4 * k)}px;background:#ffffff;color:#000;border:3px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font:400 ${Math.round(18 * k)}px system-ui,sans-serif;text-transform:uppercase;">${t}</div>`;
-  const ancho = R * 2 + Math.round(28 * k) + Math.round(240 * k);
-  return `<div style="position:absolute;right:40px;bottom:40px;width:${ancho}px;height:${34 + R * 2}px;">
+  // Perfiles: misma letra que MENTAL/TÉCNICO… del aro (12,5 px, negrita 800, mayúsculas) y rectángulos pequeños.
+  const BW = 120, BH = 22;
+  const barra = t => `<div style="width:${BW}px;height:${BH}px;box-sizing:border-box;margin-bottom:4px;background:#ffffff;color:#111;border:2px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font:800 12.5px system-ui,sans-serif;text-transform:uppercase;">${t}</div>`;
+  const ancho = R * 2 + 14 + BW;
+  return `<div style="position:absolute;right:18px;bottom:14px;width:${ancho}px;height:${34 + R * 2}px;">
     ${aro}${circ('R', R - Math.round(101 * k))}${circ('P', R + Math.round(43 * k))}
-    <div style="position:absolute;left:${R * 2 + Math.round(28 * k)}px;top:${34 + R - Math.round(46 * k)}px;">${barra('Perfil 1')}${barra('Perfil 2')}${barra('Perfil 3')}</div>
+    <div style="position:absolute;left:${R * 2 + 14}px;top:${34 + R - Math.round((BH * 3 + 8) / 2)}px;">${barra('Perfil 1')}${barra('Perfil 2')}${barra('Perfil 3')}</div>
   </div>`;
 }
 
