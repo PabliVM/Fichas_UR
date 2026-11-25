@@ -10,6 +10,71 @@ import { saveDocument, updateDocument, readDocument, readCollection } from './fi
 import { isFirebaseUnconfigured } from './firebase-config.js';
 import { showError } from './utils.js';
 
+// Texto por defecto de Configuración › Cómo funciona (botón "Cargar texto actualizado").
+export const FLUJO_ACTUAL = `CÓMO FUNCIONA RM PERFILES (noviembre 2026)
+
+1. JUGADORES
+   - Alta uno a uno (+ Añadir › Un jugador) o en bloque (+ Añadir › Varios /
+     actualizar datos): un solo Excel con datos personales, años en el club y
+     datos condicionales de una evaluación. Celda vacía = no se toca; dato
+     distinto = se actualiza. También desde una foto o texto pegado (IA).
+   - Residencia: Madrid (por defecto), Residencia o Media pensión.
+   - Años en el club: número o por etapas (2+3); cada temporada suma uno sola.
+   - Configuración › Datos pendientes: jugadores a los que les falta algún dato,
+     editables desde ahí mismo.
+
+2. EQUIPOS
+   - Plantilla por temporada. Arrastrar un jugador a otra posición u otro
+     equipo → Mover o Duplicar. "Datos" edita los datos de todo el equipo.
+   - "Presentación de fichas": portadas, mapa de nivel (izq. Madrid, dcha.
+     Residencia y Media pensión), campograma y Ficha 1 + 2 de cada jugador,
+     agrupadas por posición. ⚙ Opciones: comparar medias (equipo, posición o
+     misma generación y posición de todos los equipos), notas M sí/no,
+     observaciones, notas en portadas. PDF del equipo.
+
+3. EVALUACIONES
+   - Una evaluación es un periodo (p. ej. Noviembre 2026) para TODAS las
+     posiciones.
+   - Importar encuesta: se elige la pestaña del Excel; la posición sale del
+     nombre de la pestaña (o se elige). Las columnas se colocan según
+     Configuración › Columnas de la encuesta de esa posición (la referencia).
+     Aviso si alguna columna no cuadra con su pregunta.
+   - Encuestas ya importadas con notas distintas: se elige Mantener o Reemplazar.
+   - Ver registros: tabla por posición, filtros por jugador, equipo y posición.
+     Editar una nota o borrar un registro desde la tabla.
+   - Jugador evaluado en varias posiciones: aviso; en su ficha (o en la
+     presentación) "Ficha como": una posición, otra o las dos (ficha duplicada).
+
+4. FICHAS
+   - Medias: por competencia (media de los evaluadores), por bloque (Mental,
+     Técnico, Táctico) y por perfil.
+   - Ficha 1: descripción (✨ la IA propone una), competencias ofensivas y
+     defensivas, aspectos a potenciar/mejorar, campograma con hasta 3
+     camisetas (se guardan). Textos editables: se guardan por evaluación y se
+     ven igual en la ficha y en la presentación.
+   - Ficha 2: notas por bloque, columna M (metodología): se escribe a mano o
+     se pulsa la M para rellenar los huecos con la media. Si hay notas M, los
+     círculos se pintan con ellas; si no, con las de la encuesta.
+     Condicional: columnas 1 y 2 = datos del jugador (media y máxima);
+     3 y 4 = referencias de Configuración › Datos condicionales.
+
+5. CONFIGURACIÓN
+   - Encuesta y criterios: posiciones, aspectos por posición (✎ renombrar,
+     ↑↓ ordenar), columnas de la encuesta (↑↓), datos condicionales,
+     evaluadores (nombre, rol, 2 equipos, unificar), frases modelo.
+   - Fichas: ficha tipo, colores, rango de colores, matriz.
+   - Datos y ayuda: datos pendientes, copia de seguridad, este texto.
+
+6. SUPER ADMIN
+   - Usuarios y permisos (Oculta / Ver / Editar por pantalla), acceso solo
+     desde la red del club y horario, registro de actividad, conservación
+     de datos.
+
+Recorrido del dato:
+Configuración → Excel de la encuesta → Registros → Medias (+ notas M) →
+Ficha 1 y 2 → Presentación del equipo / PDF
+`;
+
 function initialTab() {
   const hash = window.location.hash.replace('#', '');
   if (TABS.some(t => t.key === hash)) return hash;
@@ -110,30 +175,9 @@ const _state = {
   evaluadores: {},
   // Texto libre editable en Configuración → Ayuda → Flujo de evaluaciones.
   // Documentación interna (no aparece en las fichas de los jugadores).
-  flujoEvaluaciones: `FLUJO DE EVALUACIONES (estado actual)
-
-1. Configuración define, por posición: Aspectos comunes (Mental/Técnico/
-   Condicional, iguales para todas), Táctico (varía por posición),
-   Competencias ofensivas/defensivas (subconjunto de Táctico), Perfiles
-   (3 por posición, cada uno con su subconjunto de Táctico para la media),
-   rango de colores y datos condicionales de referencia.
-
-2. Con eso se generan las plantillas (Ficha 1 y Ficha 2) por posición —
-   lo que se ve hoy en Configuración → Fichas tipo → Individual, con
-   datos de ejemplo.
-
-3. PENDIENTE (no implementado todavía):
-   - Encuesta/formulario real para evaluar a un jugador concreto.
-   - Guardar esas notas en Firestore (colección jugadores).
-   - Calcular las medias: por bloque (Mental/Técnico/Condicional/Táctico,
-     para el círculo y el radar de Ficha 2) y por perfil (Ficha 1, usando
-     las competencias marcadas en Configuración → Perfiles).
-   - Autenticación (Firebase Auth).
-
-Recorrido del dato cuando esté completo:
-Configuración → Encuesta del jugador → Notas guardadas → Medias → Ficha 1/2 real
-`,
+  flujoEvaluaciones: FLUJO_ACTUAL,
 };
+
 
 export const state = _state;
 
