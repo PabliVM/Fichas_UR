@@ -3258,6 +3258,131 @@ function buildCondImportHTML() {
 
 // Jugadores del listado con los filtros puestos. Orden: alfabético por nombre (y apellidos); con filtro de equipo,
 // primero por posición (portero → delantero) y luego alfabético.
+// ── Exportar a Excel a medida: qué jugadores (listado, todos o un equipo) y qué datos ──
+const EXP_LS = 'rm-exportar';
+async function abrirExportarExcel() {
+  await cargarEvaluacionesSilencioso();
+  let pref = {}; try { pref = JSON.parse(localStorage.getItem(EXP_LS) || '{}'); } catch {}
+  const evs = [...(regEvaluaciones || [])].sort((a, b) => String(b.fechaInicio || '').localeCompare(String(a.fechaInicio || '')));
+  const listado = jugadoresListado();
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.45);display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px;overflow:auto;';
+  const chk = (k, l, d, def) => `<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;cursor:pointer;"><input type="checkbox" data-exp="${k}" ${(pref[k] ?? def) ? 'checked' : ''} /><span><b>${l}</b><br><span class="text-xs text-muted">${d}</span></span></label>`;
+  ov.innerHTML = `
+    <div class="card" style="margin:0;width:100%;max-width:560px;">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">⬇ Exportar a Excel <button class="btn btn-sm btn-ghost" data-exp-cerrar>✕</button></div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
+        <div>
+          <div class="label">Jugadores</div>
+          <label style="display:flex;gap:8px;align-items:center;padding:3px 0;"><input type="radio" name="exp-quien" value="listado" ${(pref.quien || 'listado') === 'listado' ? 'checked' : ''} /> Los del listado, con los filtros puestos (${listado.length})</label>
+          <label style="display:flex;gap:8px;align-items:center;padding:3px 0;"><input type="radio" name="exp-quien" value="todos" ${pref.quien === 'todos' ? 'checked' : ''} /> Todos (${state.players.length})</label>
+          <label style="display:flex;gap:8px;align-items:center;padding:3px 0;"><input type="radio" name="exp-quien" value="equipo" ${pref.quien === 'equipo' ? 'checked' : ''} /> Un equipo:
+            <select class="select" id="exp-equipo" style="width:auto;">${TEAMS.map(t => `<option value="${t.key}" ${pref.equipo === t.key ? 'selected' : ''}>${safeText(t.label)} (${state.players.filter(p => p.teamKey === t.key).length})</option>`).join('')}</select></label>
+        </div>
+        <div>
+          <div class="label">Datos</div>
+          ${chk('personales', 'Datos personales', 'Nombre, apellidos, nacimiento, equipo, posición, lateralidad, residencia, años en el club, peso, altura…', true)}
+          ${chk('condicional', 'Datos condicionales', 'Media y máxima de cada ítem (alevín/infantil: ✔ ▬ ✘) de la evaluación elegida.', false)}
+          ${chk('medias', 'Medias de la encuesta', 'Posición evaluada, nº de evaluadores, Mental, Técnico, Táctico, media general, R y P.', false)}
+          ${chk('competencias', 'Nota de cada competencia', 'Media de los evaluadores en cada ítem (una columna por ítem).', false)}
+          ${chk('m', 'Notas M (metodología)', 'Las notas M puestas en la Ficha 2.', false)}
+        </div>
+        <div class="field-group" id="exp-eval-box">
+          <label class="label" for="exp-eval">Evaluación (para condicionales, medias y M)</label>
+          <select class="select" id="exp-eval">${evs.map(e => `<option value="${e.id}" ${(pref.eval || evalPorDefecto()) === e.id ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('') || '<option value="">(no hay evaluaciones)</option>'}</select>
+        </div>
+        <div class="flex gap-8" style="justify-content:flex-end;">
+          <button class="btn btn-ghost" data-exp-cerrar>Cancelar</button>
+          <button class="btn btn-primary" id="exp-descargar">⬇ Descargar Excel</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const cerrar = () => ov.remove();
+  ov.querySelectorAll('[data-exp-cerrar]').forEach(b => b.addEventListener('click', cerrar));
+  ov.addEventListener('click', e => { if (e.target === ov) cerrar(); });
+  ov.querySelector('#exp-equipo').addEventListener('change', () => { ov.querySelector('input[name="exp-quien"][value="equipo"]').checked = true; });
+  ov.querySelector('#exp-descargar').addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    const quien = ov.querySelector('input[name="exp-quien"]:checked')?.value || 'listado';
+    const equipo = ov.querySelector('#exp-equipo').value, evalId = ov.querySelector('#exp-eval').value;
+    const q = Object.fromEntries([...ov.querySelectorAll('[data-exp]')].map(c => [c.dataset.exp, c.checked]));
+    try { localStorage.setItem(EXP_LS, JSON.stringify({ ...q, quien, equipo, eval: evalId })); } catch {}
+    if (!Object.values(q).some(Boolean)) { showError('Marca al menos un tipo de dato.'); return; }
+    const jugs = quien === 'todos' ? [...state.players].sort((a, b) => (TEAMS.findIndex(t => t.key === a.teamKey) - TEAMS.findIndex(t => t.key === b.teamKey)) || ordenJugadores(a, b))
+      : quien === 'equipo' ? state.players.filter(p => p.teamKey === equipo).sort((a, b) => rangoPosicion(a.positionKey) - rangoPosicion(b.positionKey) || ordenJugadores(a, b))
+      : listado;
+    if (!jugs.length) { showError('No hay jugadores con esa selección.'); return; }
+    btn.disabled = true; btn.textContent = 'Preparando…';
+    try {
+      const filas = await filasExportar(jugs, q, evalId);
+      const ev = evs.find(x => x.id === evalId);
+      const quienTxt = quien === 'equipo' ? (TEAMS.find(t => t.key === equipo)?.label || equipo) : quien === 'todos' ? 'todos' : 'listado';
+      const nombre = `jugadores-${quienTxt}${(q.condicional || q.medias || q.competencias || q.m) && ev ? `-${ev.nombre}` : ''}-${new Date().toISOString().slice(0, 10)}`
+        .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-');
+      descargarPlantilla(`${nombre}.xlsx`, filas);
+      showSuccess(`Excel con ${jugs.length} jugadores.`);
+      cerrar();
+    } catch (err) { console.error('[Exportar]', err); showError('No se pudo preparar el Excel.'); btn.disabled = false; btn.textContent = '⬇ Descargar Excel'; }
+  });
+}
+
+async function filasExportar(jugs, q, evalId) {
+  const r2 = v => (typeof v === 'number' && !Number.isNaN(v) ? Math.round((v + Number.EPSILON) * 100) / 100 : (v ?? ''));
+  const ev = (regEvaluaciones || []).find(e => e.id === evalId);
+  // Encuestas de la evaluación (solo si hacen falta medias o competencias).
+  const porJug = {};
+  if ((q.medias || q.competencias) && evalId && !isFirebaseUnconfigured()) {
+    (await queryRegistros({ evaluacionId: evalId })).forEach(r => { if (r.jugadorId) (porJug[r.jugadorId] = porJug[r.jugadorId] || []).push(r); });
+  }
+  const mediaDe = {};
+  jugs.forEach(j => {
+    const rs = porJug[j.id]; if (!rs?.length) return;
+    const pos = posicionDeRegistros(rs, ev, j);
+    const media = calcularMediasPorJugador(rs, buildAspectoPorCompetencia(state, pos))[j.id];
+    const rp = k => { const v = rs.map(r => r.rp?.[k]).filter(x => typeof x === 'number'); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+    mediaDe[j.id] = { pos, media, n: new Set(rs.map(r => r.evaluador)).size, r: rp('r'), p: rp('p') };
+  });
+  const cab = [], celdas = [];
+  const col = (titulo, f) => { cab.push(titulo); celdas.push(f); };
+  if (q.personales) {
+    col('Nombre', j => j.nombre || ''); col('Apellidos', j => j.apellidos || '');
+    col('Fecha de nacimiento', j => j.birthDate ? j.birthDate.split('-').reverse().join('/') : '');
+    col('Año', j => calcAgeAndYear(j.birthDate).year || '');
+    col('Equipo', j => TEAMS.find(x => x.key === j.teamKey)?.label || '');
+    col('Posición', j => state.positions.find(x => x.key === j.positionKey)?.label || '');
+    col('Lateralidad', j => j.foot || ''); col('Residencia', j => residenciaDe(j));
+    col('Años en el club', j => aniosEnClub(j) ?? ''); col('Peso', j => r2(j.weight)); col('Altura', j => r2(j.height));
+    col('Complexión', j => j.complexion || ''); col('Edad madurativa', j => j.maturationalAge || '');
+  } else {
+    col('Jugador', j => nombreCompleto(j)); col('Equipo', j => TEAMS.find(x => x.key === j.teamKey)?.label || '');
+  }
+  if (q.condicional && evalId) {
+    const items = state.aspectosComunes.condicional || [];
+    items.forEach(i => col(i, j => r2(j.condicionalPorEval?.[evalId]?.[slugify(i)])));
+    items.forEach(i => col(`${i} máx`, j => r2(j.condicionalMaxPorEval?.[evalId]?.[slugify(i)])));
+    CONDICIONAL_BASE.forEach(b => col(`${b} (✔▬✘)`, j => esEquipoBase(j.teamKey) ? (SIMBOLO_TXT[j.condicionalBasePorEval?.[evalId]?.[slugify(b)]] || '') : ''));
+  }
+  if (q.medias) {
+    col('Posición evaluada', j => nombrePos(mediaDe[j.id]?.pos || '') || '');
+    col('Nº evaluadores', j => mediaDe[j.id]?.n ?? '');
+    ['mental', 'tecnico', 'tactico'].forEach(a => col({ mental: 'Mental', tecnico: 'Técnico', tactico: 'Táctico' }[a], j => r2(mediaDe[j.id]?.media?.porAspecto?.[a])));
+    col('Media general', j => r2(mediaGeneralDe(mediaDe[j.id]?.media)));
+    col('R (rendimiento)', j => r2(mediaDe[j.id]?.r)); col('P (proyección)', j => r2(mediaDe[j.id]?.p));
+  }
+  if (q.competencias) {
+    // Columnas: las competencias que tenga alguno de los exportados (Mental, luego Técnico y Táctico de cada posición).
+    const orden = [...(state.aspectosComunes.mental || []), ...state.positions.flatMap(p => [...(state.criteriaSchemas[p.key]?.tecnico || state.aspectosComunes.tecnico || []), ...(state.criteriaSchemas[p.key]?.tactico || [])])];
+    const hay = new Set(jugs.flatMap(j => Object.keys(mediaDe[j.id]?.media?.porCompetencia || {})));
+    [...new Set(orden)].filter(c => hay.has(c)).forEach(c => col(c, j => r2(mediaDe[j.id]?.media?.porCompetencia?.[c])));
+  }
+  if (q.m && evalId) {
+    const claves = [...new Set(jugs.flatMap(j => Object.keys(j.fichaNotasManuales?.[evalId] || {})))];
+    claves.forEach(k => col(`M · ${k.split('|')[1] || k}`, j => r2(j.fichaNotasManuales?.[evalId]?.[k])));
+  }
+  return [cab, ...jugs.map(j => celdas.map(f => f(j)))];
+}
+
 function jugadoresListado() {
   return state.players.filter(jugadorPasaFiltros)
     .sort((a, b) => (jugFiltros.teamKey ? rangoPosicion(a.positionKey) - rangoPosicion(b.positionKey) : 0) || ordenPorNombre(a, b));
@@ -3337,6 +3462,7 @@ function renderPanelJugadores(container) {
               <button class="btn btn-ghost" id="jug-import" style="justify-content:flex-start;text-align:left;flex-direction:column;align-items:flex-start;"><b>Varios / actualizar datos</b><span class="text-xs text-muted">Excel, texto pegado o foto</span></button>
             </div>
           </details>
+          <button class="btn" id="jug-exportar" title="Elige qué jugadores y qué datos">⬇ Exportar a Excel</button>
         </div>`}
         <div style="overflow-x:auto;">
           <style>
@@ -3580,6 +3706,7 @@ function renderPanelJugadores(container) {
     });
   }));
 
+  container.querySelector('#jug-exportar')?.addEventListener('click', () => abrirExportarExcel());
   container.querySelector('#jug-add')?.addEventListener('click', async () => {
     await cargarEvaluacionesSilencioso();
     jugadorFormId = 'new';
