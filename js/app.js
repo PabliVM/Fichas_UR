@@ -136,7 +136,8 @@ let regImport        = null;  // estado del wizard de importación (ver resetReg
 let regHuerfanos     = null;  // { res: {registros, mediasPorJugador} } registros cuya evaluación ya no existe
 let regVerEquipo     = '';    // filtro de equipo en "Ver registros" ('' = todos)
 let regVerPos        = '';    // filtro de posición (de la encuesta) en "Ver registros"
-let regVerJugador    = '';    // búsqueda de jugador en "Ver registros"
+let regVerJugador    = '';
+let regVerAvisoAbierto = false; // aviso "varias posiciones" en Ver registros: contraído por defecto    // búsqueda de jugador en "Ver registros"
 let regVer           = null;  // { evId, res: { registros, mediasPorJugador } | null } registros desplegados en una tarjeta
 
 let bbddFiltros  = { temporada: '', evaluacionId: '', jugadorId: '', posicionKey: '', evaluador: '', vista: 'individuales' };
@@ -504,7 +505,7 @@ function buildEvaluacionesListHTML() {
           const posPorJug = {};
           r.registros.forEach(x => { if (x.jugadorId && x.posicionKey) (posPorJug[x.jugadorId] = posPorJug[x.jugadorId] || new Set()).add(x.posicionKey); });
           const varias = Object.entries(posPorJug).filter(([, set]) => set.size > 1);
-          const avisoVarias = varias.length ? `<div class="mt-8" style="background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:8px;padding:8px 12px;font-size:13px;">⚠ <b>${varias.length} jugador${varias.length === 1 ? '' : 'es'} evaluado${varias.length === 1 ? '' : 's'} en varias posiciones:</b> ${varias.map(([jid, set]) => `<a href="#" data-reg-ficha="${jid}" data-reg-ficha-ev="${safeText(ev.id)}" title="Abrir su ficha para elegir la posición" style="color:inherit;font-weight:700;">${safeText(label(jid))}</a> (${[...set].map(k => safeText(nombrePos(k))).join(' / ')})`).join(' · ')}.<br>Por defecto manda la posición asignada al jugador (si es una de esas; si no, la más repetida). <b>Para elegir otra:</b> pulsa su nombre › en su ficha, «Ficha como».</div>` : '';
+          const avisoVarias = varias.length ? `<details id="reg-ver-aviso" class="mt-8" ${regVerAvisoAbierto ? 'open' : ''} style="background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:8px;padding:8px 12px;font-size:13px;"><summary style="cursor:pointer;">⚠ <b>${varias.length} jugador${varias.length === 1 ? '' : 'es'} evaluado${varias.length === 1 ? '' : 's'} en varias posiciones</b> <span class="text-xs">(pulsa para ver quiénes)</span></summary><div style="margin-top:6px;">${varias.map(([jid, set]) => `<a href="#" data-reg-ficha="${jid}" data-reg-ficha-ev="${safeText(ev.id)}" title="Abrir su ficha para elegir la posición" style="color:inherit;font-weight:700;">${safeText(label(jid))}</a> (${[...set].map(k => safeText(nombrePos(k))).join(' / ')})`).join(' · ')}.<br>Por defecto manda la posición asignada al jugador (si es una de esas; si no, la más repetida). <b>Para elegir otra:</b> pulsa su nombre › en su ficha, «Ficha como».</div></details>` : '';
           const filtro = `<div class="flex gap-8 mt-8" style="align-items:center;flex-wrap:wrap;">
             <input class="input" type="search" id="reg-ver-jugador" value="${safeText(regVerJugador)}" placeholder="🔎 Buscar jugador" style="width:220px;" />
             <label class="text-xs text-muted" for="reg-ver-equipo">Equipo</label>
@@ -943,6 +944,7 @@ function renderRegistroSub(container) {
     renderRegistroSub(container);
   });
   container.querySelector('#reg-ver-equipo')?.addEventListener('change', e => { regVerEquipo = e.target.value; preservandoScroll(() => renderRegistroSub(container)); });
+  container.querySelector('#reg-ver-aviso')?.addEventListener('toggle', e => { regVerAvisoAbierto = e.target.open; });
   container.querySelector('#reg-ver-pos')?.addEventListener('change', e => { regVerPos = e.target.value; preservandoScroll(() => renderRegistroSub(container)); });
   container.querySelector('#reg-ver-jugador')?.addEventListener('input', e => {
     regVerJugador = e.target.value;
