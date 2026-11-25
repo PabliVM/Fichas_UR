@@ -6154,10 +6154,11 @@ function plCardJugador(j, f1, x, y, escala) {
     return `<div style="width:${k(240)}px;height:${k(30)}px;box-sizing:border-box;margin-bottom:${k(4)}px;background:${bg};color:#000;border:${k(3)}px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;font-weight:400;font-size:${k(18)}px;text-transform:uppercase;white-space:nowrap;overflow:hidden;">${safeText(b.label)}</div>`;
   }).join('');
   const apellido = rotuloCorto(j);
+  const resiCol = PL_RESI[residenciaDe(j)] || PL_RESI[RESI_DEFECTO]; // el nombre, con el color de su residencia (como en el mapa de nivel)
   return `<div class="pl-card" data-jid="${j.id}" style="position:absolute;left:${x / 100 * PL_W}px;top:${y / 100 * PL_H}px;width:0;height:0;cursor:grab;touch-action:none;" title="Arrastra para mover · doble clic para quitar">
     ${svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}">${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${foto}</svg>`, R * 2, R * 2, `position:absolute;left:${-R}px;top:${-R}px;pointer-events:none;`).replace('<img ', '<img class="pl-donut" ')}
     ${circ(nota(f1.player?.rValue), -k(84 + 17))}${circ(nota(f1.player?.pValue), k(84 - 41))}
-    <div style="position:absolute;left:${-k(90)}px;width:${k(180)}px;top:${R + k(6)}px;text-align:center;"><span style="display:inline-block;background:#d4a63a;color:#111;font-family:system-ui,sans-serif;font-weight:800;font-size:${k(20)}px;padding:${k(3)}px ${k(16)}px;border-radius:20px;white-space:nowrap;">${safeText(apellido)}</span></div>
+    <div style="position:absolute;left:${-k(90)}px;width:${k(180)}px;top:${R + k(6)}px;text-align:center;"><span style="display:inline-block;background:${resiCol.bg};color:${resiCol.fg};font-family:system-ui,sans-serif;font-weight:800;font-size:${k(20)}px;padding:${k(3)}px ${k(16)}px;border-radius:20px;white-space:nowrap;">${safeText(apellido)}</span></div>
     <div style="position:absolute;left:${R + k(28)}px;top:${-k(46)}px;">${barras}</div>
   </div>`;
 }
