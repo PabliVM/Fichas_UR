@@ -1407,7 +1407,7 @@ function buildBBDDResultadosHTML() {
     const posKeys = [...new Set(registros.map(r => r.posicionKey))];
     if (posKeys.length === 1) return buildTablaEncuestaHTML(registros, posKeys[0], jugadorLabel);
     const rows = registros.map(r => `
-      <tr><td>${safeText(jugadorLabel(r.jugadorId))}</td><td>${safeText(r.evaluador)}</td><td>${Object.keys(r.puntuaciones || {}).length} valores</td></tr>
+      <tr><td ${r.jugadorId ? `data-ir-ficha="${r.jugadorId}" data-ir-ev="${safeText(r.evaluacionId || '')}" data-ir-pestana="fichas"` : ''}>${safeText(jugadorLabel(r.jugadorId))}</td><td>${safeText(r.evaluador)}</td><td>${Object.keys(r.puntuaciones || {}).length} valores</td></tr>
     `).join('');
     return `<p class="text-xs text-muted mb-8">Filtra por una posición (o una evaluación) para ver la tabla con las columnas de la encuesta, editable.</p><table class="table table-compact"><thead><tr><th>Jugador</th><th>Evaluador</th><th>Datos</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
@@ -1425,7 +1425,7 @@ function buildBBDDResultadosHTML() {
     ` : '';
     return `
       <tr style="font-weight:700;background:var(--bg-hover);">
-        <td>${safeText(jugadorLabel(jugadorId))}</td><td>MEDIA</td><td>${general != null ? fmtDec(general) : '-'}</td>
+        <td ${jugadorId ? `data-ir-ficha="${jugadorId}" data-ir-pestana="fichas"` : ''}>${safeText(jugadorLabel(jugadorId))}</td><td>MEDIA</td><td>${general != null ? fmtDec(general) : '-'}</td>
         <td>${jugadorId ? `<button class="btn btn-sm" data-ver-ficha="${jugadorId}">Ver ficha</button>` : ''}</td>
       </tr>
       ${detalle}
@@ -1485,13 +1485,9 @@ function buildBBDDPanelHTML() {
 /** Edición de notas y 🗑 de la Tabla de la encuesta. res() = { registros, mediasPorJugador } que se muestra. */
 function wireRegistrosTabla(container, res, rerender) {
   // Nombre del jugador → su ficha (de esa evaluación); «← Volver a Evaluaciones» devuelve aquí mismo.
-  container.querySelectorAll('[data-reg-ficha]').forEach(a => a.addEventListener('click', async e => {
+  container.querySelectorAll('[data-reg-ficha]').forEach(a => a.addEventListener('click', e => {
     e.preventDefault();
-    await cargarEvaluacionesSilencioso();
-    jugFichaId = a.dataset.regFicha; jugadorFormId = null; jugFichaTab = 'fichas';
-    jugFichaEvalId = a.dataset.regFichaEv || null;
-    jugVolverA = 'registro'; jugVolverScroll = window.scrollY;
-    switchTab('jugadores');
+    irAFicha(a.dataset.regFicha, { evalId: a.dataset.regFichaEv || null, pestana: 'fichas' });
   }));
   // Columnas fijas (🗑, Fecha, Evaluador, Jugador): su "left" medido de verdad, sin huecos por donde se vea lo que pasa por detrás.
   container.querySelectorAll('table.bt').forEach(tabla => {
@@ -1844,7 +1840,7 @@ function renderPendientes(wrap) {
     <div style="overflow-x:auto;"><table class="table table-compact">
       <thead><tr><th>Jugador</th><th>Falta</th><th>F. nacimiento</th><th>Años club</th><th>Equipo</th><th>Posición</th><th>Lateralidad</th><th>Altura (m)</th><th>Peso (kg)</th><th></th></tr></thead>
       <tbody>${jugs.map(p => `<tr>
-        <td style="font-weight:700;white-space:nowrap;">${safeText(nombreCompleto(p))}</td>
+        <td style="font-weight:700;white-space:nowrap;" data-ir-ficha="${p.id}" title="Abrir su ficha">${safeText(nombreCompleto(p))}</td>
         <td class="text-xs" style="color:#b45309;">${faltan(p).map(c => safeText(c.l)).join(', ')}</td>
         <td>${inp(p, 'birthDate', 'date', '', p.birthDate)}</td>
         <td>${inp(p, 'aniosClub', 'text', 'placeholder="3 o 2+3"', aniosEnClub(p))}</td>
@@ -1880,8 +1876,7 @@ function renderPendientes(wrap) {
   }));
   wrap.querySelectorAll('[data-pend-ficha]').forEach(btn => btn.addEventListener('click', () => {
     const p = state.players.find(x => x.id === btn.dataset.pendFicha);
-    if (p && !p.fotoUrl) { jugFichaId = null; jugadorFormId = p.id; } else { jugFichaId = btn.dataset.pendFicha; jugadorFormId = null; jugFichaTab = 'datos'; }
-    switchTab('jugadores');
+    if (p && !p.fotoUrl) { jugFichaId = null; jugadorFormId = p.id; switchTab('jugadores'); } else irAFicha(btn.dataset.pendFicha);
   }));
 }
 
@@ -2546,6 +2541,27 @@ function buildHistoricoHTML(entries) {
 let jugFiltros = { q: '', teamKey: '', positionKey: '', year: '', foot: '', resi: '' };
 let jugVolverA = null;             // 'plantillas' | 'registro': pestaña desde la que se abrió la ficha (botón Volver)
 let jugVolverScroll = 0;           // posición de la página al salir, para volver al mismo sitio
+
+// Ir a la ficha de un jugador desde cualquier sitio; «← Volver» devuelve a la pestaña (y al punto) de donde se vino.
+// Cualquier elemento con data-ir-ficha="<id>" (y opcional data-ir-ev="<evaluación>") lo hace solo (ver setupEvents).
+async function irAFicha(id, { evalId = null, pestana = 'datos' } = {}) {
+  if (!id || !state.players.some(p => p.id === id)) return;
+  await cargarEvaluacionesSilencioso();
+  const desde = state.activeTab;
+  if (desde !== 'jugadores') { jugVolverA = desde; jugVolverScroll = window.scrollY; }
+  else if (!jugFichaId) { jugVolverA = null; jugVolverScroll = window.scrollY; } // desde la lista: vuelve a la lista
+  jugFichaId = id; jugadorFormId = null; jugFichaTab = pestana; jugFichaEvalId = evalId || null;
+  if (desde === 'jugadores') { const panel = document.querySelector('.tab-panel[data-tab="jugadores"]'); if (panel) renderPanelJugadores(panel); window.scrollTo(0, 0); }
+  else { switchTab('jugadores'); window.scrollTo(0, 0); }
+}
+const nombrePestana = k => (k === 'admin' ? 'Super admin' : TABS.find(t => t.key === k)?.label || 'la lista');
+// Vuelve al punto de la página: espera a que la pantalla (p. ej. la presentación) haya crecido lo suficiente.
+function volverAlScroll(y) {
+  let n = 0;
+  const t = setInterval(() => {
+    if (document.documentElement.scrollHeight >= y + window.innerHeight * 0.5 || ++n > 40) { window.scrollTo(0, y); clearInterval(t); }
+  }, 100);
+}
 let jugFichaId = null;             // null = lista; <id> = ficha de ese jugador abierta
 const jugFichaRegs = {};           // { [playerId]: registros[] } — evaluaciones recibidas
 const jugFichaLoading = new Set(); // evita lanzar la misma carga dos veces
@@ -2856,7 +2872,7 @@ function renderFichaJugador(container, p) {
   container.innerHTML = `
     ${firebaseNotice()}
     <div class="flex gap-8 mb-16">
-      <button class="btn btn-ghost" id="jug-ficha-volver">${jugVolverA === 'plantillas' ? '← Volver a Equipos' : jugVolverA === 'registro' ? '← Volver a Evaluaciones' : '← Volver a la lista'}</button>
+      <button class="btn btn-ghost" id="jug-ficha-volver">← Volver a ${safeText(jugVolverA ? nombrePestana(jugVolverA) : 'la lista')}</button>
       <button class="btn btn-primary" id="jug-ficha-editar">Editar</button>
     </div>
     <div class="card mb-16"><div class="card-body">
@@ -2980,13 +2996,15 @@ function renderFichaJugador(container, p) {
   });
   container.querySelector('#jug-ficha-volver')?.addEventListener('click', () => {
     jugFichaId = null;
-    if (jugVolverA === 'plantillas' || jugVolverA === 'registro') {
-      const destino = jugVolverA, y = jugVolverScroll;
+    const y = jugVolverScroll;
+    if (jugVolverA && jugVolverA !== 'jugadores') {
+      const destino = jugVolverA;
       jugVolverA = null; switchTab(destino);
-      setTimeout(() => window.scrollTo(0, y), 60); // vuelve a donde estaba
+      volverAlScroll(y); // vuelve a donde estaba
       return;
     }
     renderPanelJugadores(container);
+    volverAlScroll(y);
   });
   container.querySelector('#jug-ficha-editar')?.addEventListener('click', async () => {
     await cargarEvaluacionesSilencioso();
@@ -3523,13 +3541,9 @@ function renderPanelJugadores(container) {
     window.addEventListener('scroll', () => document.querySelectorAll('details.jug-mas[open]').forEach(o => { o.open = false; }), true);
   }
   container.querySelectorAll('[data-jug-ficha]').forEach(btn => {
-    btn.addEventListener('click', async ev => {
+    btn.addEventListener('click', ev => {
       ev.preventDefault();
-      await cargarEvaluacionesSilencioso();
-      jugFichaId = btn.dataset.jugFicha;
-      jugFichaTab = 'datos'; jugVolverA = null;
-      jugFichaEvalId = null; // por defecto, evaluación final
-      renderPanelJugadores(container);
+      irAFicha(btn.dataset.jugFicha); // evaluación final por defecto; «Volver» → la lista
     });
   });
 
@@ -5608,8 +5622,7 @@ function renderPanelPlantillas(container) {
     window.addEventListener('scroll', e => { if (!e.target.closest?.('details.pl-add')) document.querySelectorAll('details.pl-add[open]').forEach(o => { if (!o.contains(document.activeElement)) o.open = false; }); }, true);
   }
   container.querySelectorAll('[data-pl-ir]').forEach(el => el.addEventListener('click', e => {
-    e.preventDefault(); const id = el.dataset.plIr.split('|')[1];
-    jugFichaId = id; jugadorFormId = null; jugFichaTab = 'datos'; jugFichaEvalId = null; jugVolverA = 'plantillas'; jugVolverScroll = window.scrollY; switchTab('jugadores');
+    e.preventDefault(); irAFicha(el.dataset.plIr.split('|')[1]);
   }));
   container.querySelectorAll('[data-pl-pres]').forEach(btn => btn.addEventListener('click', () => { plVista = { modo: 'pres', teamKey: btn.dataset.plPres }; renderPanelPlantillas(container); }));
   container.querySelectorAll('[data-pl-lista-ok]').forEach(btn => btn.addEventListener('click', async () => {
@@ -5660,10 +5673,7 @@ function wireDatosEquipo(root, rerender) {
     try { await guardarCampoJugador(el.dataset.plId, campo, v); if (campo === 'positionKey') rerender(); }
     catch (err) { console.error('[Firestore] Campo jugador:', err); showError('No se pudo guardar el cambio.'); }
   }));
-  root.querySelectorAll('[data-pl-ficha]').forEach(btn => btn.addEventListener('click', () => {
-    jugFichaId = btn.dataset.plFicha; jugadorFormId = null; jugFichaTab = 'fichas'; jugFichaEvalId = null;
-    switchTab('jugadores');
-  }));
+  root.querySelectorAll('[data-pl-ficha]').forEach(btn => btn.addEventListener('click', () => irAFicha(btn.dataset.plFicha, { pestana: 'fichas' })));
 }
 
 /** Textos editables de las fichas (Ficha 1: potenciar/mejorar y descripción · Ficha 2: plan de acción).
@@ -6014,7 +6024,7 @@ function plSeparadorPosicion(c, titulo, jugadores, f1Map) {
       const x0 = (PL_W - enFila * slot) / 2 + col * slot;
       const cx = x0 + (slot - 453 * K) / 2 + 101 * K;
       const cy = TOP + fila * rowH + rowH / 2 - 12.5 * K;
-      if (f1Map[j.id]) return plCardJugador(j, f1Map[j.id], cx / PL_W * 100, cy / PL_H * 100, K).replace('cursor:grab;', '').replace(/ title="[^"]*"/, '');
+      if (f1Map[j.id]) return plCardJugador(j, f1Map[j.id], cx / PL_W * 100, cy / PL_H * 100, K).replace('cursor:grab;', 'cursor:pointer;').replace(/ title="[^"]*"/, ` data-ir-ficha="${j.id}" title="Abrir su ficha"`);
       // Sin ficha: solo nombre (no hay notas que mostrar)
       return `<div style="position:absolute;left:${x0}px;top:${cy}px;width:${slot}px;"><div class="pl-nombre" style="font-size:34px;">${safeText(`${j.nombre || ''} ${j.apellidos || ''}`.trim())}</div></div>`;
     }).join('');
@@ -6163,7 +6173,7 @@ function plResumenPosicion(titulo, temporada, teamLabel, items, f1Map) {
     const enFila = row === rows - 1 ? n - cols * (rows - 1) : cols;
     const x0 = L + (cols - enFila) * cellW / 2 + col * cellW;
     const cx = x0 + 110 * K, cy = 270 + row * rowH + 120 * K;
-    return plCardJugador(j, f1Map[j.id], cx / PL_W * 100, cy / PL_H * 100, K).replace('cursor:grab;', '').replace(/ title="[^"]*"/, '');
+    return plCardJugador(j, f1Map[j.id], cx / PL_W * 100, cy / PL_H * 100, K).replace('cursor:grab;', 'cursor:pointer;').replace(/ title="[^"]*"/, ` data-ir-ficha="${j.id}" title="Abrir su ficha"`);
   }).join('');
   return plSlide(`<img src="./campo1.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;" />
     ${plCrest('right:30px;top:24px;width:110px;height:110px;')}
@@ -6247,7 +6257,7 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
       return `<div style="position:absolute;left:${cx - ITEM_W / 2}px;top:${top}px;width:${ITEM_W}px;height:${D + 44}px;">
         ${foto}
         <div style="position:absolute;left:${(ITEM_W + D) / 2 - dN * 0.55}px;top:${-dN * 0.25}px;width:${dN}px;height:${dN}px;border-radius:50%;background:${bgN};color:${fgN};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${Math.max(12, Math.min(26, Math.round((dN - 6) / (txtNota.length > 1 ? txtNota.length * 0.58 : 1.4))))}px;line-height:1;letter-spacing:-0.5px;font-family:system-ui,sans-serif;">${safeText(txtNota)}</div>
-        <div style="position:absolute;left:50%;top:${D + 8}px;transform:translateX(-50%);max-width:${ITEM_W + 6}px;background:${cf.bg};color:${cf.fg};font-family:system-ui,sans-serif;font-weight:800;font-size:${ap.length > 18 ? 13 : ap.length > 13 ? 15 : 17}px;padding:3px 12px;border-radius:14px;width:max-content;text-align:center;line-height:1.15;box-sizing:border-box;" title="${safeText(ap)}">${safeText(ap)}</div></div>`;
+        <div style="position:absolute;left:50%;top:${D + 8}px;transform:translateX(-50%);max-width:${ITEM_W + 6}px;cursor:pointer;background:${cf.bg};color:${cf.fg};font-family:system-ui,sans-serif;font-weight:800;font-size:${ap.length > 18 ? 13 : ap.length > 13 ? 15 : 17}px;padding:3px 12px;border-radius:14px;width:max-content;text-align:center;line-height:1.15;box-sizing:border-box;" data-ir-ficha="${it.j.id}" title="${safeText(ap)} · abrir su ficha">${safeText(ap)}</div></div>`;
     }).join('');
     return { band: `<div style="position:absolute;left:20px;top:${y0}px;width:${PL_W - 40}px;height:${h}px;background:${d.b.bg};border-radius:70px;"></div>`, cont: `${lado(d.izq, 40, MITAD - 10)}${lado(d.der, MITAD + 10, PL_W - 40)}
       <div style="position:absolute;left:${MITAD - 70}px;top:${y0 + 14}px;width:140px;height:56px;border-radius:28px;background:#14306e;color:#fff;font-family:system-ui,sans-serif;font-weight:900;font-size:34px;display:flex;align-items:center;justify-content:center;">${d.b.lab}</div>` };
@@ -6534,7 +6544,7 @@ async function renderPlantillaPresentacion(container) {
         const bloques = (plMapaModo === 'rp' ? ['r', 'p'] : [plMapaModo]).map(m => ({ m, js: sinNota(m) })).filter(b => b.js.length);
         return bloques.length ? `<div class="card btn-print-ficha pl-pend mb-16" style="margin-top:4px;"><div class="card-body">${bloques.map(b => `
           <div class="text-sm mb-8"><b>Pendientes de evaluar (${b.m === 'p' ? 'Proyección' : 'Rendimiento'}) · ${b.js.length}</b> <span class="text-xs text-muted">— no salen en la diapositiva</span></div>
-          <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">${b.js.map(j => `<span style="background:var(--bg-hover);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:600;">${safeText(`${j.nombre || ''} ${j.apellidos || ''}`.trim())}</span>`).join('')}</div>`).join('')}
+          <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">${b.js.map(j => `<span data-ir-ficha="${j.id}" title="Abrir su ficha" style="background:var(--bg-hover);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:600;">${safeText(`${j.nombre || ''} ${j.apellidos || ''}`.trim())}</span>`).join('')}</div>`).join('')}
         </div></div>` : '';
       })()}`;
     mapaHost.querySelector('#pl-mapa-modo').addEventListener('change', e => { plMapaModo = e.target.value; dibujarMapa(); });
@@ -6608,7 +6618,7 @@ async function renderPlantillaPresentacion(container) {
       sec.className = 'mb-16';
       sec.innerHTML = `
         <div class="flex gap-8 mb-8 btn-print-ficha" style="align-items:center;flex-wrap:wrap;">
-          <b style="font-size:18px;">${safeText(nombreCompleto(j))}</b>
+          <b style="font-size:18px;" data-ir-ficha="${j.id}" data-ir-ev="${safeText(prep.evSel?.eid || '')}" data-ir-pestana="fichas" title="Abrir su ficha">${safeText(nombreCompleto(j))}</b>
           <span class="text-xs text-muted">${safeText(prep.evSel ? `${prep.evSel.ev.temporada} · ${prep.evSel.ev.nombre}` : 'Sin evaluaciones')}</span>
           ${prep.avisoPos && !dup ? `<span class="text-xs" style="color:#b45309;font-weight:700;">⚠ Varias posiciones · Ficha como</span>
             <select class="select btn-print-ficha" data-pr-pos="${j.id}" style="width:auto;" title="${safeText(prep.avisoPos)}">${Object.entries(prep.evSel?.posConteo || {}).sort((a, b) => b[1] - a[1]).map(([k, c]) => `<option value="${safeText(k)}" ${k === prep.fPos && j.fichaPosPorEval?.[prep.evSel?.eid] !== 'ambas' ? 'selected' : ''}>${safeText(nombrePos(k))} (${c})</option>`).join('')}<option value="ambas" ${j.fichaPosPorEval?.[prep.evSel?.eid] === 'ambas' ? 'selected' : ''}>Las dos</option></select>` : ''}
@@ -6795,6 +6805,20 @@ function renderMain() {
 // ── EVENTOS GLOBALES ─────────────────────────────
 
 function setupEvents() {
+  // Cualquier nombre de jugador marcado con data-ir-ficha lleva a su ficha (y «Volver» trae de vuelta).
+  document.addEventListener('click', e => {
+    const el = e.target.closest?.('[data-ir-ficha]');
+    if (!el || e.defaultPrevented || document.fullscreenElement) return; // presentando a pantalla completa: no se sale
+    e.preventDefault();
+    irAFicha(el.dataset.irFicha, { evalId: el.dataset.irEv || null, pestana: el.dataset.irPestana || 'datos' });
+  });
+  if (!document.getElementById('rm-nombres-css')) {
+    const st = document.createElement('style'); st.id = 'rm-nombres-css';
+    // Nombres de jugador: se pueden pulsar, pero sin subrayado.
+    st.textContent = `[data-ir-ficha],[data-reg-ficha],[data-pl-ir],a[data-jug-ficha]{text-decoration:none !important;border-bottom:none !important;cursor:pointer;}
+      [data-ir-ficha]:hover,[data-reg-ficha]:hover,[data-pl-ir]:hover,a[data-jug-ficha]:hover{color:var(--blue-600,#1d4ed8) !important;}`;
+    document.head.appendChild(st);
+  }
   // Pulsar una pestaña de la barra lleva a su pantalla principal (no a la última ficha o presentación abierta).
   document.addEventListener('rm:tab-click', e => {
     if (e.detail === 'jugadores') { jugFichaId = null; jugadorFormId = null; jugVolverA = null; }
@@ -6924,7 +6948,7 @@ const NAV_LS = 'rm-nav';
       jugFichaId = n.jugFichaId;
       jugFichaTab = n.jugFichaTab === 'fichas' ? 'fichas' : 'datos';
       jugFichaEvalId = typeof n.jugFichaEvalId === 'string' ? n.jugFichaEvalId : null;
-      jugVolverA = ['plantillas', 'registro'].includes(n.jugVolverA) ? n.jugVolverA : null;
+      jugVolverA = TABS.some(t => t.key === n.jugVolverA) || n.jugVolverA === 'admin' ? n.jugVolverA : null;
     }
     if (typeof n.plantillaTemporada === 'string' && n.plantillaTemporada) plantillaTemporada = n.plantillaTemporada;
     if (n.plVista && ['grid', 'datos', 'pres'].includes(n.plVista.modo)) plVista = { modo: n.plVista.modo, teamKey: n.plVista.teamKey || null };
