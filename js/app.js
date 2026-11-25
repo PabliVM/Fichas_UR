@@ -212,6 +212,12 @@ async function guardarNotasManuales(j, evKey, mapa) {
   j.fichaNotasManuales = todo;
   const enEstado = state.players.find(x => x.id === j.id);
   if (enEstado && enEstado !== j) enEstado.fichaNotasManuales = todo;
+  // El círculo de la Ficha 1 de ese jugador (si está en pantalla) sigue a las M al momento.
+  const cols = coloresM(hay ? mapa : null);
+  document.querySelectorAll(`.p1-central-svg[data-circ="${CSS.escape(`${j.id}|${evKey}`)}"]`).forEach(svg => {
+    svg.querySelectorAll('[data-seg]').forEach(path => { path.dataset.m = cols[path.dataset.seg] || ''; });
+    aplicarCirculoM(svg.parentElement);
+  });
   try { await updateMapEntry('jugadores', j.id, 'fichaNotasManuales', evKey, hay ? mapa : null); }
   catch (err) { console.error(err); showError('No se pudo guardar la nota manual.'); }
 }
@@ -266,6 +272,17 @@ function guardarCamisetasAlCambiar(wrap, jugador, evalId, positionKey) {
   });
 }
 
+// Color por bloque según la media de sus notas M ({ 'bloque|ítem': nota }); null si el bloque no tiene M.
+let circulosConM = true; // la presentación lo pone a false si las notas M están ocultas
+function coloresM(mapa) {
+  const bandas = [...state.scoreBands].sort((a, b) => b.min - a.min);
+  return Object.fromEntries(['mental', 'tecnico', 'tactico', 'condicional'].map(k => {
+    const v = Object.entries(mapa || {}).filter(([mk]) => mk.startsWith(`${k}|`)).map(([, n]) => Number(n)).filter(n => !Number.isNaN(n));
+    const m = v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+    return [k, m == null ? null : (bandas.find(b => m >= Number(b.min))?.color || null)];
+  }));
+}
+
 function buildFicha1RealData(positionKey, media, jugador, aspectos, evalId) {
   const schema = state.criteriaSchemas[positionKey] || {};
   const mental = state.aspectosComunes.mental || [];
@@ -300,7 +317,7 @@ function buildFicha1RealData(positionKey, media, jugador, aspectos, evalId) {
   };
   const bandasOrd = [...state.scoreBands].sort((a, b) => b.min - a.min);
   const hexMedia = m => (m == null ? '#ffffff' : (bandasOrd.find(b => m >= Number(b.min))?.color || '#ffffff'));
-  const circleColors = {
+  const circleColorsAuto = {
     mental: hexMedia(mediaBloque(state.aspectosComunes.mental)),
     tecnico: hexMedia(mediaBloque(schema.tecnico ?? state.aspectosComunes.tecnico)),
     tactico: hexMedia(mediaBloque(schema.tactico)),
@@ -308,11 +325,14 @@ function buildFicha1RealData(positionKey, media, jugador, aspectos, evalId) {
       ? condicionalBaseScore(condicionalBaseItems(jugador, evalId || 'sin-evaluacion'))
       : condicionalScore(condicionalItems(positionKey, comp, jugador, evalId), state.condicionalTolerance)),
   };
+  // Con notas M (metodología) en un bloque, su cuarto del círculo va con la media de las M (igual que la Ficha 2).
+  const circleColorsM = coloresM(jugador?.fichaNotasManuales?.[evalId || 'sin-evaluacion']);
+  const circleColors = Object.fromEntries(Object.entries(circleColorsAuto).map(([k, v]) => [k, (circulosConM && circleColorsM[k]) || v]));
 
   return {
     ...FICHA1_DEMO_DATA,
     pitchMarkers: camisetasGuardadas(jugador, evalId, positionKey),
-    circleColors,
+    circleColors, circleColorsAuto, circleColorsM, circId: jugador?.id ? `${jugador.id}|${evalId || 'sin-evaluacion'}` : '',
     gridOrder: state.fichaGridOrder,
     player: {
       ...FICHA1_DEMO_DATA.player,
@@ -2853,6 +2873,7 @@ function renderFichaJugador(container, p) {
 
   if (jugFichaTab !== 'datos' && regs && (evSel || p.positionKey)) {
     const fPos = evSel?.posKey || p.positionKey, fMedia = evSel?.media || null;
+    circulosConM = true; // en la ficha del jugador las M siempre se ven
     renderFichaPagina1(container.querySelector('#jug-ficha1-wrap'), buildFicha1RealData(fPos, fMedia, p, aspectosTxt, evSel?.eid), LOGO_PATH, state.fichaColors);
     guardarCamisetasAlCambiar(container.querySelector('#jug-ficha1-wrap'), p, evSel?.eid, fPos);
     setGpsTolerance(state.condicionalTolerance);
@@ -6098,6 +6119,7 @@ const fotoPortadaDe = (temporada, teamKey) =>
 // · por cada posición: separador + Ficha 1 y 2 de cada jugador.
 async function renderPlantillaPresentacion(container) {
   injectPlantillaStyles();
+  circulosConM = plVerM(); // círculos (fichas, campograma, portadas) con las notas M solo si se ven
   const t = TEAMS.find(x => x.key === plVista.teamKey);
   const temporada = plantillaTemporada;
   const docP = () => plantillasCache.find(d => d.id === plantillaDocId(temporada, plVista.teamKey)) || {};
@@ -6535,10 +6557,10 @@ async function renderPlantillaPresentacion(container) {
   container.querySelector('#pl-ver-obs').addEventListener('change', e => aplicarVerObs(e.target.checked));
   lista.classList.toggle('pl-sin-m', !plVerM());
   aplicarCirculoM(lista);
-  container.querySelector('#pl-ver-m')?.addEventListener('change', e => {
-    lista.classList.toggle('pl-sin-m', !e.target.checked);
-    aplicarCirculoM(lista); // el círculo vuelve a las medias (o a las M)
+  container.querySelector('#pl-ver-m')?.addEventListener('change', async e => {
     try { localStorage.setItem('rm-pl-ver-m', e.target.checked ? '1' : '0'); } catch {}
+    // Se repinta todo: los círculos del campograma y las portadas son imágenes y tienen que rehacerse.
+    const y = window.scrollY; await renderPlantillaPresentacion(container); window.scrollTo(0, y);
   });
   nav.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
