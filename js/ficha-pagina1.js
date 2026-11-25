@@ -72,7 +72,9 @@ const P1_DEFAULT_ORDER = { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: '
 // Mismo círculo que la Ficha 2: colocación de bloques según la matriz (Configuración → Matriz)
 // y color de cada cuarto = banda de la media de ese bloque (circleColors, hex), blanco sin dato.
 let _miniUid = 0;
-function buildMiniCircle(photoUrl, blockRp, circleColors, order) {
+// colsAuto / colsM (opcionales): color por la media de la encuesta y por la media de las notas M; con ellos
+// cada cuarto lleva data-auto/data-m para poder cambiar entre los dos (aplicarCirculoM, ficha-detalle.js).
+function buildMiniCircle(photoUrl, blockRp, circleColors, order, colsAuto = null, colsM = null, circId = '') {
   const _u = ++_miniUid; // ids únicos por ficha (varias fichas en la misma página)
   const size = 880;
   const cx = size / 2;
@@ -84,13 +86,14 @@ function buildMiniCircle(photoUrl, blockRp, circleColors, order) {
 
   const colorFor = key => circleColors?.[key] || circleColorHex(blockRp?.[key]);
 
-  const seg = (a, b, color) => {
+  const seg = (a, b, color, key) => {
     const p1 = polar(cx, cy, rOuter, a);
     const p2 = polar(cx, cy, rOuter, b);
     const p3 = polar(cx, cy, rInner, b);
     const p4 = polar(cx, cy, rInner, a);
     const large = b - a > 180 ? 1 : 0;
-    return `<path d="M ${p1.x} ${p1.y} A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y} Z" fill="${color}" stroke="#94a3b8" stroke-width="1.5" />`;
+    const datos = colsAuto ? ` data-seg="${key}" data-auto="${colsAuto[key] || '#ffffff'}" data-m="${colsM?.[key] || ''}"` : '';
+    return `<path${datos} d="M ${p1.x} ${p1.y} A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y} Z" fill="${color}" stroke="#94a3b8" stroke-width="1.5" />`;
   };
   const arcPath = (id, a, b) => {
     const p1 = polar(cx, cy, midR, a);
@@ -99,9 +102,9 @@ function buildMiniCircle(photoUrl, blockRp, circleColors, order) {
     const sweep = b > a ? 1 : 0;
     return `<path id="${id}" d="M ${p1.x} ${p1.y} A ${midR} ${midR} 0 ${large} ${sweep} ${p2.x} ${p2.y}" fill="none" />`;
   };
-  const label = (id, text, color) => {
+  const label = (id, text, color, key) => {
     const fill = color === '#ffffff' ? '#334155' : '#0f1117';
-    return `<text font-size="43" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
+    return `<text${colsAuto ? ` data-seg-lbl="${key}"` : ''} font-size="43" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
   };
   const photo = photoUrl
     ? `<clipPath id="p1-photo-clip${_u}"><circle cx="${cx}" cy="${cy}" r="${rInner - 4}" /></clipPath>
@@ -115,11 +118,11 @@ function buildMiniCircle(photoUrl, blockRp, circleColors, order) {
     const [aa, bb] = (pos === 'br' || pos === 'bl') ? [b, a] : [a, b];
     return arcPath(`p1-arc${_u}-${pos}`, aa, bb);
   }).join('');
-  const segs = POSITIONS.map(pos => seg(...P1_POS_ANGLES[pos], colorFor(ord[pos]))).join('');
-  const labels = POSITIONS.map(pos => label(`p1-arc${_u}-${pos}`, P1_BLOCK_TITLES[ord[pos]], colorFor(ord[pos]))).join('');
+  const segs = POSITIONS.map(pos => seg(...P1_POS_ANGLES[pos], colorFor(ord[pos]), ord[pos])).join('');
+  const labels = POSITIONS.map(pos => label(`p1-arc${_u}-${pos}`, P1_BLOCK_TITLES[ord[pos]], colorFor(ord[pos]), ord[pos])).join('');
 
   return `
-    <svg viewBox="0 0 ${size} ${size}" class="p1-central-svg" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 ${size} ${size}" class="p1-central-svg" ${circId ? `data-circ="${circId}"` : ''} xmlns="http://www.w3.org/2000/svg">
       <defs>${arcs}</defs>
       ${segs}
       <circle cx="${cx}" cy="${cy}" r="${rInner + 4}" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" />
@@ -470,7 +473,7 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
             ${buildCompetencias('COMPETENCIAS OFENSIVAS', data.competenciasOfensivas)}
             ${buildCompetencias('COMPETENCIAS DEFENSIVAS', data.competenciasDefensivas)}
           </div>
-          <div class="p1-central">${buildMiniCircle(player.photoUrl, data.blockRp, data.circleColors, data.gridOrder)}</div>
+          <div class="p1-central">${buildMiniCircle(player.photoUrl, data.blockRp, data.circleColors, data.gridOrder, data.circleColorsAuto, data.circleColorsM, data.circId)}</div>
         </div>
         <div class="p1-lower">
           <div class="p1-lower-left">
