@@ -1294,10 +1294,12 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
     if (!c.destino && c.num === 3 && !tieneToken('@jugador')) return '@jugador';
     return c.destino;
   };
+  // "JUAN CARLOS RODRIGUEZ" / "juan carlos" → "Juan Carlos Rodriguez" (primera de cada palabra en mayúscula).
+  const nombrePropio = txt => String(txt || '').toLocaleLowerCase('es').replace(/(^|[\s\-'])(\p{L})/gu, (m, a, b) => a + b.toLocaleUpperCase('es'));
   const celda = (r, c) => {
     const t = tipoCol(c);
     if (t === '@fecha') return `<td class="bt-nowrap">${safeText(fmtFecha(r.fechaRegistro))}</td>`;
-    if (t === '@evaluador') { const ie = infoEvaluador(r.evaluador); return `<td class="bt-nowrap" title="${safeText(tituloEvaluador(r.evaluador))}" style="cursor:help;">${safeText(r.evaluador)}${ie?.rol ? `<span style="display:block;font-size:9px;color:#64748b;line-height:1;">${safeText(ie.rol)}</span>` : ''}</td>`; }
+    if (t === '@evaluador') { const ie = infoEvaluador(r.evaluador); return `<td title="${safeText(tituloEvaluador(r.evaluador))} · en la encuesta: ${safeText(r.evaluador)}" style="cursor:help;white-space:normal;line-height:1.2;">${safeText(nombrePropio(ie?.nombre || r.evaluador))}${ie?.rol ? `<span style="display:block;font-size:9px;color:#64748b;line-height:1;">${safeText(ie.rol)}</span>` : ''}</td>`; }
     if (t === '@jugador') {
       const fp = state.players.find(x => x.id === r.jugadorId), ini = `${(fp?.nombre || '?')[0] || ''}${(fp?.apellidos || '')[0] || ''}`.toUpperCase();
       const av = fp?.fotoUrl ? `<img src="${fp.fotoUrl}" alt="" style="width:20px;height:20px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;" />`
@@ -1317,7 +1319,7 @@ function buildTablaEncuestaHTML(registros, positionKey, jugadorLabel) {
     ? ordenados.map(r => `<tr><td class="bt-del"><button class="btn btn-sm btn-ghost" data-reg-borrar="${r.id}" title="Borrar solo este registro">🗑</button></td>${cols.map(c => celda(r, c)).join('')}</tr>`).join('')
     : `<tr><td class="bt-vacia"></td>${cols.map(() => '<td class="bt-vacia"></td>').join('')}</tr>`;
   // Anchos fijos (colgroup + table-layout:fixed): iguales en todos los navegadores.
-  const anchoCol = c => { const t = String(tipoCol(c) || ''); return t.startsWith('@txt_') ? 380 : t === '@fecha' ? 110 : t === '@evaluador' ? 84 : t === '@jugador' ? 190 : 96; };
+  const anchoCol = c => { const t = String(tipoCol(c) || ''); return t.startsWith('@txt_') ? 380 : t === '@fecha' ? 110 : t === '@evaluador' ? 160 : t === '@jugador' ? 190 : 96; };
   const anchoTabla = 40 + cols.reduce((a, c) => a + anchoCol(c), 0);
   return `
     <style>
