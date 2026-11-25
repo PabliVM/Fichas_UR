@@ -39,13 +39,22 @@ function accesoHTML(u) {
 const ENTRADA = { jugadores: 'lista', plantillas: 'grid' }; // subpantalla por la que se entra a las demás
 let usuariosCache = null;
 
-let adminVista = 'usuarios'; // 'usuarios' | 'actividad' | 'conservacion'
+let adminVista = 'usuarios';
+let adminSel = null; // usuario elegido en Usuarios y permisos // 'usuarios' | 'actividad' | 'conservacion'
 
 export async function renderPanelAdmin(container) {
-  const VISTAS = [['usuarios', 'Usuarios y permisos'], ['redes', 'Redes del club'], ['actividad', 'Registro de actividad'], ['conservacion', 'Conservación de datos']];
+  const VISTAS = [
+    ['usuarios', '👥', 'Usuarios y permisos', 'Quién entra y qué ve'],
+    ['redes', '📶', 'Redes del club', 'Desde dónde se puede entrar'],
+    ['actividad', '🕓', 'Registro de actividad', 'Quién ha hecho qué'],
+    ['conservacion', '🗄', 'Conservación de datos', 'Jugadores sin plantilla reciente'],
+  ];
   container.innerHTML = `
-    <div class="rm-sticky mb-16 flex gap-8" style="padding:6px 0;flex-wrap:wrap;">
-      ${VISTAS.map(([k, l]) => `<button class="btn ${adminVista === k ? 'btn-primary' : 'btn-sm'}" data-adm-vista="${k}">${l}</button>`).join('')}
+    <div class="mb-16" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;">
+      ${VISTAS.map(([k, ico, l, d]) => `<button type="button" data-adm-vista="${k}" style="display:flex;gap:10px;align-items:center;text-align:left;cursor:pointer;padding:10px 12px;border-radius:12px;border:1px solid ${adminVista === k ? 'var(--blue-600,#1d4ed8)' : 'var(--border-default)'};background:${adminVista === k ? 'rgba(29,78,216,.07)' : 'var(--bg-surface,#fff)'};">
+        <span style="font-size:22px;">${ico}</span>
+        <span><span style="display:block;font-weight:800;color:${adminVista === k ? 'var(--blue-600,#1d4ed8)' : 'var(--text-primary)'};">${l}</span><span class="text-xs text-muted">${d}</span></span>
+      </button>`).join('')}
     </div>
     <div id="adm-sub"></div>`;
   container.querySelectorAll('[data-adm-vista]').forEach(b => b.addEventListener('click', () => { adminVista = b.dataset.admVista; renderPanelAdmin(container); }));
@@ -67,84 +76,169 @@ async function renderUsuarios(container) {
     catch (err) { console.error('[Admin] Usuarios:', err); showError('No se pudieron cargar los usuarios (revisa las reglas de Firestore).'); usuariosCache = []; }
   }
   const usuarios = usuariosCache.filter(u => !SUPERADMIN_EMAILS.includes(u.id)).sort((a, b) => a.id.localeCompare(b.id)); // los super admin solo tienen doc por el aviso de privacidad
+  if (!adminSel || !usuarios.some(u => u.id === adminSel)) adminSel = usuarios[0]?.id || null;
   const opciones = (actual, conMixto) =>
     (conMixto ? `<option value="" ${actual === '' ? 'selected' : ''}>—</option>` : '') +
     NIVELES.map(n => `<option value="${n}" ${n === actual ? 'selected' : ''}>${NIVEL_LABEL[n]}</option>`).join('');
   const mixto = (u, tabKey) => { const v = clavesDe(tabKey).map(c => nivelDePerfil({ ...u, activo: true }, c)); return v.every(x => x === v[0]) ? v[0] : ''; };
-  const STICKY = 'position:sticky;left:0;z-index:1;background:var(--bg-surface);';
-  const celda = 'padding:4px 6px;';
-  const sel = 'padding:2px 4px;font-size:12px;min-width:84px;';
+  // Control segmentado Oculta / Ver / Editar. Debajo va el <select> de siempre (oculto): lo que se guarda sale de ahí.
+  const control = (attrs, actual, conMixto) => `
+    <div class="adm-ctl">
+      <select class="adm-hid" ${attrs}>${opciones(actual, conMixto)}</select>
+      <div class="adm-seg">${NIVELES.map(n => `<button type="button" class="nv-${n}" data-nv="${n}">${NIVEL_LABEL[n]}</button>`).join('')}</div>
+    </div>`;
+  const nombreDe = u => u.nombre || u.id.split('@')[0];
+  const ini = u => nombreDe(u).split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+  const chips = u => [
+    u.activo === false ? '<span class="adm-chip adm-chip-off">Inactivo</span>' : '<span class="adm-chip adm-chip-on">Activo</span>',
+    u.exigeRed ? '<span class="adm-chip">📶 Red del club</span>' : '',
+    u.horario ? '<span class="adm-chip">🕓 Horario</span>' : '',
+  ].join('');
+  const resumen = u => { const n = TABS.filter(t => nivelDePerfil({ ...u, activo: true }, t.key) !== 'oculta').length; return `${n} de ${TABS.length} pestañas`; };
 
-  const filas = TABS.map(t => {
-    const subs = SUBPANTALLAS[t.key] || [];
-    const cab = `
-      <tr style="background:var(--bg-hover);">
-        <td style="${STICKY}${celda}background:var(--bg-hover);font-weight:700;">${safeText(t.label)}${subs.length ? ' <span class="text-xs text-muted">(toda la pestaña)</span>' : ''}</td>
-        ${usuarios.map(u => `<td style="${celda}">${subs.length
-          ? `<select class="select" style="${sel}" data-u="${safeText(u.id)}" data-grupo="${t.key}">${opciones(mixto(u, t.key), true)}</select>`
-          : `<select class="select" style="${sel}" data-u="${safeText(u.id)}" data-clave="${t.key}">${opciones(nivelDePerfil({ ...u, activo: true }, t.key))}</select>`}</td>`).join('')}
-      </tr>`;
-    return cab + subs.map(sp => {
-      const clave = `${t.key}.${sp.key}`;
+  const panelUsuario = u => {
+    const id = safeText(u.id);
+    const permisos = TABS.map(t => {
+      const subs = SUBPANTALLAS[t.key] || [];
       return `
-      <tr>
-        <td style="${STICKY}${celda}padding-left:22px;">${safeText(sp.label)}</td>
-        ${usuarios.map(u => `<td style="${celda}"><select class="select" style="${sel}" data-u="${safeText(u.id)}" data-clave="${clave}" data-de="${t.key}">${opciones(nivelDePerfil({ ...u, activo: true }, clave))}</select></td>`).join('')}
-      </tr>`;
+      <div class="adm-tab">
+        <div class="adm-fila adm-fila-tab">
+          <div><b>${safeText(t.label)}</b>${subs.length ? '<div class="text-xs text-muted">Toda la pestaña de golpe</div>' : ''}</div>
+          ${subs.length ? control(`data-u="${id}" data-grupo="${t.key}"`, mixto(u, t.key), true) : control(`data-u="${id}" data-clave="${t.key}"`, nivelDePerfil({ ...u, activo: true }, t.key))}
+        </div>
+        ${subs.map(sp => `
+        <div class="adm-fila adm-fila-sub">
+          <div>${safeText(String(sp.label).replace(/^.*›\s*/, ''))}</div>
+          ${control(`data-u="${id}" data-clave="${t.key}.${sp.key}" data-de="${t.key}"`, nivelDePerfil({ ...u, activo: true }, `${t.key}.${sp.key}`))}
+        </div>`).join('')}
+      </div>`;
     }).join('');
-  }).join('');
+    return `
+    <div class="adm-panel" data-adm-panel="${id}" style="${u.id === adminSel ? '' : 'display:none;'}">
+      <div class="adm-cab">
+        <div class="adm-avatar adm-avatar-xl">${safeText(ini(u))}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:19px;font-weight:800;">${safeText(nombreDe(u))}</div>
+          <div class="text-sm text-muted">${id}</div>
+        </div>
+        <div class="flex gap-8" style="flex-wrap:wrap;">
+          <button class="btn btn-sm" data-reset="${id}" title="Le llega un email para poner o cambiar su contraseña">✉ Email de contraseña</button>
+          <button class="btn btn-sm" data-mfa-reset="${id}" title="Ha perdido el móvil: al entrar volverá a escanear un QR">🔑 Reiniciar verificación</button>
+          <button class="btn btn-sm" style="color:#b91c1c;" data-borrar="${id}" title="Quitar acceso">Quitar acceso</button>
+        </div>
+      </div>
+      <div class="adm-sec">
+        <div class="adm-sec-t">Acceso</div>
+        <div class="flex gap-24" style="flex-wrap:wrap;align-items:flex-start;">
+          <label class="adm-sw"><input type="checkbox" data-u="${id}" data-activo ${u.activo === false ? '' : 'checked'} /> <span><b>Activo</b><br><span class="text-xs text-muted">Desmarcado: no puede entrar</span></span></label>
+          <div style="min-width:220px;">${accesoHTML(u)}</div>
+        </div>
+      </div>
+      <div class="adm-sec">
+        <div class="adm-sec-t">Permisos por pantalla <span class="text-xs text-muted" style="font-weight:400;text-transform:none;letter-spacing:0;">· <span class="adm-ley nv-oculta">Oculta</span> no la ve · <span class="adm-ley nv-ver">Ver</span> solo lectura · <span class="adm-ley nv-editar">Editar</span> puede guardar</span></div>
+        <div class="adm-tabs">${permisos}</div>
+      </div>
+    </div>`;
+  };
 
   container.innerHTML = `
-    <div class="card mb-16">
-      <div class="card-title">Añadir usuario</div>
-      <div class="card-body">
-        <div class="flex gap-8" style="flex-wrap:wrap;align-items:center;">
-          <input class="input" type="email" id="adm-email" placeholder="Email" style="min-width:240px;" />
-          <input class="input" type="text" id="adm-nombre" placeholder="Nombre (opcional)" />
-          <button class="btn btn-primary" id="adm-add">Añadir</button>
+    <style>
+      .adm-wrap{display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start;}
+      @media (max-width:860px){.adm-wrap{grid-template-columns:1fr;}}
+      .adm-lista{display:flex;flex-direction:column;gap:6px;}
+      .adm-u{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:var(--bg-surface,#fff);border:1px solid var(--border-default);border-radius:10px;padding:8px 10px;cursor:pointer;}
+      .adm-u:hover{border-color:var(--blue-500,#3b82f6);}
+      .adm-u{position:relative;} .adm-u.pend::after{content:'● sin guardar';position:absolute;top:6px;right:8px;font-size:10px;font-weight:700;color:#b45309;}
+      .adm-u.on{border-color:var(--blue-600,#1d4ed8);box-shadow:0 0 0 2px rgba(29,78,216,.15);background:rgba(29,78,216,.04);}
+      .adm-avatar{width:34px;height:34px;border-radius:50%;background:#1d4ed8;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0;}
+      .adm-avatar-xl{width:52px;height:52px;font-size:19px;}
+      .adm-chip{display:inline-block;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bg-hover);color:var(--text-muted);margin-right:3px;}
+      .adm-chip-on{background:#dcfce7;color:#166534;} .adm-chip-off{background:#fee2e2;color:#991b1b;}
+      .adm-cab{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--border-default);}
+      .adm-sec{padding:14px 0;border-bottom:1px solid var(--border-default);} .adm-sec:last-child{border-bottom:none;}
+      .adm-sec-t{font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;}
+      .adm-sw{display:flex;gap:8px;align-items:flex-start;cursor:pointer;min-width:230px;}
+      .adm-tabs{display:flex;flex-direction:column;gap:8px;}
+      .adm-tab{border:1px solid var(--border-default);border-radius:10px;overflow:hidden;}
+      .adm-fila{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 12px;}
+      .adm-fila-tab{background:var(--bg-hover);} .adm-fila-sub{padding-left:26px;border-top:1px solid var(--border-default);font-size:13px;}
+      .adm-hid{display:none;}
+      .adm-seg{display:inline-flex;border:1px solid var(--border-default);border-radius:8px;overflow:hidden;flex-shrink:0;}
+      .adm-seg button{border:0;background:var(--bg-surface,#fff);padding:4px 10px;font-size:12px;font-weight:600;color:var(--text-muted);cursor:pointer;}
+      .adm-seg button+button{border-left:1px solid var(--border-default);}
+      .adm-seg button.on.nv-oculta,.adm-ley.nv-oculta{background:#64748b;color:#fff;}
+      .adm-seg button.on.nv-ver,.adm-ley.nv-ver{background:#2563eb;color:#fff;}
+      .adm-seg button.on.nv-editar,.adm-ley.nv-editar{background:#16a34a;color:#fff;}
+      .adm-ley{padding:0 5px;border-radius:4px;font-weight:700;}
+      .adm-barra{position:sticky;bottom:0;z-index:5;display:flex;gap:10px;align-items:center;justify-content:flex-end;padding:10px 14px;margin-top:12px;background:var(--bg-surface,#fff);border:1px solid var(--border-default);border-radius:10px;box-shadow:0 -4px 16px rgba(15,23,42,.08);}
+    </style>
+    <div class="adm-wrap">
+      <div>
+        <div class="mb-16">
+          <details id="adm-add-box" ${usuarios.length ? '' : 'open'}>
+            <summary class="btn btn-primary" style="list-style:none;cursor:pointer;width:100%;justify-content:center;">+ Añadir usuario</summary>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px;">
+              <input class="input" type="email" id="adm-email" placeholder="Email" />
+              <input class="input" type="text" id="adm-nombre" placeholder="Nombre (opcional)" />
+              <button class="btn btn-primary btn-sm" id="adm-add">Añadir</button>
+              <p class="text-xs text-muted" style="margin:0;">Si no tiene cuenta se crea y le llega un email para poner su contraseña. Entra sin pantallas: dáselas a la derecha y pulsa Guardar.</p>
+            </div>
+          </details>
         </div>
-        <p class="text-xs text-muted" style="margin-top:8px;">Si el email no tiene cuenta se crea y se le envía un email para poner su contraseña. Entra sin pantallas: asígnaselas abajo y pulsa Guardar.</p>
+        ${usuarios.length > 6 ? '<input class="input mb-8" type="search" id="adm-buscar" placeholder="🔎 Buscar usuario" style="width:100%;" />' : ''}
+        <div class="adm-lista">${usuarios.map(u => `
+          <button type="button" class="adm-u ${u.id === adminSel ? 'on' : ''}" data-adm-u="${safeText(u.id)}" data-buscar="${safeText(`${nombreDe(u)} ${u.id}`.toLowerCase())}">
+            <span class="adm-avatar">${safeText(ini(u))}</span>
+            <span style="min-width:0;flex:1;">
+              <span style="display:block;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${safeText(nombreDe(u))}</span>
+              <span class="text-xs text-muted" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${safeText(u.id)}</span>
+              <span style="display:block;margin-top:3px;">${chips(u)}<span class="text-xs text-muted">${resumen(u)}</span></span>
+            </span>
+          </button>`).join('') || '<p class="text-sm text-muted">Aún no hay usuarios.</p>'}
+        </div>
+        <p class="text-xs text-muted" style="margin-top:10px;">Super admin: ${safeText(SUPERADMIN_EMAILS.join(', '))} (acceso total, no aparece aquí).</p>
       </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Permisos por pantalla</div>
-      <div class="card-body">
-        <p class="text-xs text-muted mb-8">Super admin: ${safeText(SUPERADMIN_EMAILS.join(', '))} (acceso total, no aparece aquí). Oculta = no la ve · Ver = solo lectura · Editar = puede guardar.
-          La fila de cada pestaña cambia de golpe todas sus subpantallas. Para entrar en una ficha o en Datos/Presentación hace falta ver el listado: se pone en "Ver" solo si hace falta.
-          Los cambios se aplican cuando el usuario recarga la página.</p>
+      <div>
         ${usuarios.length ? `
-        <div class="flex gap-8 mb-8"><button class="btn btn-primary adm-guardar" disabled>Guardar cambios</button></div>
-        <div style="overflow:auto;max-height:70vh;border:1px solid var(--border-default);border-radius:var(--radius-md);">
-          <table class="table" style="font-size:12px;width:auto;">
-            <thead style="position:sticky;top:0;z-index:2;background:var(--bg-surface);">
-              <tr>
-                <th style="${STICKY}${celda}z-index:3;min-width:240px;">Pantalla</th>
-                ${usuarios.map(u => `
-                <th style="${celda}text-transform:none;letter-spacing:0;vertical-align:top;min-width:120px;">
-                  <div style="font-weight:700;color:var(--text-primary);">${safeText(u.nombre || u.id.split('@')[0])}</div>
-                  <div class="text-xs text-muted" style="font-weight:400;">${safeText(u.id)}</div>
-                  <label class="text-xs" style="display:flex;gap:4px;align-items:center;font-weight:400;margin-top:4px;"><input type="checkbox" data-u="${safeText(u.id)}" data-activo ${u.activo === false ? '' : 'checked'} /> Activo</label>
-                  ${accesoHTML(u)}
-                  <div style="margin-top:4px;white-space:nowrap;">
-                    <button class="btn btn-sm" data-reset="${safeText(u.id)}" title="Enviar email para poner/cambiar contraseña">✉</button>
-                    <button class="btn btn-sm" data-mfa-reset="${safeText(u.id)}" title="Ha perdido el móvil: al entrar volverá a escanear un QR">🔑</button>
-                    <button class="btn btn-sm" data-borrar="${safeText(u.id)}" title="Quitar acceso">×</button>
-                  </div>
-                </th>`).join('')}
-              </tr>
-            </thead>
-            <tbody>${filas}</tbody>
-          </table>
-        </div>
-        <div class="flex gap-8 mt-16"><button class="btn btn-primary adm-guardar" disabled>Guardar cambios</button></div>` : '<p class="text-sm text-muted">Aún no hay usuarios.</p>'}
+        <div class="card"><div class="card-body">${usuarios.map(panelUsuario).join('')}</div></div>
+        <div class="adm-barra">
+          <span class="text-xs text-muted" style="flex:1;">Para entrar en una ficha o en Datos/Presentación hace falta ver el listado: se pone en "Ver" solo si hace falta. Los cambios se aplican cuando el usuario recarga la página.</span>
+          <button class="btn btn-primary adm-guardar" disabled>Guardar cambios</button>
+        </div>` : ''}
       </div>
     </div>
   `;
+
+  // Controles segmentados ↔ <select> ocultos (de donde se lee al guardar).
+  const pintarControles = () => container.querySelectorAll('.adm-ctl').forEach(c => {
+    const v = c.querySelector('select').value;
+    c.querySelectorAll('[data-nv]').forEach(b => b.classList.toggle('on', b.dataset.nv === v));
+  });
+  pintarControles();
+  container.addEventListener('change', e => { if (e.target.matches?.('.adm-hid')) requestAnimationFrame(pintarControles); });
+  container.querySelectorAll('.adm-ctl [data-nv]').forEach(b => b.addEventListener('click', () => {
+    const sel = b.closest('.adm-ctl').querySelector('select');
+    if (sel.value === b.dataset.nv) return;
+    sel.value = b.dataset.nv;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    pintarControles();
+  }));
+  // Elegir usuario de la lista (sin repintar: se conservan los cambios sin guardar de todos).
+  container.querySelectorAll('[data-adm-u]').forEach(b => b.addEventListener('click', () => {
+    adminSel = b.dataset.admU;
+    container.querySelectorAll('[data-adm-u]').forEach(x => x.classList.toggle('on', x === b));
+    container.querySelectorAll('[data-adm-panel]').forEach(pn => { pn.style.display = pn.dataset.admPanel === adminSel ? '' : 'none'; });
+  }));
+  container.querySelector('#adm-buscar')?.addEventListener('input', e => {
+    const q = e.target.value.trim().toLowerCase();
+    container.querySelectorAll('[data-adm-u]').forEach(b => { b.style.display = !q || b.dataset.buscar.includes(q) ? '' : 'none'; });
+  });
 
   // Cambios pendientes por usuario (se guardan todos juntos con "Guardar cambios").
   const pendientes = new Set();
   const marcar = id => {
     pendientes.add(id);
+    container.querySelector(`[data-adm-u="${CSS.escape(id)}"]`)?.classList.add('pend');
     container.querySelectorAll('.adm-guardar').forEach(b => { b.disabled = false; b.textContent = `Guardar cambios (${pendientes.size} usuario${pendientes.size === 1 ? '' : 's'})`; });
   };
   const selDe = (id, attr, v) => [...container.querySelectorAll(`select[${attr}="${v}"]`)].filter(s => s.dataset.u === id);
