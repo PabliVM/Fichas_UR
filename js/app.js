@@ -234,7 +234,7 @@ function buildFichaRealData(positionKey, media, jugador, evalId, ref) {
     onBase: base && jugador?.id ? (mapa => guardarCondicionalBase(jugador, evKey, mapa)) : null,
     manual: jugador?.fichaNotasManuales?.[evalId || 'sin-evaluacion'] || null,
     onManual: jugador?.id ? (mapa => guardarNotasManuales(jugador, evalId || 'sin-evaluacion', mapa)) : null,
-    player: { name: jugador ? `${jugador.nombre} ${jugador.apellidos}`.trim() : 'Jugador', photoUrl: jugador?.fotoUrl || null },
+    player: { name: jugador ? nombreEnFicha(jugador) : 'Jugador', photoUrl: jugador?.fotoUrl || null },
     blocks: {
       mental:      { rp: [null, null], items: rated(state.aspectosComunes.mental) },
       tecnico:     { rp: [null, null], items: rated(schema.tecnico ?? state.aspectosComunes.tecnico) },
@@ -336,7 +336,7 @@ function buildFicha1RealData(positionKey, media, jugador, aspectos, evalId) {
     gridOrder: state.fichaGridOrder,
     player: {
       ...FICHA1_DEMO_DATA.player,
-      name: jugador ? `${jugador.nombre} ${jugador.apellidos}`.trim() : 'Jugador',
+      name: jugador ? nombreEnFicha(jugador) : 'Jugador',
       position: positionLabel,
       photoUrl: jugador?.fotoUrl || null,
       birthDate: jugador?.birthDate ? jugador.birthDate.split('-').reverse().join('/') : '',
@@ -2407,6 +2407,10 @@ function buildJugadorFormHTML(player) {
             <label class="label">Apellidos</label>
             <input class="input" type="text" id="jug-apellidos" value="${safeText(p.apellidos || '')}" />
           </div>
+          <div class="field-group" style="min-width:180px;">
+            <label class="label" title="El nombre con el que se le conoce: es el que sale en las fichas y en la presentación">Nombre deportivo</label>
+            <input class="input" type="text" id="jug-alias" value="${safeText(p.nombreDeportivo || '')}" placeholder="Opcional (p. ej. Rodri)" />
+          </div>
           <div class="field-group" style="min-width:160px;">
             <label class="label">Fecha de nacimiento</label>
             <input class="input" type="date" id="jug-birthdate" value="${p.birthDate || ''}" />
@@ -2552,7 +2556,7 @@ const normalizeTxt = str => String(str || '').toLowerCase().normalize('NFD').rep
 function jugadorPasaFiltros(p) {
   const f = jugFiltros;
   if (f.q) {
-    const txt = normalizeTxt(`${p.nombre || ''} ${p.apellidos || ''}`);
+    const txt = normalizeTxt(`${p.nombre || ''} ${p.apellidos || ''} ${p.nombreDeportivo || ''}`);
     if (!f.q.split(/\s+/).filter(Boolean).every(w => txt.includes(normalizeTxt(w)))) return false;
   }
   if (f.teamKey && p.teamKey !== f.teamKey) return false;
@@ -3346,7 +3350,7 @@ async function filasExportar(jugs, q, evalId) {
   const cab = [], celdas = [];
   const col = (titulo, f) => { cab.push(titulo); celdas.push(f); };
   if (q.personales) {
-    col('Nombre', j => j.nombre || ''); col('Apellidos', j => j.apellidos || '');
+    col('Nombre', j => j.nombre || ''); col('Apellidos', j => j.apellidos || ''); col('Nombre deportivo', j => j.nombreDeportivo || '');
     col('Fecha de nacimiento', j => j.birthDate ? j.birthDate.split('-').reverse().join('/') : '');
     col('Año', j => calcAgeAndYear(j.birthDate).year || '');
     col('Equipo', j => TEAMS.find(x => x.key === j.teamKey)?.label || '');
@@ -3409,7 +3413,7 @@ function renderPanelJugadores(container) {
     const teamLabel = TEAMS.find(t => t.key === p.teamKey)?.label || '-';
     const posLabel  = state.positions.find(pos => pos.key === p.positionKey)?.label || '-';
     const historicoRow = jugadorHistoricoOpenId === p.id ? `
-      <tr><td colspan="11" style="background:var(--bg-hover);">
+      <tr><td colspan="13" style="background:var(--bg-hover);">
         ${jugadorHistoricoCache[p.id] ? buildHistoricoHTML(jugadorHistoricoCache[p.id]) : '<p class="text-xs text-muted">Cargando…</p>'}
       </td></tr>
     ` : '';
@@ -3418,6 +3422,7 @@ function renderPanelJugadores(container) {
         <td><button type="button" data-jug-foto="${p.id}" title="${p.fotoUrl ? 'Cambiar foto' : 'Poner foto'} (pegar o elegir archivo)" style="width:36px;height:36px;border-radius:50%;padding:0;border:${p.fotoUrl ? 'none' : '1px dashed var(--border-emphasis)'};background:var(--bg-hover);cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:15px;">${p.fotoUrl ? `<img src="${p.fotoUrl}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;display:block;" />` : '📷'}</button></td>
         <td><a href="#" data-jug-ficha="${p.id}" style="font-weight:600;color:inherit;text-decoration:underline;cursor:pointer;">${safeText(p.nombre || '')}</a></td>
         <td><a href="#" data-jug-ficha="${p.id}" style="font-weight:600;color:inherit;text-decoration:underline;cursor:pointer;">${safeText(p.apellidos || '')}</a></td>
+        <td><input class="input" data-jug-alias="${p.id}" value="${safeText(p.nombreDeportivo || '')}" placeholder="—" title="Nombre deportivo: el que sale en las fichas. Se guarda al salir de la casilla." style="width:120px;padding:2px 6px;min-height:0;font-size:13px;" /></td>
         <td>${year ?? '-'}</td>
         <td>${age ?? '-'}</td>
         <td>${aniosEnClub(p) ?? '-'}</td>
@@ -3474,11 +3479,11 @@ function renderPanelJugadores(container) {
           <table class="table jug-lista">
             <thead>
               <tr>
-                <th></th><th>Nombre</th><th>Apellidos</th><th>Año</th><th>Edad</th><th>Años club</th>
+                <th></th><th>Nombre</th><th>Apellidos</th><th title="El que sale en las fichas y en la presentación">Nombre deportivo</th><th>Año</th><th>Edad</th><th>Años club</th>
                 <th>Equipo</th><th>Posición</th><th>Peso</th><th>Altura</th><th>Residencia</th><th></th>
               </tr>
             </thead>
-            <tbody>${rows || `<tr><td colspan="12" class="text-muted">${state.players.length ? 'Ningún jugador coincide con los filtros.' : 'Sin jugadores todavía.'}</td></tr>`}</tbody>
+            <tbody>${rows || `<tr><td colspan="13" class="text-muted">${state.players.length ? 'Ningún jugador coincide con los filtros.' : 'Sin jugadores todavía.'}</td></tr>`}</tbody>
           </table>
         </div>
       </div>
@@ -3707,6 +3712,10 @@ function renderPanelJugadores(container) {
   }));
 
   container.querySelector('#jug-exportar')?.addEventListener('click', () => abrirExportarExcel());
+  container.querySelectorAll('[data-jug-alias]').forEach(inp => inp.addEventListener('change', async () => {
+    try { await guardarCampoJugador(inp.dataset.jugAlias, 'nombreDeportivo', inp.value.trim() || null); showSuccess('Nombre deportivo guardado.'); }
+    catch (err) { console.error('[Firestore] Nombre deportivo:', err); showError('No se pudo guardar.'); }
+  }));
   container.querySelector('#jug-add')?.addEventListener('click', async () => {
     await cargarEvaluacionesSilencioso();
     jugadorFormId = 'new';
@@ -4126,6 +4135,7 @@ function renderPanelJugadores(container) {
     const baseData = {
       nombre: container.querySelector('#jug-nombre').value.trim(),
       apellidos: container.querySelector('#jug-apellidos').value.trim(),
+      nombreDeportivo: container.querySelector('#jug-alias')?.value.trim() || null,
       birthDate: container.querySelector('#jug-birthdate').value || null,
       foot: container.querySelector('#jug-foot').value,
       residencia: container.querySelector('#jug-residencia').value,
@@ -5284,6 +5294,9 @@ let plIrJugador = null; // jugador al que saltar al abrir la presentación (clic
 const plRegsEvalCache = {}; // { evaluacionId: registros[] } para comparar con toda la cantera (misma generación y posición)
 let plRefModo = 'team';   // comparación de las medias en la Presentación: 'team' (precargado) | 'teampos' | 'none'  // 'grid' | 'datos' | 'pres'
 
+// Nombre deportivo (alias): el que sale en fichas y diapositivas. Sin él, nombre y apellidos / apellidos.
+const nombreEnFicha = j => String(j?.nombreDeportivo || '').trim() || `${j?.nombre || ''} ${j?.apellidos || ''}`.trim();
+const rotuloCorto = j => (String(j?.nombreDeportivo || '').trim() || String(j?.apellidos || j?.nombre || '').trim()).toUpperCase();
 const nombreCompleto = j => `${j.apellidos || ''}, ${j.nombre || ''}`.replace(/^, |, $/g, '').trim();
 const ordenJugadores = (a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es');
 const ordenPorNombre = (a, b) => `${a.nombre || ''} ${a.apellidos || ''}`.trim().localeCompare(`${b.nombre || ''} ${b.apellidos || ''}`.trim(), 'es'); // listado de Jugadores
@@ -6129,7 +6142,7 @@ function plCardJugador(j, f1, x, y, escala) {
     const bg = b.hex || '#ffffff';
     return `<div style="width:${k(240)}px;height:${k(30)}px;box-sizing:border-box;margin-bottom:${k(4)}px;background:${bg};color:#000;border:${k(3)}px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;font-weight:400;font-size:${k(18)}px;text-transform:uppercase;white-space:nowrap;overflow:hidden;">${safeText(b.label)}</div>`;
   }).join('');
-  const apellido = String(j.apellidos || j.nombre || '').trim().toUpperCase();
+  const apellido = rotuloCorto(j);
   return `<div class="pl-card" data-jid="${j.id}" style="position:absolute;left:${x / 100 * PL_W}px;top:${y / 100 * PL_H}px;width:0;height:0;cursor:grab;touch-action:none;" title="Arrastra para mover · doble clic para quitar">
     ${svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}">${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${foto}</svg>`, R * 2, R * 2, `position:absolute;left:${-R}px;top:${-R}px;pointer-events:none;`).replace('<img ', '<img class="pl-donut" ')}
     ${circ(nota(f1.player?.rValue), -k(84 + 17))}${circ(nota(f1.player?.pValue), k(84 - 41))}
@@ -6221,7 +6234,7 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
       const foto = it.j.fotoUrl
         ? svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${D}" height="${D}" viewBox="0 0 ${D} ${D}"><clipPath id="${cid}"><circle cx="${R0}" cy="${R0}" r="${R0}"/></clipPath><circle cx="${R0}" cy="${R0}" r="${R0}" fill="#ffffff"/><image xlink:href="${it.j.fotoUrl}" href="${it.j.fotoUrl}" x="0" y="0" width="${D}" height="${D}" preserveAspectRatio="xMidYMin slice" clip-path="url(#${cid})"/></svg>`, D, D, `position:absolute;left:${(ITEM_W - D) / 2}px;top:0;`)
         : `<div style="position:absolute;left:${(ITEM_W - D) / 2}px;top:0;width:${D}px;height:${D}px;border-radius:50%;background:#fff;"></div>`;
-      const ap = String(it.j.apellidos || it.j.nombre || '').trim().toUpperCase();
+      const ap = rotuloCorto(it.j);
       return `<div style="position:absolute;left:${cx - ITEM_W / 2}px;top:${top}px;width:${ITEM_W}px;height:${D + 44}px;">
         ${foto}
         <div style="position:absolute;left:${(ITEM_W + D) / 2 - dN * 0.55}px;top:${-dN * 0.25}px;width:${dN}px;height:${dN}px;border-radius:50%;background:${bgN};color:${fgN};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${Math.max(12, Math.min(26, Math.round((dN - 6) / (txtNota.length > 1 ? txtNota.length * 0.58 : 1.4))))}px;line-height:1;letter-spacing:-0.5px;font-family:system-ui,sans-serif;">${safeText(txtNota)}</div>
