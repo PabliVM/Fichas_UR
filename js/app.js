@@ -6134,7 +6134,7 @@ function plCardJugador(j, f1, x, y, escala) {
   const nota = (txt) => {
     const hex = hexDeNota(notaNum(txt));
     const v = notaNum(txt);
-    return hex ? { bg: hex, fg: textoSobre(hex), t: fmtDec(v) } : { bg: '#ffffff', fg: '#111', t: 'X' };
+    return hex ? { bg: hex, fg: textoSobre(hex), t: String(Math.round((v + Number.EPSILON) * 10) / 10).replace('.', ',') } : { bg: '#ffffff', fg: '#111', t: 'X' }; // círculos: 1 decimal
   };
   const D = k(58);
   const circ = (n, left) => `<div style="position:absolute;left:${left}px;top:${-k(84 + 17)}px;width:${D}px;height:${D}px;border-radius:50%;background:${n.bg};color:${n.fg};border:${k(3)}px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:${k(n.t.length > 2 ? 24 : 30)}px;font-family:system-ui,sans-serif;">${safeText(n.t)}</div>`;
