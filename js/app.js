@@ -6203,10 +6203,12 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
   });
   const totalFilas = datos.reduce((a, d) => a + d.filas, 0);
   const libre = BOT - TOP - GAP * (datos.length - 1);
+  // Misma altura de fila (y mismo tamaño de foto) en todas las franjas; cada franja = cabecera 90 + sus filas.
+  const rowH = Math.min(240, (libre - 90 * datos.length) / totalFilas), D = Math.round(Math.min(120, rowH * 0.5));
+  const sobra = libre - datos.reduce((a, d) => a + 90 + d.filas * rowH, 0); // si sobra alto, se reparte entre las franjas
   let y = TOP;
   const partes = datos.map(d => {
-    const h = Math.round(libre * d.filas / totalFilas), y0 = y; y += h + GAP;
-    const rowH = Math.min(240, (h - 90) / d.filas), D = Math.round(Math.min(120, rowH * 0.5));
+    const h = Math.round(90 + d.filas * rowH + sobra / datos.length), y0 = y; y += h + GAP;
     const lado = (arr, x0, x1) => arr.map((it, i) => {
       const fila = Math.floor(i / POR_FILA), enFila = Math.min(POR_FILA, arr.length - fila * POR_FILA), col = i % POR_FILA;
       const cx = (x0 + x1) / 2 - (enFila * ITEM_W) / 2 + col * ITEM_W + ITEM_W / 2;
@@ -6223,7 +6225,7 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
       return `<div style="position:absolute;left:${cx - ITEM_W / 2}px;top:${top}px;width:${ITEM_W}px;height:${D + 44}px;">
         ${foto}
         <div style="position:absolute;left:${(ITEM_W + D) / 2 - dN * 0.55}px;top:${-dN * 0.25}px;width:${dN}px;height:${dN}px;border-radius:50%;background:${bgN};color:${fgN};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${Math.max(12, Math.min(26, Math.round((dN - 6) / (txtNota.length > 1 ? txtNota.length * 0.58 : 1.4))))}px;line-height:1;letter-spacing:-0.5px;font-family:system-ui,sans-serif;">${safeText(txtNota)}</div>
-        <div style="position:absolute;left:-10px;width:${ITEM_W + 20}px;top:${D + 8}px;text-align:center;"><span style="display:inline-block;background:${cf.bg};color:${cf.fg};font-family:system-ui,sans-serif;font-weight:800;font-size:17px;padding:3px 14px;border-radius:18px;white-space:nowrap;">${safeText(ap)}</span></div></div>`;
+        <div style="position:absolute;left:50%;top:${D + 8}px;transform:translateX(-50%);max-width:${ITEM_W + 6}px;background:${cf.bg};color:${cf.fg};font-family:system-ui,sans-serif;font-weight:800;font-size:${ap.length > 18 ? 13 : ap.length > 13 ? 15 : 17}px;padding:3px 12px;border-radius:14px;width:max-content;text-align:center;line-height:1.15;box-sizing:border-box;" title="${safeText(ap)}">${safeText(ap)}</div></div>`;
     }).join('');
     return { band: `<div style="position:absolute;left:20px;top:${y0}px;width:${PL_W - 40}px;height:${h}px;background:${d.b.bg};border-radius:70px;"></div>`, cont: `${lado(d.izq, 40, MITAD - 10)}${lado(d.der, MITAD + 10, PL_W - 40)}
       <div style="position:absolute;left:${MITAD - 70}px;top:${y0 + 14}px;width:140px;height:56px;border-radius:28px;background:#14306e;color:#fff;font-family:system-ui,sans-serif;font-weight:900;font-size:34px;display:flex;align-items:center;justify-content:center;">${d.b.lab}</div>` };
