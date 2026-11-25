@@ -3440,7 +3440,7 @@ function renderPanelJugadores(container) {
         <td><button type="button" data-jug-foto="${p.id}" title="${p.fotoUrl ? 'Cambiar foto' : 'Poner foto'} (pegar o elegir archivo)" style="width:36px;height:36px;border-radius:50%;padding:0;border:${p.fotoUrl ? 'none' : '1px dashed var(--border-emphasis)'};background:var(--bg-hover);cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:15px;">${p.fotoUrl ? `<img src="${p.fotoUrl}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;display:block;" />` : '📷'}</button></td>
         <td><a href="#" data-jug-ficha="${p.id}" style="font-weight:600;color:inherit;text-decoration:underline;cursor:pointer;">${safeText(p.nombre || '')}</a></td>
         <td><a href="#" data-jug-ficha="${p.id}" style="font-weight:600;color:inherit;text-decoration:underline;cursor:pointer;">${safeText(p.apellidos || '')}</a></td>
-        <td><input class="input" data-jug-alias="${p.id}" value="${safeText(p.nombreDeportivo || '')}" placeholder="—" title="Nombre deportivo: el que sale en las fichas. Se guarda al salir de la casilla." style="width:100px;padding:2px 6px;min-height:0;font-size:13px;" /></td>
+        <td><input class="input" data-jug-alias="${p.id}" value="${safeText(p.nombreDeportivo || '')}" placeholder="—" title="Nombre deportivo: el que sale en las fichas. Se guarda al salir de la casilla." style="width:170px;padding:2px 6px;min-height:0;font-size:13px;" /></td>
         <td>${year ?? '-'}</td>
         <td>${age ?? '-'}</td>
         <td>${aniosEnClub(p) ?? '-'}</td>
@@ -3487,8 +3487,9 @@ function renderPanelJugadores(container) {
           </details>
           <button class="btn" id="jug-exportar" title="Elige qué jugadores y qué datos">⬇ Exportar a Excel</button>
         </div>`}
-        <div style="overflow-x:auto;">
+        <div class="jug-lista-wrap" style="overflow:auto;max-height:calc(100vh - 220px);border-radius:8px;">
           <style>
+            .jug-lista thead th { position:sticky; top:0; z-index:3; background:var(--bg-surface, #fff); box-shadow:0 1px 0 var(--border-default); } /* cabecera fija al bajar */
             .jug-lista td { padding-top:3px !important; padding-bottom:3px !important; }
             .jug-lista th, .jug-lista td { white-space:nowrap; padding-right:18px; } /* cada columna, lo justo; el hueco sobrante va a la de los botones */
             .jug-lista td .btn-sm { padding-top:3px; padding-bottom:3px; min-height:0; }
