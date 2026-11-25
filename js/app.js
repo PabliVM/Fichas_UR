@@ -1820,6 +1820,8 @@ const PEND_CAMPOS = [
   { k: 'fotoUrl',    l: 'Foto', falta: p => !p.fotoUrl },
 ];
 let pendTildesAbierto = false;
+const jugadoresSinTilde = () => [...state.players].map(p => ({ p, nombre: ponerTildes(p.nombre), apellidos: ponerTildes(p.apellidos) }))
+  .filter(x => x.nombre !== (x.p.nombre || '') || x.apellidos !== (x.p.apellidos || '')).sort((a, b) => ordenJugadores(a.p, b.p));
 let pendCampo = '';   // '' = cualquier dato; si no, solo los que les falte ese
 let pendEquipo = '';
 function renderPendientes(wrap) {
@@ -1831,8 +1833,7 @@ function renderPendientes(wrap) {
   const inp = (p, k, tipo, extra, valor) => `<input class="input" type="${tipo}" ${extra} data-pend-k="${k}" data-pend-id="${p.id}" value="${safeText(valor ?? '')}" style="min-width:${tipo === 'date' ? 130 : 80}px;${vacio(p, k)}" />`;
   const sel = (p, k, opts) => `<select class="select" data-pend-k="${k}" data-pend-id="${p.id}" style="min-width:130px;${vacio(p, k)}"><option value="">—</option>${opts.map(([v, l]) => `<option value="${safeText(v)}" ${p[k] === v ? 'selected' : ''}>${safeText(l)}</option>`).join('')}</select>`;
   // Tildes que faltan en nombre y apellidos (ADRIAN → ADRIÁN): se revisan y se aplican de una vez.
-  const tildes = [...state.players].map(p => ({ p, nombre: ponerTildes(p.nombre), apellidos: ponerTildes(p.apellidos) }))
-    .filter(x => x.nombre !== (x.p.nombre || '') || x.apellidos !== (x.p.apellidos || '')).sort((a, b) => ordenJugadores(a.p, b.p));
+  const tildes = jugadoresSinTilde();
   const tildesHTML = !tildes.length ? '' : `
     <details id="pend-tildes" class="mb-16" ${pendTildesAbierto ? 'open' : ''} style="border:1px solid #fcd34d;background:#fffbeb;border-radius:10px;padding:10px 14px;">
       <summary style="cursor:pointer;"><b>✍ ${tildes.length} jugador${tildes.length === 1 ? '' : 'es'} con nombres sin tilde</b> <span class="text-xs text-muted">(pulsa para revisar y ponerlas)</span></summary>
@@ -3526,6 +3527,14 @@ function renderPanelJugadores(container) {
           </details>
           <button class="btn" id="jug-exportar" title="Elige qué jugadores y qué datos">⬇ Exportar a Excel</button>
         </div>`}
+        ${(() => { // jugadores que ya estaban guardados sin tilde (ADRIAN → ADRIÁN): un clic para todos
+          const n = puedeEditar('jugadores.lista') ? jugadoresSinTilde().length : 0;
+          return !n ? '' : `<div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:10px;padding:8px 12px;">
+            <span style="flex:1 1 260px;">✍ <b>${n} jugador${n === 1 ? '' : 'es'}</b> con el nombre o los apellidos sin tilde (Adrian, Garcia…).</span>
+            <button class="btn btn-sm btn-primary" id="jug-tildes-todos">Poner todas las tildes</button>
+            <button class="btn btn-sm" id="jug-tildes-revisar" title="Configuración › Datos pendientes: ver uno a uno y desmarcar los extranjeros">Revisar uno a uno</button>
+          </div>`;
+        })()}
         <div class="jug-lista-wrap" style="overflow:auto;max-height:calc(100vh - 220px);border-radius:8px;">
           <style>
             .jug-lista thead th { position:sticky; top:0; z-index:3; background:var(--bg-surface, #fff); box-shadow:0 1px 0 var(--border-default); } /* cabecera fija al bajar */
@@ -3767,6 +3776,23 @@ function renderPanelJugadores(container) {
   }));
 
   container.querySelector('#jug-exportar')?.addEventListener('click', () => abrirExportarExcel());
+  container.querySelector('#jug-tildes-revisar')?.addEventListener('click', () => { configSubTab = 'pendientes'; pendTildesAbierto = true; switchTab('config'); });
+  container.querySelector('#jug-tildes-todos')?.addEventListener('click', async e => {
+    const lista = jugadoresSinTilde();
+    if (!confirm(`¿Poner las tildes a ${lista.length} jugadores? (Ej.: ADRIAN GARCIA → ADRIÁN GARCÍA)`)) return;
+    const btn = e.currentTarget; btn.disabled = true;
+    let n = 0, fallos = 0;
+    for (const x of lista) {
+      btn.textContent = `Guardando ${n + fallos + 1} de ${lista.length}…`;
+      try {
+        if (x.nombre !== (x.p.nombre || '')) await guardarCampoJugador(x.p.id, 'nombre', x.nombre);
+        if (x.apellidos !== (x.p.apellidos || '')) await guardarCampoJugador(x.p.id, 'apellidos', x.apellidos);
+        n++;
+      } catch (err) { console.error('[Tildes]', x.p.id, err); fallos++; }
+    }
+    fallos ? showError(`Tildes puestas en ${n}; ${fallos} no se pudieron guardar.`) : showSuccess(`Tildes puestas en ${n} jugadores.`);
+    renderPanelJugadores(container);
+  });
   container.querySelectorAll('[data-jug-alias]').forEach(inp => inp.addEventListener('change', async () => {
     try { await guardarCampoJugador(inp.dataset.jugAlias, 'nombreDeportivo', inp.value.trim() || null); showSuccess('Nombre deportivo guardado.'); }
     catch (err) { console.error('[Firestore] Nombre deportivo:', err); showError('No se pudo guardar.'); }
