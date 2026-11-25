@@ -82,7 +82,9 @@ const POS_ANGLES = { tl: [270, 360], tr: [0, 90], br: [90, 180], bl: [180, 270] 
 const BLOCK_TITLES = { mental: 'MENTAL', tecnico: 'TÉCNICO', tactico: 'TÁCTICO', condicional: 'CONDICIONAL' };
 
 let _circleUid = 0;
-function buildCentralCircle(photoUrl, blockColors, rpTexts, order) {
+// blockColorsM: color por la media de las notas M (metodología) del bloque, o null. Si hay, manda sobre la media
+// (data-m); con las M ocultas en la presentación (.pl-sin-m) se vuelve al de la media (data-auto). Ver aplicarCirculoM.
+function buildCentralCircle(photoUrl, blockColors, rpTexts, order, blockColorsM = {}) {
   const _u = ++_circleUid; // ids únicos por ficha (varias fichas en la misma página)
   const size = 1420;
   const cx = size / 2;
@@ -92,13 +94,14 @@ function buildCentralCircle(photoUrl, blockColors, rpTexts, order) {
   const midR = (rOuter + rInner) / 2;
   const rpR  = midR + (rOuter - midR) * 0.6; // un poco más hacia fuera que el nombre, pegado a él
 
-  const seg = (startDeg, endDeg, color) => {
+  const seg = (startDeg, endDeg, color, key) => {
     const p1 = polar(cx, cy, rOuter, startDeg);
     const p2 = polar(cx, cy, rOuter, endDeg);
     const p3 = polar(cx, cy, rInner, endDeg);
     const p4 = polar(cx, cy, rInner, startDeg);
     const large = endDeg - startDeg > 180 ? 1 : 0;
-    return `<path d="M ${p1.x} ${p1.y} A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y} Z" fill="${color}" stroke="#94a3b8" stroke-width="1.5" />`;
+    const colM = blockColorsM?.[key] || '';
+    return `<path data-seg="${key}" data-auto="${color}" data-m="${colM}" d="M ${p1.x} ${p1.y} A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y} Z" fill="${colM || color}" stroke="#94a3b8" stroke-width="1.5" />`;
   };
 
   // Arco invisible por cuadrante (radio medio) para que el texto lo siga.
@@ -112,9 +115,9 @@ function buildCentralCircle(photoUrl, blockColors, rpTexts, order) {
     return `<path id="${id}" d="M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${large} ${sweep} ${p2.x} ${p2.y}" fill="none" />`;
   };
 
-  const curvedLabel = (id, text, color) => {
-    const fill = color === '#ffffff' ? '#334155' : '#0f1117';
-    return `<text font-size="79" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
+  const curvedLabel = (id, text, color, key) => {
+    const fill = (blockColorsM?.[key] || color) === '#ffffff' ? '#334155' : '#0f1117';
+    return `<text data-seg-lbl="${key}" font-size="79" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
   };
 
   // El R/P del bloque, pegado justo al lado del nombre (MENTAL/TÉCNICO/...).
@@ -134,7 +137,7 @@ function buildCentralCircle(photoUrl, blockColors, rpTexts, order) {
   const segs = POSITIONS.map(pos => {
     const key = order[pos];
     const [a, b] = POS_ANGLES[pos];
-    return seg(a, b, blockColors[key]);
+    return seg(a, b, blockColors[key], key);
   }).join('');
   const arcs = POSITIONS.map(pos => {
     const [a, b] = POS_ANGLES[pos];
@@ -144,7 +147,7 @@ function buildCentralCircle(photoUrl, blockColors, rpTexts, order) {
   }).join('');
   const labels = POSITIONS.map(pos => {
     const key = order[pos];
-    return curvedLabel(`arc${_u}-${pos}`, BLOCK_TITLES[key], blockColors[key]);
+    return curvedLabel(`arc${_u}-${pos}`, BLOCK_TITLES[key], blockColors[key], key);
   }).join('');
   const rpLabels = POSITIONS.map(pos => rpLabel(`rp${_u}-${pos}`, rpTexts?.[order[pos]])).join('');
 
@@ -497,18 +500,38 @@ export function wireCondicionalInputs(container) {
  * cabecera muestra su media y, a su lado, la misma referencia (*) con la que se compara la nota automática.
  * Al salir de la celda se normaliza el valor y se llama a onManual({ 'bloque|ítem': número }) para guardarlo.
  */
+/** Pinta los cuartos del círculo: con notas M → su color (data-m); si no, o si las M están ocultas (.pl-sin-m), el de la media. */
+export function aplicarCirculoM(root) {
+  root.querySelectorAll('[data-seg]').forEach(path => {
+    const usarM = !path.closest('.pl-sin-m') && path.dataset.m;
+    const col = usarM ? path.dataset.m : path.dataset.auto;
+    path.setAttribute('fill', col);
+    const lbl = path.closest('svg')?.querySelector(`[data-seg-lbl="${path.dataset.seg}"]`);
+    if (lbl) lbl.setAttribute('fill', col === '#ffffff' ? '#334155' : '#0f1117');
+  });
+}
+
 export function wireNotasManuales(container, bands, onManual) {
   const pintar = inp => {
     const v = parseEsNumber(inp.value);
     inp.style.color = v != null ? (scoreColor(v, bands) || '') : '';
+  };
+  // El cuarto del círculo de ese bloque sigue a la media de sus M al momento.
+  const segM = (quad, color) => {
+    const key = quad.querySelector('.ficha-manual')?.dataset.mk?.split('|')[0];
+    const path = key && container.querySelector(`[data-seg="${key}"]`);
+    if (!path) return;
+    path.dataset.m = color;
+    aplicarCirculoM(path.closest('svg').parentElement);
   };
   const recalcular = quad => {
     const vals = [...quad.querySelectorAll('.ficha-manual')].map(i => parseEsNumber(i.value)).filter(v => v != null);
     const celda = quad.querySelector('.ficha-q-manual-v');
     const refEl = quad.querySelector('.ficha-q-manual-ref');
     if (!celda) return;
-    if (!vals.length) { celda.textContent = ''; celda.style.color = ''; if (refEl) refEl.innerHTML = ''; return; }
+    if (!vals.length) { segM(quad, ''); celda.textContent = ''; celda.style.color = ''; if (refEl) refEl.innerHTML = ''; return; }
     const media = vals.reduce((a, b) => a + b, 0) / vals.length;
+    segM(quad, scoreColor(media, bands) || '');
     celda.textContent = formatNum(media);
     celda.style.color = scoreColor(media, bands) || '#ffffff';
     const ref = parseFloat(quad.dataset.ref);
@@ -581,6 +604,13 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
     condicional: blockCircleColor(blocks.condicional,  bands),
   };
 
+  // Notas M (metodología) ya puestas: la media de las M del bloque pinta su cuarto del círculo.
+  const blockColorsM = {};
+  Object.keys(blockColors).forEach(k => {
+    const v = Object.entries(data.manual || {}).filter(([mk]) => mk.startsWith(`${k}|`)).map(([, n]) => Number(n)).filter(n => !Number.isNaN(n));
+    blockColorsM[k] = v.length ? (scoreColor(v.reduce((a, b) => a + b, 0) / v.length, bands) || null) : null;
+  });
+
   const rpText = rp => (rp && rp[0] != null && rp[1] != null) ? `${formatNum(rp[0])}/${formatNum(rp[1])}` : null;
   const rpTexts = {
     mental:      rpText(blocks.mental.rp),
@@ -616,7 +646,7 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
           ${buildBlockAt('tr')}
           ${buildBlockAt('bl')}
           ${buildBlockAt('br')}
-          <div class="ficha-central">${buildCentralCircle(player?.photoUrl, blockColors, rpTexts, order)}</div>
+          <div class="ficha-central">${buildCentralCircle(player?.photoUrl, blockColors, rpTexts, order, blockColorsM)}</div>
         </div>
         ${buildPlanAccion(plan)}
       </div>

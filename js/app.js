@@ -22,7 +22,7 @@ import { preguntasDeCabecera, comprobarPorBloques } from './comprobar-columnas.j
 import { renderFooter }  from './render-footer.js';
 import { TABS, LOGO_PATH, TEAMS, FICHA2_OFFICIAL_DIMENSIONS, PROFILES, CONDICIONAL_BASE, esEquipoBase } from './constants.js';
 import { state, setState, DEFAULT_FICHA_COLORS, loadConfigFromFirestore, loadPlayersFromFirestore } from './state.js';
-import { renderFichaDetalle, setGpsTolerance, condicionalScore, condicionalBaseScore, fitFichaToFrame } from './ficha-detalle.js';
+import { renderFichaDetalle, setGpsTolerance, condicionalScore, condicionalBaseScore, fitFichaToFrame, aplicarCirculoM } from './ficha-detalle.js';
 import { renderFichaPagina1 } from './ficha-pagina1.js';
 import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
 import { exportFichaAsPDF, exportFichasAsPDF } from './pdf-export.js';
@@ -6534,8 +6534,10 @@ async function renderPlantillaPresentacion(container) {
   if (plIrJugador) { const jid = plIrJugador; plIrJugador = null; let n = 0; const t0 = setInterval(() => { if (lista.querySelector(`[data-pl-obs="j1.${jid}"]`) || ++n > 40) { clearInterval(t0); irA(k => k === `j1.${jid}`); } }, 150); }
   container.querySelector('#pl-ver-obs').addEventListener('change', e => aplicarVerObs(e.target.checked));
   lista.classList.toggle('pl-sin-m', !plVerM());
+  aplicarCirculoM(lista);
   container.querySelector('#pl-ver-m')?.addEventListener('change', e => {
     lista.classList.toggle('pl-sin-m', !e.target.checked);
+    aplicarCirculoM(lista); // el círculo vuelve a las medias (o a las M)
     try { localStorage.setItem('rm-pl-ver-m', e.target.checked ? '1' : '0'); } catch {}
   });
   nav.addEventListener('click', e => {
