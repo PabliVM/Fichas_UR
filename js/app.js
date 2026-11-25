@@ -6856,10 +6856,33 @@ function setupEvents() {
     e.preventDefault();
     irAFicha(el.dataset.irFicha, { evalId: el.dataset.irEv || null, pestana: el.dataset.irPestana || 'datos' });
   });
+  // Números en celdas de tabla, centrados (en todas las tablas de la app, también las que se pintan después).
+  const RE_NUM = /^\s*(?:[-–—]|[-+]?\d+(?:[.,]\d+)?(?:\s?(?:kg|m|cm|%|años))?|\d+(?:\+\d+)+|\d+\s*\/\s*\d+)\s*$/i;
+  const centrarNumeros = () => document.querySelectorAll('table td:not([data-nchk])').forEach(td => {
+    td.dataset.nchk = '';
+    if (td.querySelector('input:not([type=number]),select,button,textarea,img,a')) return;
+    if (td.querySelector('input[type=number]') || RE_NUM.test(td.textContent)) td.style.textAlign = 'center';
+  }) || document.querySelectorAll('table:not([data-nthchk])').forEach(tb => {
+    // Título de la columna centrado si la mayoría de sus celdas con dato son números.
+    const filas = [...(tb.tBodies[0]?.rows || [])].filter(r => r.cells.length > 1).slice(0, 40);
+    const cab = tb.tHead?.rows[tb.tHead.rows.length - 1];
+    if (!filas.length || !cab) return;
+    tb.dataset.nthchk = '';
+    [...cab.cells].forEach((th, i) => {
+      if (th.style.textAlign) return;
+      const celdas = filas.map(r => r.cells[i]).filter(td => td && td.textContent.trim() && !/^[-–—]$/.test(td.textContent.trim()));
+      if (celdas.length && celdas.filter(td => td.style.textAlign === 'center').length / celdas.length >= 0.6) th.style.textAlign = 'center';
+    });
+  });
+  let numPend = false;
+  new MutationObserver(() => { if (numPend) return; numPend = true; requestAnimationFrame(() => { numPend = false; centrarNumeros(); }); })
+    .observe(document.body, { childList: true, subtree: true });
+  centrarNumeros();
   if (!document.getElementById('rm-nombres-css')) {
     const st = document.createElement('style'); st.id = 'rm-nombres-css';
     // Nombres de jugador: se pueden pulsar, pero sin subrayado.
-    st.textContent = `[data-ir-ficha],[data-reg-ficha],[data-pl-ir],a[data-jug-ficha]{text-decoration:none !important;border-bottom:none !important;cursor:pointer;}
+    st.textContent = `table td input[type=number]{text-align:center;}
+      [data-ir-ficha],[data-reg-ficha],[data-pl-ir],a[data-jug-ficha]{text-decoration:none !important;border-bottom:none !important;cursor:pointer;}
       [data-ir-ficha]:hover,[data-reg-ficha]:hover,[data-pl-ir]:hover,a[data-jug-ficha]:hover{color:var(--blue-600,#1d4ed8) !important;}`;
     document.head.appendChild(st);
   }
