@@ -1868,7 +1868,7 @@ async function guardarDatoJugador(id, k, valor) {
   } catch (err) { console.error('[Firestore] Dato jugador:', err); showError('No se pudo guardar el cambio.'); return false; }
 }
 
-let jugEdicion = (() => { try { return localStorage.getItem('rm-jug-edicion2') !== '0'; } catch { return true; } })(); // lista de Jugadores editable (por defecto sí, para quien puede editar)
+let jugEdicion = false; // lista de Jugadores: siempre empieza en "solo ver"; se pasa a editar con el botón
 let pendTildesAbierto = false;
 const jugadoresSinTilde = () => [...state.players].map(p => ({ p, nombre: ponerTildes(p.nombre), apellidos: ponerTildes(p.apellidos), alias: ponerTildes(p.nombreDeportivo || '') }))
   .filter(x => x.nombre !== (x.p.nombre || '') || x.apellidos !== (x.p.apellidos || '') || x.alias !== (x.p.nombreDeportivo || '')).sort((a, b) => ordenJugadores(a.p, b.p));
@@ -3536,7 +3536,7 @@ function renderPanelJugadores(container) {
         <td><button type="button" data-jug-foto="${p.id}" title="${p.fotoUrl ? 'Cambiar foto' : 'Poner foto'} (pegar o elegir archivo)" style="width:36px;height:36px;border-radius:50%;padding:0;border:${p.fotoUrl ? 'none' : '1px dashed var(--border-emphasis)'};background:var(--bg-hover);cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:15px;">${p.fotoUrl ? `<img src="${p.fotoUrl}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;display:block;" />` : '📷'}</button></td>
         <td><a href="#" data-jug-ficha="${p.id}" style="font-weight:600;color:inherit;text-decoration:underline;cursor:pointer;">${safeText(p.nombre || '')}</a></td>
         <td><a href="#" data-jug-ficha="${p.id}" style="font-weight:600;color:inherit;text-decoration:underline;cursor:pointer;">${safeText(p.apellidos || '')}</a></td>
-        <td><input class="input" data-jug-alias="${p.id}" value="${safeText(p.nombreDeportivo || '')}" placeholder="—" title="Nombre deportivo: el que sale en las fichas. Se guarda al salir de la casilla." style="width:170px;padding:2px 6px;min-height:0;font-size:13px;" /></td>
+        <td>${safeText(p.nombreDeportivo || '') || '<span class="text-muted">—</span>'}</td>
         <td>${year ?? '-'}</td>
         <td>${age ?? '-'}</td>
         <td>${aniosEnClub(p) ?? '-'}</td>
@@ -3582,7 +3582,7 @@ function renderPanelJugadores(container) {
             </div>
           </details>
           <button class="btn" id="jug-exportar" title="Elige qué jugadores y qué datos">⬇ Exportar a Excel</button>
-          ${puedeEditar('jugadores.lista') ? `<button class="btn ${jugEdicion ? 'btn-primary' : ''}" id="jug-edicion" title="Cambiar los datos de todos los jugadores directamente en la tabla (se guarda al salir de cada casilla)">${jugEdicion ? '👁 Solo ver' : '✎ Editar tabla'}</button>` : ''}
+          ${puedeEditar('jugadores.lista') ? `<button class="btn ${jugEdicion ? 'btn-primary' : ''}" id="jug-edicion" title="Cambiar los datos de todos los jugadores directamente en la tabla (se guarda al salir de cada casilla)">${jugEdicion ? '👁 Solo ver' : '✎ Editar'}</button>` : ''}
         </div>`}
         ${(() => { // jugadores que ya estaban guardados sin tilde (ADRIAN → ADRIÁN): un clic para todos
           const n = puedeEditar('jugadores.lista') ? jugadoresSinTilde().length : 0;
@@ -3837,7 +3837,6 @@ function renderPanelJugadores(container) {
   container.querySelector('#jug-exportar')?.addEventListener('click', () => abrirExportarExcel());
   container.querySelector('#jug-edicion')?.addEventListener('click', () => {
     jugEdicion = !jugEdicion;
-    try { localStorage.setItem('rm-jug-edicion2', jugEdicion ? '1' : '0'); } catch {}
     preservandoScroll(() => renderPanelJugadores(container));
   });
   container.querySelectorAll('[data-jed-k]').forEach(el => el.addEventListener('change', async () => {
@@ -7027,7 +7026,7 @@ function setupEvents() {
   }
   // Pulsar una pestaña de la barra lleva a su pantalla principal (no a la última ficha o presentación abierta).
   document.addEventListener('rm:tab-click', e => {
-    if (e.detail === 'jugadores') { jugFichaId = null; jugadorFormId = null; jugVolverA = null; }
+    if (e.detail === 'jugadores') { jugFichaId = null; jugadorFormId = null; jugVolverA = null; jugEdicion = false; }
     if (e.detail === 'plantillas') plVista = { modo: 'grid', teamKey: null };
   });
   document.addEventListener('rm:tab-changed', e => {
