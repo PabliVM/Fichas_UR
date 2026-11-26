@@ -6305,9 +6305,9 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
   const campoN = modo === 'p' ? 'pValue' : 'rValue';
   const notaDe = it => notaNum(it.f1?.player?.[campoN]);
   const bandas = [
-    { lab: '+4', bg: '#7bbf90', ok: v => v != null && v >= 4 },
+    { lab: '>4', bg: '#7bbf90', ok: v => v != null && v >= 4 },
     { lab: '3-4', bg: '#f2e09c', ok: v => v != null && v >= 3 && v < 4 }, // sin nota: fuera de la diapositiva (lista de pendientes)
-    { lab: '-3', bg: '#f0728f', ok: v => v != null && v < 3 },
+    { lab: '<3', bg: '#f0728f', ok: v => v != null && v < 3 },
   ];
   const POR_FILA = 6, ITEM_W = 150, TOP = 165, BOT = 1310, GAP = 16, MITAD = PL_W / 2;
   const datos = bandas.map(b => {
@@ -6342,7 +6342,7 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
         <div style="position:absolute;left:50%;top:${D + 8}px;transform:translateX(-50%);max-width:${ITEM_W + 6}px;cursor:pointer;background:${cf.bg};color:${cf.fg};font-family:system-ui,sans-serif;font-weight:800;font-size:${ap.length > 18 ? 13 : ap.length > 13 ? 15 : 17}px;padding:3px 12px;border-radius:14px;width:max-content;text-align:center;line-height:1.15;box-sizing:border-box;" data-ir-ficha="${it.j.id}" title="${safeText(ap)} · abrir su ficha">${safeText(ap)}</div></div>`;
     }).join('');
     return { band: `<div style="position:absolute;left:20px;top:${y0}px;width:${PL_W - 40}px;height:${h}px;background:${d.b.bg};border-radius:70px;"></div>`, cont: `${lado(d.izq, 40, MITAD - 10)}${lado(d.der, MITAD + 10, PL_W - 40)}
-      <div style="position:absolute;left:${MITAD - 70}px;top:${y0 + 14}px;width:140px;height:56px;border-radius:28px;background:#14306e;color:#fff;font-family:system-ui,sans-serif;font-weight:900;font-size:34px;display:flex;align-items:center;justify-content:center;">${d.b.lab}</div>` };
+      <div style="position:absolute;left:${MITAD - 70}px;top:${y0 + 14}px;width:140px;height:56px;border-radius:28px;background:#14306e;color:#fff;font-family:system-ui,sans-serif;font-weight:900;font-size:34px;display:flex;align-items:center;justify-content:center;">${safeText(d.b.lab)}</div>` };
   });
   const cuenta = k => items.filter(it => conf(it).txt === k).length;
   const chip = k => { const cf = Object.values(PL_RESI).find(x => x.txt === k); return `<div style="display:flex;align-items:center;gap:8px;"><span style="width:34px;height:34px;border-radius:50%;background:#fff;color:#111;border:2px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font:800 18px system-ui,sans-serif;">${cuenta(k)}</span><span style="background:${cf.bg};color:${cf.fg};font:800 15px system-ui,sans-serif;padding:3px 14px;border-radius:16px;min-width:130px;text-align:center;">${k}</span></div>`; };
