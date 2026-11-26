@@ -5883,16 +5883,25 @@ async function proponerDescripcion(btn, descEl, p, evSel, aspectosTxt, btnGuarda
     .map(([c, v]) => ({ competencia: c, bloque: apc[c] || 'perfil', nota: Math.round(v * 100) / 100 }));
   if (!notas.length) { showError(`${nombreCompleto(p)} no tiene notas en esta evaluación: no hay con qué escribir la descripción.`); return; }
   const limpia = arr => (arr || []).filter(Boolean);
+  const f1 = buildFicha1RealData(fPos, evSel?.media || null, p, aspectosTxt, evSel?.eid);
+  const r2 = v => (typeof v === 'number' && !Number.isNaN(v) ? Math.round(v * 100) / 100 : null);
+  const nivelTxt = k => (k === 'green' ? 'alto (potenciar)' : k === 'yellow' ? 'medio (desarrollar)' : k === 'red' ? 'bajo (mejorar)' : 'sin dato');
+  // Color del cuarto del círculo (con M o forzado a mano) → banda.
+  const colorABanda = hex => { const i = [...state.scoreBands].sort((a, b) => b.min - a.min).findIndex(b => String(b.color).toLowerCase() === String(hex || '').toLowerCase()); return ['green', 'yellow', 'red'][i] || null; };
   const datos = {
     jugador: `${p.nombre || ''} ${p.apellidos || ''}`.trim(),
     posicion: state.positions.find(x => x.key === fPos)?.label || fPos || '',
     equipo: TEAMS.find(t => t.key === p.teamKey)?.label || '',
     evaluacion: evSel?.ev ? `${evSel.ev.temporada} · ${evSel.ev.nombre}` : '',
     notas, rp: aspectosTxt?.rp || null,
-    // Los 3 perfiles de la Ficha 1 (con su media): la descripción empieza por ellos.
-    perfiles: (buildFicha1RealData(fPos, evSel?.media || null, p, aspectosTxt, evSel?.eid).statusBars || []).slice(0, 3)
-      .map(b => ({ perfil: b.label, nota: typeof b.value === 'number' ? Math.round(b.value * 100) / 100 : null,
-        nivel: b.color === 'green' ? 'alto (potenciar)' : b.color === 'yellow' ? 'medio (desarrollar)' : b.color === 'red' ? 'bajo (mejorar)' : 'sin dato' })),
+    // Lo que sale en la Ficha 1, en el orden en que debe ir la descripción:
+    // perfiles → competencias ofensivas/defensivas → círculo (Mental, Técnico, Táctico, Condicional) → personalidad.
+    perfiles: (f1.statusBars || []).slice(0, 3).map(b => ({ perfil: b.label, nota: r2(b.value), nivel: nivelTxt(b.color) })),
+    competencias_ofensivas: (f1.competenciasOfensivas || []).map(c => ({ competencia: c.label, nota: r2(comp[c.label]), nivel: nivelTxt(c.status) })),
+    competencias_defensivas: (f1.competenciasDefensivas || []).map(c => ({ competencia: c.label, nota: r2(comp[c.label]), nivel: nivelTxt(c.status) })),
+    circulo: ['mental', 'tecnico', 'tactico', 'condicional'].map(k => ({ bloque: { mental: 'Mental', tecnico: 'Técnico', tactico: 'Táctico', condicional: 'Condicional' }[k],
+      media: r2(evSel?.media?.porAspecto?.[k]), nivel: nivelTxt(colorABanda(f1.circleColors?.[k])) })),
+    personalidad: [...(f1.personalidad?.col1 || []), ...(f1.personalidad?.col2 || [])].map(c => ({ rasgo: c.label, nota: r2(comp[c.label]), nivel: nivelTxt(c.status) })),
     comentarios: {
       ofensivos_potenciar: limpia(aspectosTxt?.ofensivos?.potenciar), ofensivos_mejorar: limpia(aspectosTxt?.ofensivos?.mejorar),
       defensivos_potenciar: limpia(aspectosTxt?.defensivos?.potenciar), defensivos_mejorar: limpia(aspectosTxt?.defensivos?.mejorar),

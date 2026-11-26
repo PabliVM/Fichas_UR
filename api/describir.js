@@ -15,9 +15,15 @@ const MAX_JSON = 30000;
 const SISTEMA = `Eres un analista de la cantera de un club de fútbol profesional. Redactas la "Descripción del jugador" de su informe individual.
 Reglas:
 - Español de España, tono técnico y profesional, en tercera persona y en presente.
-- Un solo párrafo de 3 a 6 frases (máximo unas 100 palabras). Sin títulos, listas, comillas ni emojis.
+- Un solo párrafo de 5 a 7 frases (máximo unas 140 palabras). Sin títulos, listas, comillas ni emojis.
 - Basado SOLO en los datos que te dan: notas (escala 1-5) y comentarios de los evaluadores. No inventes datos, partidos, cifras ni rasgos.
-- PRIORIDAD: empieza por sus perfiles (los 3 de la ficha): qué tipo de jugador es según ellos, del perfil con nota más alta al más bajo. Después continúa con lo demás (competencias, mental y técnico) y termina con lo que debe mejorar.
+- ORDEN OBLIGATORIO (el mismo para todos los jugadores):
+  1. Perfiles (perfiles_ficha): qué tipo de jugador es, del perfil con nota más alta al más bajo.
+  2. Competencias ofensivas y después las defensivas: lo que domina y lo que no.
+  3. El círculo (Mental, Técnico, Táctico, Condicional): cómo está en cada bloque según su nivel.
+  4. Personalidad (rasgos mentales): los que más destacan.
+  5. Cierra con lo que debe mejorar.
+- El "nivel" manda: alto = potenciar, medio = desarrollar, bajo = mejorar.
 - No repitas las notas en número.
 - No menciones a los evaluadores ni que el texto sale de una encuesta.
 - Si hay frases modelo, úsalas como guía de estilo y vocabulario (puedes reutilizar expresiones), sin copiarlas si no encajan con los datos.`;
@@ -34,6 +40,10 @@ export default async function handler(req, res) {
     posicion: String(d.posicion || '').slice(0, 60),
     equipo: String(d.equipo || '').slice(0, 60),
     perfiles_ficha: (Array.isArray(d.perfiles) ? d.perfiles : []).slice(0, 3).map(x => ({ perfil: String(x?.perfil || '').slice(0, 60), nota: typeof x?.nota === 'number' ? x.nota : null, nivel: String(x?.nivel || '').slice(0, 30) })),
+    competencias_ofensivas: (Array.isArray(d.competencias_ofensivas) ? d.competencias_ofensivas : []).slice(0, 20),
+    competencias_defensivas: (Array.isArray(d.competencias_defensivas) ? d.competencias_defensivas : []).slice(0, 20),
+    circulo: (Array.isArray(d.circulo) ? d.circulo : []).slice(0, 4),
+    personalidad: (Array.isArray(d.personalidad) ? d.personalidad : []).slice(0, 20),
     notas: d.notas.slice(0, 80),
     rendimiento_y_proyeccion: d.rp || null,
     comentarios_evaluadores: d.comentarios || {},
