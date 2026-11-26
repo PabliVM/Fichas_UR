@@ -200,7 +200,7 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref, ma
   const refHTML = (ref != null && !Number.isNaN(ref)) ? ` <span class="ficha-q-sep">/</span><span class="ficha-q-media ficha-q-ref" style="color:${scoreColor(ref, bands) || '#ffffff'};">${formatNum(ref)}*</span>` : '';
   // Celda de la media de las notas manuales (se rellena sola al escribir en las celdas "M"; ver wireNotasManuales).
   // Recuadro con la M dentro: media de las notas manuales (se rellena sola al escribir en las celdas "M") y, si hay, la comparativa.
-  const manualAvgHTML = '<span class="ficha-q-manual" title="Media de las notas manuales (M). Clic: rellena los huecos M vacíos con la media de cada ítem (no toca las que pusiste a mano)" style="cursor:pointer;"><span class="ficha-q-manual-m">M</span><span class="ficha-q-manual-v"></span><span class="ficha-q-manual-ref"></span></span>';
+  const manualAvgHTML = '<span class="ficha-q-manual" title="Media de las notas manuales (M). Clic: rellena los huecos M vacíos con la media de cada ítem (no toca las que pusiste a mano). Doble clic: borra las M del bloque" style="cursor:pointer;"><span class="ficha-q-manual-m">M</span><span class="ficha-q-manual-v"></span><span class="ficha-q-manual-ref"></span></span>';
   // Con muchas items (ej. Táctico portero, 24) la lista lateral no cabe
   // en la altura fija de la ficha si mantiene el tamaño pensado para ~12.
   // A partir de 18 items se reduce letra/gap solo de esta lista, para no
@@ -223,7 +223,7 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref, ma
       : `<li><span class="ficha-item-label">${safeText(item.label)}</span><span class="ficha-score" ${style}>${valueText}</span>${manual}</li>`;
   }).join('');
   // Cabecera "M" sobre la columna de celdas manuales.
-  const cabeceraManual = '<li class="ficha-manual-head"><span class="ficha-manual-h" title="Clic: rellena los huecos M vacíos con la media de cada ítem (no toca las que pusiste a mano)" style="cursor:pointer;"></span></li>';
+  const cabeceraManual = '<li class="ficha-manual-head"><span class="ficha-manual-h" title="Clic: rellena los huecos M vacíos con la media de cada ítem (no toca las que pusiste a mano). Doble clic: borra las M del bloque" style="cursor:pointer;"></span></li>';
 
   const radarSVG = buildRadarSVG(
     items.map(i => ({ label: i.label, value: i.value })),
@@ -567,10 +567,28 @@ export function wireNotasManuales(container, bands, onManual) {
   });
   // Clic en la "M" (recuadro del título o cabecera de la columna): los huecos M vacíos del bloque se rellenan
   // con la nota automática (media) de su ítem; las notas puestas a mano no se tocan. Luego se guarda.
+  // Un clic: rellenar huecos con la media. Doble clic: borrar todas las M del bloque.
+  let tClick = null;
+  container.addEventListener('dblclick', e => {
+    const m = e.target.closest?.('.ficha-q-manual, .ficha-manual-h');
+    const quad = m?.closest('.ficha-quadrant');
+    if (!quad) return;
+    clearTimeout(tClick); tClick = null;
+    let n = 0;
+    quad.querySelectorAll('.ficha-manual').forEach(i => { if (!i.disabled && i.value.trim()) { i.value = ''; pintar(i); n++; } });
+    recalcular(quad);
+    const primero = quad.querySelector('.ficha-manual');
+    if (n && primero) primero.dispatchEvent(new Event('change', { bubbles: true })); // guarda
+  });
   container.addEventListener('click', e => {
     const m = e.target.closest?.('.ficha-q-manual, .ficha-manual-h');
     const quad = m?.closest('.ficha-quadrant');
     if (!quad) return;
+    if (e.detail > 1) return; // parte de un doble clic
+    clearTimeout(tClick);
+    tClick = setTimeout(() => { tClick = null; rellenarM(quad); }, 260);
+  });
+  const rellenarM = quad => {
     let n = 0;
     quad.querySelectorAll('.ficha-manual').forEach(i => {
       if (i.disabled || i.value.trim() || i.dataset.auto === '') return;
@@ -581,7 +599,7 @@ export function wireNotasManuales(container, bands, onManual) {
     recalcular(quad);
     const primero = quad.querySelector('.ficha-manual');
     if (n && primero) primero.dispatchEvent(new Event('change', { bubbles: true })); // guarda todas
-  });
+  };
   container.addEventListener('change', e => {
     const inp = e.target.closest?.('.ficha-manual');
     if (!inp) return;
