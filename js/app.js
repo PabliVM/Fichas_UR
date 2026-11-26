@@ -182,7 +182,10 @@ function condicionalItems(positionKey, comp, jugador, evalId) {
     const sl = slugify(label);
     const vA = evalId ? jugador?.condicionalPorEval?.[evalId]?.[sl] : null;
     const vB = evalId ? jugador?.condicionalMaxPorEval?.[evalId]?.[sl] : null;
-    return { label, valueA: vA ?? comp[label] ?? null, valueB: vB ?? comp[`${label}__B`] ?? null, refA: ref.col3 ?? null, refB: ref.col4 ?? null };
+    const valueA = vA ?? comp[label] ?? null;
+    // Un solo valor (V.MAX.): sale también como máxima (columnas 1 y 2 iguales).
+    const valueB = condTieneMax(label) ? (vB ?? comp[`${label}__B`] ?? null) : valueA;
+    return { label, valueA, valueB, refA: ref.col3 ?? null, refB: ref.col4 ?? null };
   });
 }
 
