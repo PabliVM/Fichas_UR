@@ -265,7 +265,7 @@ function buildCondicionalBlock({ title, rp, items, pos }) {
       3- media por posición en fútbol profesional<br>
       4- máxima por posición en fútbol profesional<br>
       La media (1) y la máxima (2) del jugador se comparan con la media del fútbol profesional (3)<br>
-      Color: cuantas más máximas (2) superen a (3), más verde
+      Color del círculo: según los ✔ ▬ ✘ de la máxima (2)
     </p>
   `;
 
