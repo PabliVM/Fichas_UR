@@ -437,6 +437,20 @@ function initPitchDragDrop(container, data, positionKey) {
   pitchEl.addEventListener('pointercancel', endDrag);
 }
 
+// La descripción no se mete debajo del círculo central: el texto termina por encima de donde empieza el círculo.
+function apartarDescDelCirculo(container) {
+  const ficha = container.querySelector('.p1-detalle'), desc = container.querySelector('.p1-desc-text'), circ = container.querySelector('.p1-central');
+  if (!ficha || !desc || !circ) return;
+  const fr = ficha.getBoundingClientRect();
+  if (!fr.width || !ficha.offsetWidth) return; // oculta: se hará al verse (resize)
+  const k = fr.width / ficha.offsetWidth; // escala de la ficha en pantalla
+  desc.style.maxHeight = '';
+  const d = desc.getBoundingClientRect(), c = circ.getBoundingClientRect();
+  const solape = (d.bottom - c.top) / k;
+  // El recuadro del texto termina justo encima del círculo (lo que no quepa no se ve; la IA ya escribe corto).
+  if (c.right > d.left && c.top < d.bottom && solape > 0) desc.style.maxHeight = `${Math.max(60, Math.round(d.height / k - solape - 8))}px`;
+}
+
 // ── RENDER PRINCIPAL ──────────────────────────────
 
 /**
@@ -500,7 +514,8 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
     });
     svg?.querySelectorAll('[data-seg]').forEach(p => { p.style.cursor = 'pointer'; });
   }
-  window.addEventListener('resize', () => fitFichaToFrame(container));
+  window.addEventListener('resize', () => { fitFichaToFrame(container); apartarDescDelCirculo(container); });
+  requestAnimationFrame(() => apartarDescDelCirculo(container));
   initPitchDragDrop(container, data, positionKey);
   initFrasesPicker(container);
 }
