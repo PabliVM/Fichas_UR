@@ -355,6 +355,7 @@ function buildFicha1RealData(positionKey, media, jugador, aspectos, evalId) {
   return {
     ...FICHA1_DEMO_DATA,
     pitchMarkers: camisetasGuardadas(jugador, evalId, positionKey),
+    bands: state.scoreBands, onColorForzado: jugador?.id ? ((k, hex) => guardarColorForzado(jugador, evalId || 'sin-evaluacion', k, hex)) : null,
     circleColors, circleColorsAuto, circleColorsM, circleColorsF, circId: jugador?.id ? `${jugador.id}|${evalId || 'sin-evaluacion'}` : '',
     gridOrder: state.fichaGridOrder,
     player: {

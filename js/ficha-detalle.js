@@ -502,7 +502,7 @@ export function wireCondicionalInputs(container) {
  * Al salir de la celda se normaliza el valor y se llama a onManual({ 'bloque|ítem': número }) para guardarlo.
  */
 const NOMBRE_BLOQUE = { mental: 'Mental', tecnico: 'Técnico', tactico: 'Táctico', condicional: 'Condicional' };
-function menuColorForzado(x, y, key, bands, actual, elegir) {
+export function menuColorForzado(x, y, key, bands, actual, elegir) {
   document.querySelectorAll('.rm-menu-color').forEach(m => m.remove());
   const m = document.createElement('div');
   m.className = 'rm-menu-color';
