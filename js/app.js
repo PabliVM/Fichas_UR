@@ -2957,6 +2957,7 @@ function renderFichaJugador(container, p) {
     <div class="flex gap-8 mb-16">
       <button class="btn btn-ghost" id="jug-ficha-volver">← Volver a ${safeText(jugVolverA ? nombrePestana(jugVolverA) : 'la lista')}</button>
       <button class="btn btn-primary" id="jug-ficha-editar">Editar</button>
+      ${puedeEditar('jugadores.lista') ? '<button class="btn" id="jug-ficha-unir" title="Es el mismo chico que otra ficha: unirlas en una">Unir con otro jugador…</button>' : ''}
     </div>
     <div class="card mb-16"><div class="card-body">
       <div class="flex gap-16" style="align-items:center;flex-wrap:wrap;">
@@ -3089,6 +3090,7 @@ function renderFichaJugador(container, p) {
     renderPanelJugadores(container);
     volverAlScroll(y);
   });
+  container.querySelector('#jug-ficha-unir')?.addEventListener('click', () => abrirUnirJugador(id, () => { jugFichaId = null; renderPanelJugadores(container); }));
   container.querySelector('#jug-ficha-editar')?.addEventListener('click', async () => {
     await cargarEvaluacionesSilencioso();
     jugadorFormId = id;
@@ -3633,7 +3635,7 @@ function renderPanelJugadores(container) {
         <td>${inp('weight', p.weight, 58, 'number', 'step="0.1" min="0"')}</td>
         <td>${inp('height', p.height, 58, 'number', 'step="0.01" min="0"')}</td>
         <td>${sel('residencia', residenciaDe(p), ['Residencia', 'Madrid', 'Media pensión'].map(x => [x, x]), 118)}</td>
-        <td><div class="flex gap-8" style="align-items:center;justify-content:flex-end;"><button class="btn btn-sm btn-primary" data-jug-ficha="${p.id}">Ficha</button></div></td>
+        <td><div class="flex gap-8" style="align-items:center;justify-content:flex-end;"><button class="btn btn-sm btn-primary" data-jug-ficha="${p.id}">Ficha</button><button class="btn btn-sm" data-jug-unir="${p.id}" title="Es el mismo chico que otra ficha: unirlas en una">Unir…</button></div></td>
       </tr>`;
     }
     return `
