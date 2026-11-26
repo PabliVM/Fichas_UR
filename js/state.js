@@ -166,6 +166,12 @@ const _state = {
   // si |valor - refA| <= esto, sale guion; si no, check verde o X roja.
   // Editable en Configuración → Datos condicionales.
   condicionalTolerance: 0.2,
+  // Nombre largo de cada ítem condicional (como viene en el Excel del preparador). Sale entre paréntesis en las tablas
+  // de la app y sirve para reconocer sus columnas al importar ("Dist >21 (m) - Media" / "- Máx"). Editable en Datos condicionales.
+  condicionalDesc: {
+    'V.MAX.': 'Vmax Referencia (km/h)', 'D.Total.': 'Dist Total (m)', 'D.A Int.': 'Dist >21 (m)', 'D.Sprint.': 'Dist >24 (m)',
+    'Ac.Max.': 'Acc >3', 'N°Sprint.': 'Nº Acciones >24', 'N° Ac Max.': 'Acc Máx (m/s2)', 'M/min.': 'm/min',
+  },
   // Banco de frases modelo para "Descripción del jugador" — editable en
   // Configuración → Ayuda → Frases modelo. El técnico las marca en la
   // ficha (checklist) y se juntan en el texto editable de Descripción.
@@ -186,7 +192,7 @@ export const state = _state;
 // jugadores NO va aquí — colección propia 'jugadores' (ver loadPlayersFromFirestore).
 const CONFIG_COLLECTION = 'config';
 const CONFIG_DOC_ID = 'general';
-const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'fichaEspejoReglas', 'columnasEncuesta', 'condicionalTolerance', 'fichaGridOrder', 'flujoEvaluaciones', 'frasesModelo', 'evaluadores'];
+const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'fichaEspejoReglas', 'columnasEncuesta', 'condicionalTolerance', 'fichaGridOrder', 'flujoEvaluaciones', 'frasesModelo', 'evaluadores', 'condicionalDesc'];
 
 let _persistTimer = null;
 // Solo se guarda la configuración si la carga inicial terminó bien: si falló, el estado en memoria son los valores
