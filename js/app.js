@@ -2251,15 +2251,21 @@ function buildPerfilCompetenciasHTML() {
 
 // Ac.Max. (aceleración máxima, m/s², unos 3-7) y N° Ac Max. (nº de aceleraciones >3, decenas) se cargaron cruzados.
 // Si en una evaluación Ac.Max. es grande (>10) y N° Ac Max. pequeño (<10), se intercambian media y máxima. Solo toca esos casos.
-async function corregirAcMaxCruzados() {
-  if (isFirebaseUnconfigured() || !puedeEditar('jugadores.lista')) return;
+const acMaxCruzados = () => {
+  const A = slugify('Ac.Max.'), B = slugify('N° Ac Max.'), out = [];
+  state.players.forEach(p => Object.keys(p.condicionalPorEval || {}).forEach(eid => {
+    const num = v => parseFloat(String(v ?? '').replace(',', '.'));
+    const m = p.condicionalPorEval[eid] || {}, a = num(m[A]), b = num(m[B]);
+    if (a > 10 && b > 0 && b < 10) out.push({ p, eid });
+  }));
+  return out;
+};
+async function corregirAcMaxCruzados(avisarError = false) {
+  if (isFirebaseUnconfigured() || !puedeEditar('jugadores.lista')) return 0;
   const A = slugify('Ac.Max.'), B = slugify('N° Ac Max.');
   let n = 0;
-  for (const p of state.players) {
-    for (const eid of Object.keys(p.condicionalPorEval || {})) {
-      const m = p.condicionalPorEval[eid] || {};
-      const a = Number(m[A]), b = Number(m[B]);
-      if (!(a > 10 && b > 0 && b < 10)) continue;
+  for (const { p, eid } of acMaxCruzados()) {
+    {
       try {
         for (const campo of ['condicionalPorEval', 'condicionalMaxPorEval']) {
           const mm = { ...(p[campo]?.[eid] || {}) };
@@ -2271,10 +2277,11 @@ async function corregirAcMaxCruzados() {
           p[campo] = { ...(p[campo] || {}), [eid]: mm };
         }
         n++;
-      } catch (err) { console.error('[Ac.Max cruzado]', p.id, err); return; }
+      } catch (err) { console.error('[Ac.Max cruzado]', p.id, err); if (avisarError) showError('No se pudo guardar: ' + (err.message || err)); return n; }
     }
   }
   if (n) { setState({ players: [...state.players] }); showSuccess(`Corregidos Ac.Max. y N° Ac Max. (estaban cruzados) en ${n} fichas.`, 8000); }
+  return n;
 }
 
 // "D.A Int." → "D.A Int. (Dist >21 (m))" con el nombre largo de Configuración › Datos condicionales.
@@ -3739,6 +3746,12 @@ function renderPanelJugadores(container) {
             ${conPl.nombre.length ? `<span>✂ <b>${conPl.nombre.length}</b> tienen nombre y apellidos juntos en "Nombre".</span><button class="btn btn-sm" id="jug-fix-nombre" title="Primera palabra = nombre; el resto = apellidos (revísalo después si es compuesto)">Separar nombre y apellidos</button>` : ''}
           </div>`;
         })()}
+        ${(() => { // Ac.Max. / N° Ac Max. cruzados
+          const n = puedeEditar('jugadores.lista') ? acMaxCruzados().length : 0;
+          return !n ? '' : `<div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;background:#fef2f2;border:1px solid #fecaca;color:#7f1d1d;border-radius:10px;padding:8px 12px;">
+            <span style="flex:1 1 260px;">⚠ <b>${n} ficha${n === 1 ? '' : 's'}</b> con <b>Ac.Max.</b> y <b>N° Ac Max.</b> cruzados (Ac.Max. de más de 10 m/s²).</span>
+            <button class="btn btn-sm btn-primary" id="jug-fix-acmax">Corregir ahora</button></div>`;
+        })()}
         ${(() => { // jugadores que ya estaban guardados sin tilde (ADRIAN → ADRIÁN): un clic para todos
           const n = puedeEditar('jugadores.lista') ? jugadoresSinTilde().length : 0;
           return !n ? '' : `<div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:10px;padding:8px 12px;">
@@ -3993,6 +4006,11 @@ function renderPanelJugadores(container) {
 
   container.querySelector('#jug-exportar')?.addEventListener('click', () => abrirExportarExcel());
   if (jugFiltros.teamKey === '_sin' && !plantillasCache) ensurePlantillas().then(() => { if (container.isConnected) renderPanelJugadores(container); }).catch(() => {});
+  container.querySelector('#jug-fix-acmax')?.addEventListener('click', async e => {
+    e.currentTarget.disabled = true; e.currentTarget.textContent = 'Corrigiendo…';
+    await corregirAcMaxCruzados(true);
+    renderPanelJugadores(container);
+  });
   container.querySelector('#jug-fix-plantilla')?.addEventListener('click', async e => {
     const lista = jugadoresListado().filter(p => TEAMS.some(t => t.key === p.teamKey));
     if (!confirm(`¿Añadir ${lista.length} jugadores a la plantilla ${state.season} de su equipo?`)) return;
