@@ -1870,8 +1870,8 @@ async function guardarDatoJugador(id, k, valor) {
 
 let jugEdicion = (() => { try { return localStorage.getItem('rm-jug-edicion') === '1'; } catch { return false; } })(); // lista de Jugadores editable
 let pendTildesAbierto = false;
-const jugadoresSinTilde = () => [...state.players].map(p => ({ p, nombre: ponerTildes(p.nombre), apellidos: ponerTildes(p.apellidos) }))
-  .filter(x => x.nombre !== (x.p.nombre || '') || x.apellidos !== (x.p.apellidos || '')).sort((a, b) => ordenJugadores(a.p, b.p));
+const jugadoresSinTilde = () => [...state.players].map(p => ({ p, nombre: ponerTildes(p.nombre), apellidos: ponerTildes(p.apellidos), alias: ponerTildes(p.nombreDeportivo || '') }))
+  .filter(x => x.nombre !== (x.p.nombre || '') || x.apellidos !== (x.p.apellidos || '') || x.alias !== (x.p.nombreDeportivo || '')).sort((a, b) => ordenJugadores(a.p, b.p));
 let pendCampo = '';   // '' = cualquier dato; si no, solo los que les falte ese
 let pendEquipo = '';
 function renderPendientes(wrap) {
@@ -1896,7 +1896,7 @@ function renderPendientes(wrap) {
         <thead><tr><th></th><th>Ahora</th><th>Con tildes</th></tr></thead>
         <tbody>${tildes.map(x => `<tr><td><input type="checkbox" data-tilde="${x.p.id}" checked /></td>
           <td class="text-muted">${safeText(`${x.p.nombre || ''} ${x.p.apellidos || ''}`)}</td>
-          <td style="font-weight:700;">${safeText(`${x.nombre} ${x.apellidos}`)}</td></tr>`).join('')}</tbody>
+          <td style="font-weight:700;">${safeText(`${x.nombre} ${x.apellidos}`)}${x.alias ? ` <span class="text-xs text-muted">(${safeText(x.alias)})</span>` : ''}</td></tr>`).join('')}</tbody>
       </table></div>
     </details>`;
   wrap.innerHTML = `
@@ -1938,6 +1938,7 @@ function renderPendientes(wrap) {
       try {
         if (x.nombre !== (x.p.nombre || '')) await guardarCampoJugador(id, 'nombre', x.nombre);
         if (x.apellidos !== (x.p.apellidos || '')) await guardarCampoJugador(id, 'apellidos', x.apellidos);
+        if (x.alias !== (x.p.nombreDeportivo || '')) await guardarCampoJugador(id, 'nombreDeportivo', x.alias || null);
         n++;
       } catch (err) { console.error('[Tildes]', id, err); fallos++; }
     }
@@ -3863,6 +3864,7 @@ function renderPanelJugadores(container) {
       try {
         if (x.nombre !== (x.p.nombre || '')) await guardarCampoJugador(x.p.id, 'nombre', x.nombre);
         if (x.apellidos !== (x.p.apellidos || '')) await guardarCampoJugador(x.p.id, 'apellidos', x.apellidos);
+        if (x.alias !== (x.p.nombreDeportivo || '')) await guardarCampoJugador(x.p.id, 'nombreDeportivo', x.alias || null);
         n++;
       } catch (err) { console.error('[Tildes]', x.p.id, err); fallos++; }
     }
@@ -3870,7 +3872,7 @@ function renderPanelJugadores(container) {
     renderPanelJugadores(container);
   });
   container.querySelectorAll('[data-jug-alias]').forEach(inp => inp.addEventListener('change', async () => {
-    try { await guardarCampoJugador(inp.dataset.jugAlias, 'nombreDeportivo', inp.value.trim() || null); showSuccess('Nombre deportivo guardado.'); }
+    try { const v = ponerTildes(inp.value.trim()) || null; inp.value = v || ''; await guardarCampoJugador(inp.dataset.jugAlias, 'nombreDeportivo', v); showSuccess('Nombre deportivo guardado.'); }
     catch (err) { console.error('[Firestore] Nombre deportivo:', err); showError('No se pudo guardar.'); }
   }));
   container.querySelector('#jug-add')?.addEventListener('click', async () => {
@@ -4294,7 +4296,7 @@ function renderPanelJugadores(container) {
     const baseData = {
       nombre: ponerTildes(container.querySelector('#jug-nombre').value.trim()),
       apellidos: ponerTildes(container.querySelector('#jug-apellidos').value.trim()),
-      nombreDeportivo: container.querySelector('#jug-alias')?.value.trim() || null,
+      nombreDeportivo: ponerTildes(container.querySelector('#jug-alias')?.value.trim() || '') || null,
       birthDate: container.querySelector('#jug-birthdate').value || null,
       foot: container.querySelector('#jug-foot').value,
       residencia: container.querySelector('#jug-residencia').value,
