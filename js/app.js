@@ -3493,6 +3493,18 @@ async function filasExportar(jugs, q, evalId) {
   return [cab, ...jugs.map(j => celdas.map(f => f(j)))];
 }
 
+// Arreglos para jugadores sin equipo: el equipo de la plantilla en la que están (si es una sola) y nombre/apellidos juntos.
+function arreglosSinEquipo(jugs) {
+  const equipo = [], nombre = [];
+  jugs.forEach(p => {
+    const tks = [...new Set((plantillasCache || []).filter(d => d.temporada === state.season && d.teamKey && TEAMS.some(t => t.key === d.teamKey) && (d.jugadorIds || []).includes(p.id)).map(d => d.teamKey))];
+    if (tks.length === 1) equipo.push({ p, teamKey: tks[0] });
+    const partes = String(p.nombre || '').trim().split(/\s+/);
+    if (!String(p.apellidos || '').trim() && partes.length > 1) nombre.push({ p, nombre: partes[0], apellidos: partes.slice(1).join(' ') });
+  });
+  return { equipo, nombre };
+}
+
 function jugadoresListado() {
   return state.players.filter(jugadorPasaFiltros)
     .sort((a, b) => (jugFiltros.teamKey ? rangoPosicion(a.positionKey) - rangoPosicion(b.positionKey) : 0) || ordenPorNombre(a, b));
@@ -3597,6 +3609,15 @@ function renderPanelJugadores(container) {
           <button class="btn" id="jug-exportar" title="Elige qué jugadores y qué datos">⬇ Exportar a Excel</button>
           ${puedeEditar('jugadores.lista') ? `<button class="btn ${jugEdicion ? 'btn-primary' : ''}" id="jug-edicion" title="Cambiar los datos de todos los jugadores directamente en la tabla (se guarda al salir de cada casilla)">${jugEdicion ? '👁 Solo ver' : '✎ Editar'}</button>` : ''}
         </div>`}
+        ${(() => { // Filtro "Sin equipo": arreglos rápidos (equipo de su plantilla; nombre y apellidos juntos)
+          if (jugFiltros.teamKey !== '_sin' || !puedeEditar('jugadores.lista')) return '';
+          const conPl = arreglosSinEquipo(jugadoresFiltrados);
+          if (!conPl.equipo.length && !conPl.nombre.length) return '';
+          return `<div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:10px;padding:8px 12px;">
+            ${conPl.equipo.length ? `<span>🧩 <b>${conPl.equipo.length}</b> están en una plantilla de Equipos (${state.season}) pero sin equipo en su ficha.</span><button class="btn btn-sm btn-primary" id="jug-fix-equipo">Ponerles el equipo de su plantilla</button>` : ''}
+            ${conPl.nombre.length ? `<span>✂ <b>${conPl.nombre.length}</b> tienen nombre y apellidos juntos en "Nombre".</span><button class="btn btn-sm" id="jug-fix-nombre" title="Primera palabra = nombre; el resto = apellidos (revísalo después si es compuesto)">Separar nombre y apellidos</button>` : ''}
+          </div>`;
+        })()}
         ${(() => { // jugadores que ya estaban guardados sin tilde (ADRIAN → ADRIÁN): un clic para todos
           const n = puedeEditar('jugadores.lista') ? jugadoresSinTilde().length : 0;
           return !n ? '' : `<div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:10px;padding:8px 12px;">
@@ -3850,6 +3871,24 @@ function renderPanelJugadores(container) {
   }));
 
   container.querySelector('#jug-exportar')?.addEventListener('click', () => abrirExportarExcel());
+  if (jugFiltros.teamKey === '_sin' && !plantillasCache) ensurePlantillas().then(() => { if (container.isConnected) renderPanelJugadores(container); }).catch(() => {});
+  container.querySelector('#jug-fix-equipo')?.addEventListener('click', async e => {
+    const lista = arreglosSinEquipo(jugadoresListado()).equipo;
+    if (!confirm(`¿Poner a ${lista.length} jugadores el equipo de su plantilla?\n\n${lista.map(x => `${nombreCompleto(x.p)} → ${TEAMS.find(t => t.key === x.teamKey)?.label}`).join('\n')}`)) return;
+    e.currentTarget.disabled = true;
+    let n = 0; for (const x of lista) { try { await guardarCampoJugador(x.p.id, 'teamKey', x.teamKey); n++; } catch (err) { console.error(err); } }
+    showSuccess(`Equipo puesto a ${n} jugadores.`); renderPanelJugadores(container);
+  });
+  container.querySelector('#jug-fix-nombre')?.addEventListener('click', async e => {
+    const lista = arreglosSinEquipo(jugadoresListado()).nombre;
+    if (!confirm(`¿Separar nombre y apellidos de ${lista.length} jugadores?\n\n${lista.map(x => `${x.p.nombre} → ${x.nombre} | ${x.apellidos}`).join('\n')}`)) return;
+    e.currentTarget.disabled = true;
+    let n = 0;
+    for (const x of lista) {
+      try { await guardarCampoJugador(x.p.id, 'nombre', ponerTildes(x.nombre)); await guardarCampoJugador(x.p.id, 'apellidos', ponerTildes(x.apellidos)); n++; } catch (err) { console.error(err); }
+    }
+    showSuccess(`Separados ${n}.`); renderPanelJugadores(container);
+  });
   container.querySelector('#jug-edicion')?.addEventListener('click', () => {
     jugEdicion = !jugEdicion;
     preservandoScroll(() => renderPanelJugadores(container));
