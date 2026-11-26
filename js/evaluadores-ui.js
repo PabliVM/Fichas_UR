@@ -70,8 +70,8 @@ export async function renderEvaluadores(wrap) {
           <td><select class="select" data-ev-k="${safeText(k)}" data-ev-campo="igualA" title="Unificar: MARC = Marc Carrasco"><option value="">— (es él mismo)</option>${otros.map(x => opt(x, etiqueta(x), g.igualA)).join('')}</select></td>
           <td><input class="input" data-ev-k="${safeText(k)}" data-ev-campo="nombre" value="${safeText(g.nombre || '')}" placeholder="Nombre y apellidos" style="min-width:200px;" ${dis} /></td>
           <td><select class="select" data-ev-k="${safeText(k)}" data-ev-campo="rol" ${dis}><option value="">—</option>${ROLES_EVALUADOR.map(r => opt(r, r, g.rol)).join('')}</select></td>
-          <td><select class="select" data-ev-k="${safeText(k)}" data-ev-campo="teamKey" ${dis}><option value="">—</option>${TEAMS.map(t => opt(t.key, t.label, g.teamKey)).join('')}</select></td>
-          <td><select class="select" data-ev-k="${safeText(k)}" data-ev-campo="teamKey2" ${dis}><option value="">—</option>${TEAMS.map(t => opt(t.key, t.label, g.teamKey2)).join('')}</select></td>
+          <td><select class="select" data-ev-k="${safeText(k)}" data-ev-campo="teamKey" ${dis}><option value="">—</option>${TEAMS.filter(t => !(state.equiposOcultos || []).includes(t.key) || t.key === g.teamKey).map(t => opt(t.key, t.label, g.teamKey)).join('')}</select></td>
+          <td><select class="select" data-ev-k="${safeText(k)}" data-ev-campo="teamKey2" ${dis}><option value="">—</option>${TEAMS.filter(t => !(state.equiposOcultos || []).includes(t.key) || t.key === g.teamKey2).map(t => opt(t.key, t.label, g.teamKey2)).join('')}</select></td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>`;

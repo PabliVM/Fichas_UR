@@ -541,7 +541,7 @@ function buildEvaluacionesListHTML() {
           // Filtro de equipo: el equipo del jugador o su plantilla de la temporada de la evaluación.
           const enEquipo = (jid, tk) => state.players.find(x => x.id === jid)?.teamKey === tk
             || !!plantillasCache?.find(d => d.id === plantillaDocId(ev.temporada, tk))?.jugadorIds?.includes(jid);
-          const equipos = TEAMS.filter(t => r.registros.some(x => x.jugadorId && enEquipo(x.jugadorId, t.key)));
+          const equipos = equiposVisibles().filter(t => r.registros.some(x => x.jugadorId && enEquipo(x.jugadorId, t.key)));
           // Búsqueda de jugador: por el jugador de la app o por el nombre tal cual viene en el archivo.
           const palabras = normalizeTxt(regVerJugador).split(/\s+/).filter(Boolean);
           const coincide = x => { const t = normalizeTxt(`${label(x.jugadorId)} ${x.jugadorNombreArchivo || ''}`); return palabras.every(w => t.includes(w)); };
@@ -1700,7 +1700,7 @@ function buildComparativasHTML() {
           </div>
           <div class="field-group" style="min-width:150px;">
             <label class="label">Equipo</label>
-            <select class="select" id="comp-equipo"><option value="">— Todos —</option>${TEAMS.map(t => `<option value="${t.key}" ${compFiltros.equipo === t.key ? 'selected' : ''}>${safeText(t.label)}</option>`).join('')}</select>
+            <select class="select" id="comp-equipo"><option value="">— Todos —</option>${equiposVisibles(compFiltros.equipo).map(t => `<option value="${t.key}" ${compFiltros.equipo === t.key ? 'selected' : ''}>${safeText(t.label)}</option>`).join('')}</select>
           </div>
           <div class="field-group" style="min-width:140px;">
             <label class="label">Generación</label>
@@ -1880,7 +1880,7 @@ let pendEquipo = '';
 function renderPendientes(wrap) {
   const campos = pendCampo ? PEND_CAMPOS.filter(c => c.k === pendCampo) : PEND_CAMPOS;
   const faltan = p => campos.filter(c => c.falta(p));
-  const jugs = [...state.players].filter(p => (!pendEquipo || p.teamKey === pendEquipo) && faltan(p).length).sort(ordenJugadores);
+  const jugs = [...state.players].filter(p => (!pendEquipo || p.teamKey === pendEquipo) && (!equipoOculto(p.teamKey) || p.teamKey === pendEquipo) && faltan(p).length).sort(ordenJugadores);
   const cuenta = Object.fromEntries(PEND_CAMPOS.map(c => [c.k, state.players.filter(p => (!pendEquipo || p.teamKey === pendEquipo) && c.falta(p)).length]));
   const vacio = (p, k) => PEND_CAMPOS.find(c => c.k === k).falta(p) ? 'border-color:#f59e0b;background:#fffbeb;' : '';
   const inp = (p, k, tipo, extra, valor) => `<input class="input" type="${tipo}" ${extra} data-pend-k="${k}" data-pend-id="${p.id}" value="${safeText(valor ?? '')}" style="min-width:${tipo === 'date' ? 130 : 80}px;${vacio(p, k)}" />`;
@@ -1908,7 +1908,7 @@ function renderPendientes(wrap) {
       <label class="text-xs text-muted" for="pend-campo">Falta</label>
       <select class="select" id="pend-campo" style="width:auto;"><option value="">Cualquier dato</option>${PEND_CAMPOS.map(c => `<option value="${c.k}" ${pendCampo === c.k ? 'selected' : ''}>${safeText(c.l)} (${cuenta[c.k]})</option>`).join('')}</select>
       <label class="text-xs text-muted" for="pend-equipo">Equipo</label>
-      <select class="select" id="pend-equipo" style="width:auto;"><option value="">Todos</option>${TEAMS.map(t => `<option value="${t.key}" ${pendEquipo === t.key ? 'selected' : ''}>${safeText(t.label)}</option>`).join('')}</select>
+      <select class="select" id="pend-equipo" style="width:auto;"><option value="">Todos</option>${equiposVisibles(pendEquipo).map(t => `<option value="${t.key}" ${pendEquipo === t.key ? 'selected' : ''}>${safeText(t.label)}</option>`).join('')}</select>
       <b class="text-sm">${jugs.length} jugador${jugs.length === 1 ? '' : 'es'} con datos pendientes</b>
     </div>
     ${!jugs.length ? '<p class="text-sm text-muted">✓ No falta nada con estos filtros.</p>' : `
@@ -1919,7 +1919,7 @@ function renderPendientes(wrap) {
         <td class="text-xs" style="color:#b45309;">${faltan(p).map(c => safeText(c.l)).join(', ')}</td>
         <td>${inp(p, 'birthDate', 'date', '', p.birthDate)}</td>
         <td>${inp(p, 'aniosClub', 'text', 'placeholder="3 o 2+3"', aniosEnClub(p))}</td>
-        <td>${sel(p, 'teamKey', TEAMS.map(t => [t.key, t.label]))}</td>
+        <td>${sel(p, 'teamKey', equiposVisibles(p.teamKey).map(t => [t.key, t.label]))}</td>
         <td>${sel(p, 'positionKey', state.positions.map(x => [x.key, x.label]))}</td>
         <td>${sel(p, 'foot', ['Diestro', 'Zurdo', 'Ambidiestro'].map(x => [x, x]))}</td>
         <td>${inp(p, 'height', 'number', 'step="0.01" min="0"', p.height)}</td>
@@ -1958,6 +1958,10 @@ function renderPendientes(wrap) {
   }));
 }
 
+// Equipos ocultos (Configuración › Equipos visibles): no salen en listas ni selectores. `incluir`: el que ya tiene puesto, para no perderlo.
+const equipoOculto = k => !!k && (state.equiposOcultos || []).includes(k);
+const equiposVisibles = incluir => TEAMS.filter(t => !equipoOculto(t.key) || t.key === incluir);
+
 const CONFIG_GROUPS = [
   {
     label: 'Encuesta y criterios',
@@ -1983,6 +1987,7 @@ const CONFIG_GROUPS = [
     label: 'Datos y ayuda',
     tabs: [
       { key: 'pendientes',      label: 'Datos pendientes' },
+      { key: 'equipos',         label: 'Equipos visibles' },
       { key: 'copia-seguridad', label: 'Copia de seguridad' },
       { key: 'flujo',           label: 'Cómo funciona (flujo)' },
     ],
@@ -2478,7 +2483,7 @@ async function cargarEvaluacionesSilencioso() {
 
 function buildJugadorFormHTML(player) {
   const p = player || {};
-  const teamOptions = TEAMS.map(t => `<option value="${t.key}" ${p.teamKey === t.key ? 'selected' : ''}>${safeText(t.label)}</option>`).join('');
+  const teamOptions = equiposVisibles(p.teamKey).map(t => `<option value="${t.key}" ${p.teamKey === t.key ? 'selected' : ''}>${safeText(t.label)}</option>`).join('');
   const posOptions = state.positions.map(pos => `<option value="${pos.key}" ${p.positionKey === pos.key ? 'selected' : ''}>${safeText(pos.label)}</option>`).join('');
   return `
     <div class="card mb-16">
@@ -2692,6 +2697,7 @@ function jugadorPasaFiltros(p) {
     const txt = normalizeTxt(`${p.nombre || ''} ${p.apellidos || ''} ${p.nombreDeportivo || ''}`);
     if (!f.q.split(/\s+/).filter(Boolean).every(w => txt.includes(normalizeTxt(w)))) return false;
   }
+  if (equipoOculto(p.teamKey) && f.teamKey !== p.teamKey) return false; // equipo oculto: solo si se filtra por él
   if (f.teamKey === '_sin') { if (TEAMS.some(t => t.key === p.teamKey)) return false; }
   else if (f.teamKey === '_fuera') { // en ninguna plantilla de la temporada activa (Equipos)
     if (!plantillasCache || equiposEnPlantilla(p.id).length) return false;
@@ -2714,7 +2720,7 @@ function buildJugadoresFiltrosHTML() {
     <div class="card mb-16 rm-sticky"><div class="card-body" style="padding-top:12px;padding-bottom:12px;">
       <div class="flex gap-8" style="flex-wrap:wrap;align-items:center;">
         <input class="input" type="text" id="jug-f-q" value="${safeText(jugFiltros.q)}" placeholder="🔎 Buscar por nombre o apellidos" aria-label="Buscar por nombre o apellidos" style="flex:1 1 240px;min-width:200px;" />
-        ${sel('jug-f-team', 'Equipo', [...TEAMS.map(t => [t.key, t.label]), ['_sin', '— Sin equipo asignado'], ['_fuera', `— Fuera de las plantillas ${state.season}`]], jugFiltros.teamKey)}
+        ${sel('jug-f-team', 'Equipo', [...equiposVisibles(jugFiltros.teamKey).map(t => [t.key, t.label]), ['_sin', '— Sin equipo asignado'], ['_fuera', `— Fuera de las plantillas ${state.season}`]], jugFiltros.teamKey)}
         ${sel('jug-f-pos', 'Posición', state.positions.map(p => [p.key, p.label]), jugFiltros.positionKey)}
         <details ${masActivos ? 'open' : ''} style="position:relative;">
           <summary class="btn btn-sm" style="list-style:none;cursor:pointer;">Más filtros${masActivos ? ` (${masActivos})` : ''} ▾</summary>
@@ -3425,7 +3431,7 @@ async function abrirExportarExcel() {
           <label style="display:flex;gap:8px;align-items:center;padding:3px 0;"><input type="radio" name="exp-quien" value="listado" ${(pref.quien || 'listado') === 'listado' ? 'checked' : ''} /> Los del listado, con los filtros puestos (${listado.length})</label>
           <label style="display:flex;gap:8px;align-items:center;padding:3px 0;"><input type="radio" name="exp-quien" value="todos" ${pref.quien === 'todos' ? 'checked' : ''} /> Todos (${state.players.length})</label>
           <label style="display:flex;gap:8px;align-items:center;padding:3px 0;"><input type="radio" name="exp-quien" value="equipo" ${pref.quien === 'equipo' ? 'checked' : ''} /> Un equipo:
-            <select class="select" id="exp-equipo" style="width:auto;">${TEAMS.map(t => `<option value="${t.key}" ${pref.equipo === t.key ? 'selected' : ''}>${safeText(t.label)} (${state.players.filter(p => p.teamKey === t.key).length})</option>`).join('')}</select></label>
+            <select class="select" id="exp-equipo" style="width:auto;">${equiposVisibles(pref.equipo).map(t => `<option value="${t.key}" ${pref.equipo === t.key ? 'selected' : ''}>${safeText(t.label)} (${state.players.filter(p => p.teamKey === t.key).length})</option>`).join('')}</select></label>
         </div>
         <div>
           <div class="label">Datos</div>
@@ -3668,7 +3674,7 @@ function renderPanelJugadores(container) {
         <td><input class="input" data-jug-alias="${p.id}" value="${safeText(p.nombreDeportivo || '')}" placeholder="—" style="width:110px;${st}" /></td>
         <td colspan="2">${inp('birthDate', p.birthDate, 128, 'date')}</td>
         <td>${inp('aniosClub', aniosEnClub(p), 56, 'text', 'placeholder="3 o 2+3"')}</td>
-        <td>${sel('teamKey', p.teamKey, TEAMS.map(t => [t.key, t.label]), 118)}</td>
+        <td>${sel('teamKey', p.teamKey, equiposVisibles(p.teamKey).map(t => [t.key, t.label]), 118)}</td>
         <td>${sel('positionKey', p.positionKey, state.positions.map(x => [x.key, x.label]), 110)}</td>
         <td>${inp('weight', p.weight, 58, 'number', 'step="0.1" min="0"')}</td>
         <td>${inp('height', p.height, 58, 'number', 'step="0.01" min="0"')}</td>
@@ -5007,6 +5013,17 @@ function renderPanelConfig(container) {
       </div>
     </div>
     `}
+    ${configSubTab !== 'equipos' ? '' : `
+    <div class="card mb-16">
+      <div class="card-title">Equipos visibles</div>
+      <div class="card-body">
+        <p class="text-sm text-muted mb-16">Los equipos sin marcar no salen en Jugadores, Equipos ni en los desplegables. Sus jugadores y datos no se borran.</p>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${TEAMS.map(t => `<label class="text-sm" style="display:flex;align-items:center;gap:8px;"><input type="checkbox" data-equipo-visible="${t.key}" ${equipoOculto(t.key) ? '' : 'checked'} ${puedeEditar('config.equipos') ? '' : 'disabled'} /> ${safeText(t.label)}</label>`).join('')}
+        </div>
+      </div>
+    </div>
+    `}
     ${configSubTab !== 'evaluadores' ? '' : `
     <div class="card mb-16">
       <div class="card-title">Evaluadores</div>
@@ -5295,6 +5312,11 @@ function renderPanelConfig(container) {
 
   // Datos condicionales: guarda al salir del campo (change), sin re-renderizar
   // la tabla entera (perdería el foco/scroll en cada tecla).
+  container.querySelectorAll('[data-equipo-visible]').forEach(cb => cb.addEventListener('change', () => {
+    const ocultos = [...container.querySelectorAll('[data-equipo-visible]')].filter(x => !x.checked).map(x => x.dataset.equipoVisible);
+    setState({ equiposOcultos: ocultos });
+    showSuccess(cb.checked ? 'Equipo visible.' : 'Equipo oculto.');
+  }));
   if (configSubTab === 'condicional-refs' && regEvaluaciones === null) cargarEvaluacionesSilencioso().then(() => { if (container.isConnected) renderPanelConfig(container); });
   container.querySelector('#cswap-ok')?.addEventListener('click', async e => {
     const a = container.querySelector('#cswap-a').value, b = container.querySelector('#cswap-b').value, eid = container.querySelector('#cswap-ev').value;
@@ -5854,7 +5876,7 @@ function renderPanelPlantillas(container) {
       <span class="text-xs text-muted">Un jugador puede estar en varios equipos. Los jugadores nuevos con equipo se añaden aquí solos (temporada activa).</span>
     </div>
     <div style="display:flex;flex-direction:column;gap:10px;">
-      ${TEAMS_ORDEN_PLANTILLA.map(t => {
+      ${TEAMS_ORDEN_PLANTILLA.filter(t => !equipoOculto(t.key)).map(t => {
         const ids = docDe(t.key)?.jugadorIds || [];
         const libres = todos.filter(j => !ids.includes(j.id));
         const colDe = id => { const pk = state.players.find(x => x.id === id)?.positionKey; return state.positions.some(p => p.key === pk) ? pk : '_sin'; };
