@@ -238,6 +238,7 @@ function initFrasesPicker(container) {
     const current = descEl.textContent.trim();
     const joined = checked.join(' ');
     descEl.textContent = current ? `${current} ${joined}` : joined;
+    descEl.dispatchEvent(new Event('input', { bubbles: true }));
     panel.classList.add('hidden');
     panel.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = false; });
   });
@@ -444,11 +445,27 @@ function apartarDescDelCirculo(container) {
   const fr = ficha.getBoundingClientRect();
   if (!fr.width || !ficha.offsetWidth) return; // oculta: se hará al verse (resize)
   const k = fr.width / ficha.offsetWidth; // escala de la ficha en pantalla
-  desc.style.maxHeight = '';
+  desc.style.maxHeight = ''; desc.style.fontSize = '';
+  // Huecos flotantes (no editables): el texto baja por la derecha del círculo sin taparse.
+  let hA = desc.querySelector(':scope > .p1-desc-hueco-a'), hB = desc.querySelector(':scope > .p1-desc-hueco-b');
+  if (!hA || !hB) {
+    hA?.remove(); hB?.remove();
+    hA = document.createElement('span'); hA.className = 'p1-desc-hueco-a'; hA.contentEditable = 'false';
+    hB = document.createElement('span'); hB.className = 'p1-desc-hueco-b'; hB.contentEditable = 'false';
+    desc.prepend(hA, hB);
+  }
+  const cs = getComputedStyle(desc), pt = parseFloat(cs.paddingTop) || 0, pl = parseFloat(cs.paddingLeft) || 0;
   const d = desc.getBoundingClientRect(), c = circ.getBoundingClientRect();
-  const solape = (d.bottom - c.top) / k;
-  // El recuadro del texto termina justo encima del círculo (lo que no quepa no se ve; la IA ya escribe corto).
-  if (c.right > d.left && c.top < d.bottom && solape > 0) desc.style.maxHeight = `${Math.max(60, Math.round(d.height / k - solape - 8))}px`;
+  const r = c.width / 2 / k, cx = (c.left + c.width / 2 - d.left) / k - pl, cy = (c.top + c.height / 2 - d.top) / k - pt;
+  const top = Math.max(0, cy - r), alto = desc.clientHeight - pt * 2 - top, ancho = cx + r + 16;
+  const solapa = c.right > d.left && c.top < d.bottom && alto > 0 && ancho > 0;
+  hA.style.cssText = `float:left;width:0;height:${solapa ? top : 0}px`;
+  hB.style.cssText = solapa
+    ? `float:left;clear:left;width:${ancho}px;height:${alto}px;shape-outside:circle(${r + 16}px at ${cx}px ${cy - top}px)`
+    : 'display:none';
+  // Si el texto no cabe, se reduce la letra hasta que quepa entero (nunca se corta).
+  let fs = parseFloat(cs.fontSize) || 43;
+  while (desc.scrollHeight > desc.clientHeight + 1 && fs > 20) { fs -= 1; desc.style.fontSize = `${fs}px`; }
 }
 
 // ── RENDER PRINCIPAL ──────────────────────────────
@@ -516,6 +533,7 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
   }
   window.addEventListener('resize', () => { fitFichaToFrame(container); apartarDescDelCirculo(container); });
   requestAnimationFrame(() => apartarDescDelCirculo(container));
+  container.querySelector('.p1-desc-text')?.addEventListener('input', () => apartarDescDelCirculo(container));
   initPitchDragDrop(container, data, positionKey);
   initFrasesPicker(container);
 }

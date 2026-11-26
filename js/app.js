@@ -6164,7 +6164,7 @@ async function proponerDescripcion(btn, descEl, p, evSel, aspectosTxt, btnGuarda
     const d = await r.json().catch(() => ({}));
     if (r.status === 503 && d.error === 'no-configurado') throw new Error('falta poner la clave ANTHROPIC_API_KEY en Vercel.');
     if (!r.ok || !d.texto) throw new Error(d.error || ('error ' + r.status));
-    descEl.textContent = d.texto;
+    descEl.textContent = d.texto; descEl.dispatchEvent(new Event('input', { bubbles: true }));
     marcarTextosPendientes(btnGuardar, true);
     showSuccess('Descripción propuesta: revísala y pulsa «Guardar textos».', 6000);
   } catch (err) {
