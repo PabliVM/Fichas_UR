@@ -1868,7 +1868,7 @@ async function guardarDatoJugador(id, k, valor) {
   } catch (err) { console.error('[Firestore] Dato jugador:', err); showError('No se pudo guardar el cambio.'); return false; }
 }
 
-let jugEdicion = (() => { try { return localStorage.getItem('rm-jug-edicion') === '1'; } catch { return false; } })(); // lista de Jugadores editable
+let jugEdicion = (() => { try { return localStorage.getItem('rm-jug-edicion2') !== '0'; } catch { return true; } })(); // lista de Jugadores editable (por defecto sí, para quien puede editar)
 let pendTildesAbierto = false;
 const jugadoresSinTilde = () => [...state.players].map(p => ({ p, nombre: ponerTildes(p.nombre), apellidos: ponerTildes(p.apellidos), alias: ponerTildes(p.nombreDeportivo || '') }))
   .filter(x => x.nombre !== (x.p.nombre || '') || x.apellidos !== (x.p.apellidos || '') || x.alias !== (x.p.nombreDeportivo || '')).sort((a, b) => ordenJugadores(a.p, b.p));
@@ -3582,7 +3582,7 @@ function renderPanelJugadores(container) {
             </div>
           </details>
           <button class="btn" id="jug-exportar" title="Elige qué jugadores y qué datos">⬇ Exportar a Excel</button>
-          ${puedeEditar('jugadores.lista') ? `<button class="btn ${jugEdicion ? 'btn-primary' : ''}" id="jug-edicion" title="Cambiar los datos de todos los jugadores directamente en la tabla (se guarda al salir de cada casilla)">${jugEdicion ? '✓ Terminar de editar' : '✎ Editar tabla'}</button>` : ''}
+          ${puedeEditar('jugadores.lista') ? `<button class="btn ${jugEdicion ? 'btn-primary' : ''}" id="jug-edicion" title="Cambiar los datos de todos los jugadores directamente en la tabla (se guarda al salir de cada casilla)">${jugEdicion ? '👁 Solo ver' : '✎ Editar tabla'}</button>` : ''}
         </div>`}
         ${(() => { // jugadores que ya estaban guardados sin tilde (ADRIAN → ADRIÁN): un clic para todos
           const n = puedeEditar('jugadores.lista') ? jugadoresSinTilde().length : 0;
@@ -3837,7 +3837,7 @@ function renderPanelJugadores(container) {
   container.querySelector('#jug-exportar')?.addEventListener('click', () => abrirExportarExcel());
   container.querySelector('#jug-edicion')?.addEventListener('click', () => {
     jugEdicion = !jugEdicion;
-    try { localStorage.setItem('rm-jug-edicion', jugEdicion ? '1' : '0'); } catch {}
+    try { localStorage.setItem('rm-jug-edicion2', jugEdicion ? '1' : '0'); } catch {}
     preservandoScroll(() => renderPanelJugadores(container));
   });
   container.querySelectorAll('[data-jed-k]').forEach(el => el.addEventListener('change', async () => {
