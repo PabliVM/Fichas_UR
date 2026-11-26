@@ -3266,8 +3266,11 @@ function columnasPlantillaCondicional() {
   const items = state.aspectosComunes.condicional || [];
   return [
     { titulo: 'Jugador', ejemplo: 'Sotres García, Alfredo', nota: '<strong>obligatoria</strong>: "Apellidos, Nombre" o "Nombre Apellidos" (o dos columnas Nombre y Apellidos).' },
-    ...items.map(i => ({ titulo: i, ejemplo: '', nota: CONDICIONAL_BASE.some(b => slugify(b) === slugify(i)) ? 'media (en alevines e infantiles: ✔ / ▬ / ✘).' : 'media.' })),
-    ...items.map(i => ({ titulo: `${i} máx`, ejemplo: '', nota: 'máxima.' })),
+    // Cada ítem: su media y, justo al lado, su máxima.
+    ...items.flatMap(i => [
+      { titulo: i, ejemplo: '', nota: CONDICIONAL_BASE.some(b => slugify(b) === slugify(i)) ? 'media (en alevines e infantiles: ✔ / ▬ / ✘).' : 'media.' },
+      { titulo: `${i} máx`, ejemplo: '', nota: 'máxima.' },
+    ]),
     // Alevines e infantiles: capacidades con símbolo (las que ya coinciden con un ítem numérico usan esa misma columna).
     ...CONDICIONAL_BASE.filter(b => !items.some(i => slugify(i) === slugify(b)))
       .map(b => ({ titulo: b, ejemplo: '', nota: 'alevines e infantiles: ✔ / ▬ / ✘ (o Bien / Regular / Mal).' })),
@@ -3459,8 +3462,10 @@ async function filasExportar(jugs, q, evalId) {
   }
   if (q.condicional && evalId) {
     const items = state.aspectosComunes.condicional || [];
-    items.forEach(i => col(i, j => r2(j.condicionalPorEval?.[evalId]?.[slugify(i)])));
-    items.forEach(i => col(`${i} máx`, j => r2(j.condicionalMaxPorEval?.[evalId]?.[slugify(i)])));
+    items.forEach(i => { // media y máxima juntas
+      col(i, j => r2(j.condicionalPorEval?.[evalId]?.[slugify(i)]));
+      col(`${i} máx`, j => r2(j.condicionalMaxPorEval?.[evalId]?.[slugify(i)]));
+    });
     CONDICIONAL_BASE.forEach(b => col(`${b} (✔▬✘)`, j => esEquipoBase(j.teamKey) ? (SIMBOLO_TXT[j.condicionalBasePorEval?.[evalId]?.[slugify(b)]] || '') : ''));
   }
   if (q.medias) {
