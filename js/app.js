@@ -205,6 +205,24 @@ async function guardarCondicionalBase(j, evKey, mapa) {
   } catch (err) { console.error(err); showError('No se pudo guardar el dato condicional.'); }
 }
 
+// Color forzado de un cuarto del círculo (clic en el círculo de la Ficha 2): jugadores/{id}.fichaColoresForzados[evaluación] = { bloque: '#hex' }.
+// Manda sobre las notas M y las medias, en todas las fichas y diapositivas de ese jugador y evaluación.
+async function guardarColorForzado(j, evKey, bloque, hex) {
+  const mapa = { ...(j.fichaColoresForzados?.[evKey] || {}) };
+  if (hex) mapa[bloque] = hex; else delete mapa[bloque];
+  const hay = Object.keys(mapa).length > 0;
+  const todo = { ...(j.fichaColoresForzados || {}) };
+  if (hay) todo[evKey] = mapa; else delete todo[evKey];
+  j.fichaColoresForzados = todo;
+  const enEstado = state.players.find(x => x.id === j.id); if (enEstado && enEstado !== j) enEstado.fichaColoresForzados = todo;
+  document.querySelectorAll(`[data-circ="${CSS.escape(`${j.id}|${evKey}`)}"]`).forEach(svg => {
+    svg.querySelectorAll(`[data-seg="${bloque}"]`).forEach(path => { path.dataset.forzado = hex || ''; });
+    aplicarCirculoM(svg.parentElement);
+  });
+  try { await updateMapEntry('jugadores', j.id, 'fichaColoresForzados', evKey, hay ? mapa : null); showSuccess(hex ? 'Color forzado guardado.' : 'Vuelve al color automático.'); }
+  catch (err) { console.error(err); showError('No se pudo guardar el color.'); }
+}
+
 // Notas manuales de la Ficha 2: se guardan por jugador y evaluación (jugadores/{id}.fichaNotasManuales[evaluación] = { 'bloque|ítem': nota }).
 async function guardarNotasManuales(j, evKey, mapa) {
   const hay = Object.keys(mapa).length > 0;
@@ -235,6 +253,9 @@ function buildFichaRealData(positionKey, media, jugador, evalId, ref) {
     onBase: base && jugador?.id ? (mapa => guardarCondicionalBase(jugador, evKey, mapa)) : null,
     manual: jugador?.fichaNotasManuales?.[evalId || 'sin-evaluacion'] || null,
     onManual: jugador?.id ? (mapa => guardarNotasManuales(jugador, evalId || 'sin-evaluacion', mapa)) : null,
+    colorForzado: jugador?.fichaColoresForzados?.[evalId || 'sin-evaluacion'] || {},
+    onColorForzado: jugador?.id ? ((k, hex) => guardarColorForzado(jugador, evalId || 'sin-evaluacion', k, hex)) : null,
+    circId: jugador?.id ? `${jugador.id}|${evalId || 'sin-evaluacion'}` : '',
     player: { name: jugador ? nombreEnFicha(jugador) : 'Jugador', photoUrl: jugador?.fotoUrl || null },
     blocks: {
       mental:      { rp: [null, null], items: rated(state.aspectosComunes.mental) },
@@ -328,12 +349,13 @@ function buildFicha1RealData(positionKey, media, jugador, aspectos, evalId) {
   };
   // Con notas M (metodología) en un bloque, su cuarto del círculo va con la media de las M (igual que la Ficha 2).
   const circleColorsM = coloresM(jugador?.fichaNotasManuales?.[evalId || 'sin-evaluacion']);
-  const circleColors = Object.fromEntries(Object.entries(circleColorsAuto).map(([k, v]) => [k, (circulosConM && circleColorsM[k]) || v]));
+  const circleColorsF = jugador?.fichaColoresForzados?.[evalId || 'sin-evaluacion'] || {}; // forzados a mano: mandan sobre todo
+  const circleColors = Object.fromEntries(Object.entries(circleColorsAuto).map(([k, v]) => [k, circleColorsF[k] || (circulosConM && circleColorsM[k]) || v]));
 
   return {
     ...FICHA1_DEMO_DATA,
     pitchMarkers: camisetasGuardadas(jugador, evalId, positionKey),
-    circleColors, circleColorsAuto, circleColorsM, circId: jugador?.id ? `${jugador.id}|${evalId || 'sin-evaluacion'}` : '',
+    circleColors, circleColorsAuto, circleColorsM, circleColorsF, circId: jugador?.id ? `${jugador.id}|${evalId || 'sin-evaluacion'}` : '',
     gridOrder: state.fichaGridOrder,
     player: {
       ...FICHA1_DEMO_DATA.player,

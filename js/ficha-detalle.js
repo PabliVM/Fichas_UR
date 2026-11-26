@@ -84,7 +84,8 @@ const BLOCK_TITLES = { mental: 'MENTAL', tecnico: 'TÉCNICO', tactico: 'TÁCTICO
 let _circleUid = 0;
 // blockColorsM: color por la media de las notas M (metodología) del bloque, o null. Si hay, manda sobre la media
 // (data-m); con las M ocultas en la presentación (.pl-sin-m) se vuelve al de la media (data-auto). Ver aplicarCirculoM.
-function buildCentralCircle(photoUrl, blockColors, rpTexts, order, blockColorsM = {}) {
+// blockColorsF: color forzado a mano (data-forzado): manda sobre todo.
+function buildCentralCircle(photoUrl, blockColors, rpTexts, order, blockColorsM = {}, blockColorsF = {}) {
   const _u = ++_circleUid; // ids únicos por ficha (varias fichas en la misma página)
   const size = 1420;
   const cx = size / 2;
@@ -100,8 +101,8 @@ function buildCentralCircle(photoUrl, blockColors, rpTexts, order, blockColorsM 
     const p3 = polar(cx, cy, rInner, endDeg);
     const p4 = polar(cx, cy, rInner, startDeg);
     const large = endDeg - startDeg > 180 ? 1 : 0;
-    const colM = blockColorsM?.[key] || '';
-    return `<path data-seg="${key}" data-auto="${color}" data-m="${colM}" d="M ${p1.x} ${p1.y} A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y} Z" fill="${colM || color}" stroke="#94a3b8" stroke-width="1.5" />`;
+    const colM = blockColorsM?.[key] || '', colF = blockColorsF?.[key] || '';
+    return `<path data-seg="${key}" data-auto="${color}" data-m="${colM}" data-forzado="${colF}" style="cursor:pointer;" d="M ${p1.x} ${p1.y} A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y} Z" fill="${colF || colM || color}" stroke="#94a3b8" stroke-width="1.5" />`;
   };
 
   // Arco invisible por cuadrante (radio medio) para que el texto lo siga.
@@ -116,7 +117,7 @@ function buildCentralCircle(photoUrl, blockColors, rpTexts, order, blockColorsM 
   };
 
   const curvedLabel = (id, text, color, key) => {
-    const fill = (blockColorsM?.[key] || color) === '#ffffff' ? '#334155' : '#0f1117';
+    const fill = (blockColorsF?.[key] || blockColorsM?.[key] || color) === '#ffffff' ? '#334155' : '#0f1117';
     return `<text data-seg-lbl="${key}" font-size="79" font-weight="700" fill="${fill}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${text}</textPath></text>`;
   };
 
@@ -500,11 +501,29 @@ export function wireCondicionalInputs(container) {
  * cabecera muestra su media y, a su lado, la misma referencia (*) con la que se compara la nota automática.
  * Al salir de la celda se normaliza el valor y se llama a onManual({ 'bloque|ítem': número }) para guardarlo.
  */
+const NOMBRE_BLOQUE = { mental: 'Mental', tecnico: 'Técnico', tactico: 'Táctico', condicional: 'Condicional' };
+function menuColorForzado(x, y, key, bands, actual, elegir) {
+  document.querySelectorAll('.rm-menu-color').forEach(m => m.remove());
+  const m = document.createElement('div');
+  m.className = 'rm-menu-color';
+  m.style.cssText = `position:fixed;z-index:2000;left:${Math.min(x, window.innerWidth - 230)}px;top:${Math.min(y, window.innerHeight - 170)}px;background:#fff;color:#111;border:1px solid #cbd5e1;border-radius:10px;padding:10px;box-shadow:0 8px 24px rgba(15,23,42,.25);font:13px system-ui,sans-serif;width:210px;`;
+  const colores = [...new Set((bands || []).map(b => b.color))];
+  m.innerHTML = `<div style="font-weight:800;margin-bottom:8px;">Color de ${NOMBRE_BLOQUE[key] || key}</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">${colores.map(c => `<button type="button" data-c="${c}" title="Forzar este color" style="width:34px;height:34px;border-radius:50%;cursor:pointer;background:${c};border:${c === actual ? '3px solid #111' : '2px solid #fff'};box-shadow:0 0 0 1px #cbd5e1;"></button>`).join('')}
+      <button type="button" data-c="#ffffff" title="Blanco (sin color)" style="width:34px;height:34px;border-radius:50%;cursor:pointer;background:#fff;border:${actual === '#ffffff' ? '3px solid #111' : '2px solid #cbd5e1'};"></button></div>
+    <button type="button" data-c="" style="width:100%;padding:5px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;${actual ? '' : 'font-weight:800;'}">Automático (según las notas)</button>`;
+  const cerrar = () => { m.remove(); document.removeEventListener('mousedown', fuera, true); };
+  const fuera = ev => { if (!m.contains(ev.target)) cerrar(); };
+  m.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => { cerrar(); elegir(b.dataset.c || null); }));
+  document.body.appendChild(m);
+  setTimeout(() => document.addEventListener('mousedown', fuera, true), 0);
+}
+
 /** Pinta los cuartos del círculo: con notas M → su color (data-m); si no, o si las M están ocultas (.pl-sin-m), el de la media. */
 export function aplicarCirculoM(root) {
   root.querySelectorAll('[data-seg]').forEach(path => {
     const usarM = !path.closest('.pl-sin-m') && path.dataset.m;
-    const col = usarM ? path.dataset.m : path.dataset.auto;
+    const col = path.dataset.forzado || (usarM ? path.dataset.m : path.dataset.auto); // forzado a mano > notas M > media
     path.setAttribute('fill', col);
     const lbl = path.closest('svg')?.querySelector(`[data-seg-lbl="${path.dataset.seg}"]`);
     if (lbl) lbl.setAttribute('fill', col === '#ffffff' ? '#334155' : '#0f1117');
@@ -647,7 +666,7 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
           ${buildBlockAt('tr')}
           ${buildBlockAt('bl')}
           ${buildBlockAt('br')}
-          <div class="ficha-central">${buildCentralCircle(player?.photoUrl, blockColors, rpTexts, order, blockColorsM)}</div>
+          <div class="ficha-central">${buildCentralCircle(player?.photoUrl, blockColors, rpTexts, order, blockColorsM, data.colorForzado || {})}</div>
         </div>
         ${buildPlanAccion(plan)}
       </div>
@@ -661,6 +680,16 @@ export function renderFichaDetalle(container, data, logoPath, bands, pageLabel =
   wireCondicionalInputs(container);
   wireCondicionalBase(container, data.onBase);
   wireNotasManuales(container, bands, data.onManual);
+  // Clic en un cuarto del círculo: forzar su color (aunque la media diga otro) o volver al automático.
+  if (data.circId) container.querySelector('.ficha-central-svg')?.setAttribute('data-circ', data.circId);
+  if (typeof data.onColorForzado === 'function') {
+    container.querySelector('.ficha-central-svg')?.addEventListener('click', e => {
+      const el = e.target.closest?.('[data-seg],[data-seg-lbl]');
+      const key = el?.dataset.seg || el?.dataset.segLbl;
+      if (!key) return;
+      menuColorForzado(e.clientX, e.clientY, key, bands, data.colorForzado?.[key] || '', hex => data.onColorForzado(key, hex));
+    });
+  }
 
   const fichaRoot = container.querySelector('.ficha-detalle');
   centerFichaCircle(fichaRoot);

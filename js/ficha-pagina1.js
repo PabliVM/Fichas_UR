@@ -74,7 +74,7 @@ const P1_DEFAULT_ORDER = { tl: 'mental', tr: 'tecnico', bl: 'condicional', br: '
 let _miniUid = 0;
 // colsAuto / colsM (opcionales): color por la media de la encuesta y por la media de las notas M; con ellos
 // cada cuarto lleva data-auto/data-m para poder cambiar entre los dos (aplicarCirculoM, ficha-detalle.js).
-function buildMiniCircle(photoUrl, blockRp, circleColors, order, colsAuto = null, colsM = null, circId = '') {
+function buildMiniCircle(photoUrl, blockRp, circleColors, order, colsAuto = null, colsM = null, circId = '', colsF = null) {
   const _u = ++_miniUid; // ids únicos por ficha (varias fichas en la misma página)
   const size = 880;
   const cx = size / 2;
@@ -92,7 +92,7 @@ function buildMiniCircle(photoUrl, blockRp, circleColors, order, colsAuto = null
     const p3 = polar(cx, cy, rInner, b);
     const p4 = polar(cx, cy, rInner, a);
     const large = b - a > 180 ? 1 : 0;
-    const datos = colsAuto ? ` data-seg="${key}" data-auto="${colsAuto[key] || '#ffffff'}" data-m="${colsM?.[key] || ''}"` : '';
+    const datos = colsAuto ? ` data-seg="${key}" data-auto="${colsAuto[key] || '#ffffff'}" data-m="${colsM?.[key] || ''}" data-forzado="${colsF?.[key] || ''}"` : '';
     return `<path${datos} d="M ${p1.x} ${p1.y} A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y} Z" fill="${color}" stroke="#94a3b8" stroke-width="1.5" />`;
   };
   const arcPath = (id, a, b) => {
@@ -473,7 +473,7 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
             ${buildCompetencias('COMPETENCIAS OFENSIVAS', data.competenciasOfensivas)}
             ${buildCompetencias('COMPETENCIAS DEFENSIVAS', data.competenciasDefensivas)}
           </div>
-          <div class="p1-central">${buildMiniCircle(player.photoUrl, data.blockRp, data.circleColors, data.gridOrder, data.circleColorsAuto, data.circleColorsM, data.circId)}</div>
+          <div class="p1-central">${buildMiniCircle(player.photoUrl, data.blockRp, data.circleColors, data.gridOrder, data.circleColorsAuto, data.circleColorsM, data.circId, data.circleColorsF)}</div>
         </div>
         <div class="p1-lower">
           <div class="p1-lower-left">
