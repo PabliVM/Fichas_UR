@@ -1843,6 +1843,32 @@ const PEND_CAMPOS = [
   { k: 'weight',     l: 'Peso', falta: p => p.weight == null || p.weight === '' },
   { k: 'fotoUrl',    l: 'Foto', falta: p => !p.fotoUrl },
 ];
+// Guarda un dato de un jugador escrito en una tabla (Datos pendientes, lista de Jugadores en modo edición).
+// true si se guardó. Años en el club: "3" o "2+3"; nombre y apellidos con tildes.
+async function guardarDatoJugador(id, k, valor) {
+  let v = valor;
+  try {
+    if (k === 'aniosClub') {
+      const t = String(v).replace(/\s+/g, ''), et = etapasAnios(t);
+      if (t !== '' && !et) { showError('Años en el club: un número entero (3) o por etapas (2+3).'); return false; }
+      await guardarCampoJugador(id, 'aniosClub', !et ? null : et.length === 1 ? et[0] : et.join('+'));
+      await guardarCampoJugador(id, 'aniosClubTemporada', et ? state.season : null);
+    } else {
+      if (k === 'height' || k === 'weight') v = v === '' ? null : parseFloat(String(v).replace(',', '.'));
+      else if (k === 'nombre' || k === 'apellidos') {
+        v = ponerTildes(String(v).trim());
+        if (k === 'nombre' && !v) { showError('El nombre es obligatorio.'); return false; }
+      } else v = v || null;
+      if (k === 'foot') v = v || '';
+      if (k === 'residencia') v = v || RESI_DEFECTO;
+      await guardarCampoJugador(id, k, v);
+    }
+    showSuccess('Guardado.');
+    return true;
+  } catch (err) { console.error('[Firestore] Dato jugador:', err); showError('No se pudo guardar el cambio.'); return false; }
+}
+
+let jugEdicion = (() => { try { return localStorage.getItem('rm-jug-edicion') === '1'; } catch { return false; } })(); // lista de Jugadores editable
 let pendTildesAbierto = false;
 const jugadoresSinTilde = () => [...state.players].map(p => ({ p, nombre: ponerTildes(p.nombre), apellidos: ponerTildes(p.apellidos) }))
   .filter(x => x.nombre !== (x.p.nombre || '') || x.apellidos !== (x.p.apellidos || '')).sort((a, b) => ordenJugadores(a.p, b.p));
@@ -1920,23 +1946,7 @@ function renderPendientes(wrap) {
   });
   wrap.querySelector('#pend-equipo')?.addEventListener('change', e => { pendEquipo = e.target.value; rerender(); });
   wrap.querySelectorAll('[data-pend-k]').forEach(el => el.addEventListener('change', async () => {
-    const id = el.dataset.pendId, k = el.dataset.pendK;
-    let v = el.value;
-    try {
-      if (k === 'aniosClub') {
-        const t = v.replace(/\s+/g, ''), et = etapasAnios(t);
-        if (t !== '' && !et) { showError('Años en el club: un número entero (3) o por etapas (2+3).'); return; }
-        await guardarCampoJugador(id, 'aniosClub', !et ? null : et.length === 1 ? et[0] : et.join('+'));
-        await guardarCampoJugador(id, 'aniosClubTemporada', et ? state.season : null);
-      } else {
-        if (k === 'height' || k === 'weight') v = v === '' ? null : parseFloat(v);
-        else v = v || null;
-        if (k === 'foot') v = v || '';
-        await guardarCampoJugador(id, k, v);
-      }
-      showSuccess('Guardado.');
-      rerender();
-    } catch (err) { console.error('[Firestore] Pendientes:', err); showError('No se pudo guardar el cambio.'); }
+    if (await guardarDatoJugador(el.dataset.pendId, el.dataset.pendK, el.value)) rerender();
   }));
   wrap.querySelectorAll('[data-pend-ficha]').forEach(btn => btn.addEventListener('click', () => {
     const p = state.players.find(x => x.id === btn.dataset.pendFicha);
@@ -3490,6 +3500,7 @@ function renderPanelJugadores(container) {
   const soloForm = !!(jugadorFormId || jugImport || condImport); // añadiendo, editando o cargando: solo se ve eso (← Volver para salir)
 
   const jugadoresFiltrados = jugadoresListado();
+  const editable = jugEdicion && puedeEditar('jugadores.lista');
   const rows = jugadoresFiltrados.map(p => {
     const { age, year } = calcAgeAndYear(p.birthDate);
     const teamLabel = TEAMS.find(t => t.key === p.teamKey)?.label || '-';
@@ -3499,6 +3510,26 @@ function renderPanelJugadores(container) {
         ${jugadorHistoricoCache[p.id] ? buildHistoricoHTML(jugadorHistoricoCache[p.id]) : '<p class="text-xs text-muted">Cargando…</p>'}
       </td></tr>
     ` : '';
+    if (editable) {
+      const st = 'padding:2px 6px;min-height:0;font-size:13px;';
+      const inp = (k, val, w, tipo = 'text', extra = '') => `<input class="input" type="${tipo}" ${extra} data-jed-k="${k}" data-jed-id="${p.id}" value="${safeText(val ?? '')}" style="width:${w}px;${st}" />`;
+      const sel = (k, val, opts, w) => `<select class="select" data-jed-k="${k}" data-jed-id="${p.id}" style="width:${w}px;${st}"><option value="">—</option>${opts.map(([v, l]) => `<option value="${safeText(v)}" ${val === v ? 'selected' : ''}>${safeText(l)}</option>`).join('')}</select>`;
+      return `
+      <tr>
+        <td><button type="button" data-jug-foto="${p.id}" title="Foto" style="width:36px;height:36px;border-radius:50%;padding:0;border:${p.fotoUrl ? 'none' : '1px dashed var(--border-emphasis)'};background:var(--bg-hover);cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:15px;">${p.fotoUrl ? `<img src="${p.fotoUrl}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;display:block;" />` : '📷'}</button></td>
+        <td>${inp('nombre', p.nombre, 105)}</td>
+        <td>${inp('apellidos', p.apellidos, 135)}</td>
+        <td><input class="input" data-jug-alias="${p.id}" value="${safeText(p.nombreDeportivo || '')}" placeholder="—" style="width:110px;${st}" /></td>
+        <td colspan="2">${inp('birthDate', p.birthDate, 128, 'date')}</td>
+        <td>${inp('aniosClub', aniosEnClub(p), 56, 'text', 'placeholder="3 o 2+3"')}</td>
+        <td>${sel('teamKey', p.teamKey, TEAMS.map(t => [t.key, t.label]), 118)}</td>
+        <td>${sel('positionKey', p.positionKey, state.positions.map(x => [x.key, x.label]), 110)}</td>
+        <td>${inp('weight', p.weight, 58, 'number', 'step="0.1" min="0"')}</td>
+        <td>${inp('height', p.height, 58, 'number', 'step="0.01" min="0"')}</td>
+        <td>${sel('residencia', residenciaDe(p), ['Residencia', 'Madrid', 'Media pensión'].map(x => [x, x]), 118)}</td>
+        <td><div class="flex gap-8" style="align-items:center;justify-content:flex-end;"><button class="btn btn-sm btn-primary" data-jug-ficha="${p.id}">Ficha</button></div></td>
+      </tr>`;
+    }
     return `
       <tr>
         <td><button type="button" data-jug-foto="${p.id}" title="${p.fotoUrl ? 'Cambiar foto' : 'Poner foto'} (pegar o elegir archivo)" style="width:36px;height:36px;border-radius:50%;padding:0;border:${p.fotoUrl ? 'none' : '1px dashed var(--border-emphasis)'};background:var(--bg-hover);cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:15px;">${p.fotoUrl ? `<img src="${p.fotoUrl}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;display:block;" />` : '📷'}</button></td>
@@ -3550,6 +3581,7 @@ function renderPanelJugadores(container) {
             </div>
           </details>
           <button class="btn" id="jug-exportar" title="Elige qué jugadores y qué datos">⬇ Exportar a Excel</button>
+          ${puedeEditar('jugadores.lista') ? `<button class="btn ${jugEdicion ? 'btn-primary' : ''}" id="jug-edicion" title="Cambiar los datos de todos los jugadores directamente en la tabla (se guarda al salir de cada casilla)">${jugEdicion ? '✓ Terminar de editar' : '✎ Editar tabla'}</button>` : ''}
         </div>`}
         ${(() => { // jugadores que ya estaban guardados sin tilde (ADRIAN → ADRIÁN): un clic para todos
           const n = puedeEditar('jugadores.lista') ? jugadoresSinTilde().length : 0;
@@ -3559,12 +3591,13 @@ function renderPanelJugadores(container) {
             <button class="btn btn-sm" id="jug-tildes-revisar" title="Configuración › Datos pendientes: ver uno a uno y desmarcar los extranjeros">Revisar uno a uno</button>
           </div>`;
         })()}
-        <div class="jug-lista-wrap">
+        <div class="jug-lista-wrap ${editable ? 'jug-editando' : ''}">
           <style>
             /* Cabecera fija al bajar la página: justo debajo de la barra de filtros (--jug-th-top lo mide el JS). */
             .jug-lista thead th { position:sticky; top:var(--jug-th-top, 0px); z-index:50; background:var(--bg-surface, #fff); box-shadow:0 1px 0 var(--border-default); }
             .jug-lista td { padding-top:3px !important; padding-bottom:3px !important; }
-            .jug-lista th, .jug-lista td { white-space:nowrap; padding-right:18px; } /* cada columna, lo justo; el hueco sobrante va a la de los botones */
+            .jug-lista th, .jug-lista td { white-space:nowrap; padding-right:18px; }
+            .jug-editando .jug-lista th, .jug-editando .jug-lista td { padding-left:4px; padding-right:6px; } /* cada columna, lo justo; el hueco sobrante va a la de los botones */
             .jug-lista td .btn-sm { padding-top:3px; padding-bottom:3px; min-height:0; }
             .jug-lista [data-jug-foto] { width:30px !important; height:30px !important; }
             .jug-lista [data-jug-foto] img { width:30px !important; height:30px !important; }
@@ -3801,6 +3834,15 @@ function renderPanelJugadores(container) {
   }));
 
   container.querySelector('#jug-exportar')?.addEventListener('click', () => abrirExportarExcel());
+  container.querySelector('#jug-edicion')?.addEventListener('click', () => {
+    jugEdicion = !jugEdicion;
+    try { localStorage.setItem('rm-jug-edicion', jugEdicion ? '1' : '0'); } catch {}
+    preservandoScroll(() => renderPanelJugadores(container));
+  });
+  container.querySelectorAll('[data-jed-k]').forEach(el => el.addEventListener('change', async () => {
+    if (await guardarDatoJugador(el.dataset.jedId, el.dataset.jedK, el.value) && ['teamKey', 'positionKey'].includes(el.dataset.jedK))
+      preservandoScroll(() => renderPanelJugadores(container)); // reordena / refiltra
+  }));
   // Altura de lo que ya está fijo arriba (cabecera, pestañas y barra de filtros): ahí se engancha la fila de títulos.
   const medirTopLista = () => {
     const w = container.querySelector('.jug-lista-wrap'); if (!w) return;
