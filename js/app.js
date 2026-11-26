@@ -219,6 +219,7 @@ async function guardarColorForzado(j, evKey, bloque, hex) {
     svg.querySelectorAll(`[data-seg="${bloque}"]`).forEach(path => { path.dataset.forzado = hex || ''; });
     aplicarCirculoM(svg.parentElement);
   });
+  document.dispatchEvent(new CustomEvent('rm:color-forzado', { detail: { jugId: j.id, evKey, bloque, hex: hex || '' } }));
   try { await updateMapEntry('jugadores', j.id, 'fichaColoresForzados', evKey, hay ? mapa : null); showSuccess(hex ? 'Color forzado guardado.' : 'Vuelve al color automático.'); }
   catch (err) { console.error(err); showError('No se pudo guardar el color.'); }
 }
@@ -6703,6 +6704,24 @@ async function renderPlantillaPresentacion(container) {
     };
   };
   // Agrupa por la posición del jugador (la de su ficha / plantilla); si no tiene, la de su evaluación.
+  // Color forzado de un círculo (desde cualquier ficha): campograma y portadas de posición se rehacen al momento.
+  const sepJugadores = {};
+  const alForzar = async e => {
+    if (!container.isConnected || !lista.isConnected) { document.removeEventListener('rm:color-forzado', alForzar); return; }
+    const { jugId, bloque, hex } = e.detail || {};
+    const f1 = f1Map[jugId]; if (!f1) return;
+    f1.circleColors = { ...f1.circleColors, [bloque]: hex || (circulosConM && f1.circleColorsM?.[bloque]) || f1.circleColorsAuto?.[bloque] || '#ffffff' };
+    f1.circleColorsF = { ...(f1.circleColorsF || {}), [bloque]: hex || '' };
+    dibujarCampo();
+    for (const [titulo, js] of Object.entries(sepJugadores)) {
+      if (!js.some(j => j.id === jugId)) continue;
+      const viejo = lista.querySelector(`[data-pl-obs="${CSS.escape(`sep.${titulo}`)}"]`); if (!viejo) continue;
+      viejo.insertAdjacentHTML('afterend', plSeparadorPosicion(c, titulo, js, f1Map));
+      const nuevo = viejo.nextElementSibling; nuevo.dataset.plObs = `sep.${titulo}`; viejo.remove();
+      await aplicarSinFondo(lista); ajustarSlides(lista);
+    }
+  };
+  document.addEventListener('rm:color-forzado', alForzar);
   const posDe = x => x.dup ? x.prep.fPos : (state.positions.some(pos => pos.key === x.j.positionKey) ? x.j.positionKey : x.prep.fPos);
   // "Las dos": el jugador sale también en el grupo de la otra posición, con su ficha de esa posición.
   const dups = preps.flatMap(x => (x.prep.extrasPos || []).map(e => ({ j: x.j, dup: true, prep: { ...x.prep, fPos: e.fPos, fMedia: e.fMedia } })));
@@ -6712,6 +6731,7 @@ async function renderPlantillaPresentacion(container) {
 
   let hechas = 0;
   for (const g of grupos.filter(g => g.items.length)) {
+    sepJugadores[g.titulo] = g.items.map(x => x.j);
     addHTML(plSeparadorPosicion(c, g.titulo, g.items.map(x => x.j), f1Map));
     lista.lastElementChild.dataset.plObs = `sep.${g.titulo}`;
     obsMontar();
