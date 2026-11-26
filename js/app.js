@@ -4817,6 +4817,18 @@ function renderPanelConfig(container) {
             </p>
           </div>
         </div>
+        <details class="mt-16" style="border:1px solid var(--border-default);border-radius:10px;padding:10px 14px;">
+          <summary style="cursor:pointer;font-weight:700;">⇄ Intercambiar los valores de dos datos (si se cargaron cruzados)</summary>
+          <div class="flex gap-8 mt-8" style="align-items:center;flex-wrap:wrap;">
+            <select class="select" id="cswap-a" style="width:auto;">${(state.aspectosComunes.condicional || []).map(i => `<option ${i === 'Ac.Max.' ? 'selected' : ''}>${safeText(i)}</option>`).join('')}</select>
+            <span>⇄</span>
+            <select class="select" id="cswap-b" style="width:auto;">${(state.aspectosComunes.condicional || []).map(i => `<option ${i === 'N° Ac Max.' ? 'selected' : ''}>${safeText(i)}</option>`).join('')}</select>
+            <span class="text-sm">en</span>
+            <select class="select" id="cswap-ev" style="width:auto;">${(regEvaluaciones || []).map(e => `<option value="${e.id}" ${e.id === evalPorDefecto() ? 'selected' : ''}>${safeText(e.temporada)} · ${safeText(e.nombre)}</option>`).join('')}</select>
+            <button class="btn btn-sm btn-primary" id="cswap-ok">Intercambiar en todos los jugadores</button>
+          </div>
+          <p class="text-xs text-muted" style="margin:6px 0 0;">Cambia media y máxima de un dato por las del otro, en esa evaluación y en todos los jugadores que los tengan. Volver a pulsarlo lo deshace.</p>
+        </details>
       </div>
     </div>
     `}
@@ -5234,6 +5246,35 @@ function renderPanelConfig(container) {
 
   // Datos condicionales: guarda al salir del campo (change), sin re-renderizar
   // la tabla entera (perdería el foco/scroll en cada tecla).
+  if (configSubTab === 'condicional-refs' && regEvaluaciones === null) cargarEvaluacionesSilencioso().then(() => { if (container.isConnected) renderPanelConfig(container); });
+  container.querySelector('#cswap-ok')?.addEventListener('click', async e => {
+    const a = container.querySelector('#cswap-a').value, b = container.querySelector('#cswap-b').value, eid = container.querySelector('#cswap-ev').value;
+    if (!eid || a === b) { showError('Elige dos datos distintos y una evaluación.'); return; }
+    const ka = slugify(a), kb = slugify(b);
+    const afectados = state.players.filter(p => ['condicionalPorEval', 'condicionalMaxPorEval'].some(c => p[c]?.[eid] && (ka in p[c][eid] || kb in p[c][eid])));
+    if (!afectados.length) { showError('Ningún jugador tiene esos datos en esa evaluación.'); return; }
+    if (!confirm(`¿Intercambiar ${a} ⇄ ${b} en ${afectados.length} jugadores?`)) return;
+    const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Intercambiando…';
+    let n = 0;
+    for (const p of afectados) {
+      try {
+        for (const campo of ['condicionalPorEval', 'condicionalMaxPorEval']) {
+          const m = { ...(p[campo]?.[eid] || {}) };
+          if (!(ka in m) && !(kb in m)) continue;
+          const va = m[ka], vb = m[kb];
+          if (vb === undefined) delete m[ka]; else m[ka] = vb;
+          if (va === undefined) delete m[kb]; else m[kb] = va;
+          await updateMapEntry('jugadores', p.id, campo, eid, Object.keys(m).length ? m : null);
+          const todo = { ...(p[campo] || {}) }; if (Object.keys(m).length) todo[eid] = m; else delete todo[eid];
+          p[campo] = todo;
+        }
+        n++;
+      } catch (err) { console.error('[Intercambiar]', p.id, err); }
+    }
+    setState({ players: [...state.players] });
+    btn.disabled = false; btn.textContent = 'Intercambiar en todos los jugadores';
+    showSuccess(`Intercambiado en ${n} jugadores.`);
+  });
   container.querySelectorAll('[data-cond-desc]').forEach(inp => inp.addEventListener('change', () => {
     const d = { ...(state.condicionalDesc || {}) };
     const v = inp.value.trim();
