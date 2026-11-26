@@ -26,7 +26,7 @@ import { renderFichaDetalle, setGpsTolerance, condicionalScore, condicionalBaseS
 import { renderFichaPagina1 } from './ficha-pagina1.js';
 import { FICHA1_DEMO_DATA }   from './ficha-pagina1-demo-data.js';
 import { exportFichaAsPDF, exportFichasAsPDF } from './pdf-export.js';
-import { showError, showSuccess, safeText, fmtDec } from './utils.js';
+import { showError, showSuccess, safeText, fmtDec, fmtNota } from './utils.js';
 import { renderFichasEspejo } from './ficha-espejo-ui.js';
 import { buildCatalogo, slugify } from './ficha-espejo.js';
 import { quitarCabeceras, normalizarFechas, mapeoPorDefecto, columnasEfectivas, TEXTOS_DESTINOS, RP_DESTINOS, EXTRAS_DESTINOS } from './importar-plantilla.js';
@@ -1453,7 +1453,7 @@ function buildBBDDResultadosHTML() {
     ` : '';
     return `
       <tr style="font-weight:700;background:var(--bg-hover);">
-        <td ${jugadorId ? `data-ir-ficha="${jugadorId}" data-ir-pestana="fichas"` : ''}>${safeText(jugadorLabel(jugadorId))}</td><td>MEDIA</td><td>${general != null ? fmtDec(general) : '-'}</td>
+        <td ${jugadorId ? `data-ir-ficha="${jugadorId}" data-ir-pestana="fichas"` : ''}>${safeText(jugadorLabel(jugadorId))}</td><td>MEDIA</td><td>${general != null ? fmtNota(general) : '-'}</td>
         <td>${jugadorId ? `<button class="btn btn-sm" data-ver-ficha="${jugadorId}">Ver ficha</button>` : ''}</td>
       </tr>
       ${detalle}
@@ -1722,7 +1722,7 @@ function buildComparativasResultadoHTML() {
   const aspectos = [...new Set([...Object.keys(jugadorMedia.porAspecto || {})])];
   const filas = aspectos.map(a => {
     const grupoAspecto = calcularMediaGrupo(compResultado.mediasPorJugador, a);
-    return `<tr><td>${safeText(a)}</td><td>${fmtDec(jugadorMedia.porAspecto[a]) ?? '-'}</td><td>${grupoAspecto != null ? fmtDec(grupoAspecto) : '-'}</td></tr>`;
+    return `<tr><td>${safeText(a)}</td><td>${fmtNota(jugadorMedia.porAspecto[a]) ?? '-'}</td><td>${grupoAspecto != null ? fmtNota(grupoAspecto) : '-'}</td></tr>`;
   }).join('');
   return `
     <p class="text-xs text-muted mb-16">Grupo: ${n} jugador(es).</p>
@@ -1730,7 +1730,7 @@ function buildComparativasResultadoHTML() {
       <thead><tr><th>Aspecto</th><th>Jugador</th><th>Media del grupo</th></tr></thead>
       <tbody>
         ${filas}
-        <tr style="font-weight:700;"><td>General</td><td>${jugadorGeneral != null ? fmtDec(jugadorGeneral) : '-'}</td><td>${grupoMedia != null ? fmtDec(grupoMedia) : '-'}</td></tr>
+        <tr style="font-weight:700;"><td>General</td><td>${jugadorGeneral != null ? fmtNota(jugadorGeneral) : '-'}</td><td>${grupoMedia != null ? fmtNota(grupoMedia) : '-'}</td></tr>
       </tbody>
     </table>
   `;
@@ -2818,7 +2818,7 @@ function renderFichaJugador(container, p) {
   const teamLabel = TEAMS.find(t => t.key === p.teamKey)?.label;
   const posLabel  = state.positions.find(pos => pos.key === p.positionKey)?.label;
   const dato = (label, v) => `<div style="min-width:150px;"><div class="text-xs text-muted">${label}</div><div style="font-weight:600;">${v == null || v === '' ? '—' : safeText(String(v))}</div></div>`;
-  const fmt = v => v == null ? '—' : fmtDec(v);
+  const fmt = v => v == null ? '—' : fmtNota(v);
   const evInfo = eid => (regEvaluaciones || []).find(e => e.id === eid);
   const evLabel = eid => { const e = evInfo(eid); return e ? `${e.temporada} · ${e.nombre}` : eid; };
 
@@ -2921,7 +2921,7 @@ function renderFichaJugador(container, p) {
   const origenTxt = k => guardadosTxt?.[k] ?? filasTexto(k);
   let textosExtra = 0;
   const cinco = arr => { textosExtra = Math.max(textosExtra, arr.length - 5); return Array.from({ length: 5 }, (_, i) => arr[i] || ''); };
-  const mediaRP = k => { const v = regsEval.map(r => r.rp?.[k]).filter(x => typeof x === 'number'); if (!v.length) return null; const m = v.reduce((x, y) => x + y, 0) / v.length; return fmtDec(m); };
+  const mediaRP = k => { const v = regsEval.map(r => r.rp?.[k]).filter(x => typeof x === 'number'); if (!v.length) return null; const m = v.reduce((x, y) => x + y, 0) / v.length; return fmtNota(m); };
   const aspectosTxt = {
     desc: guardadosTxt?.desc || '',
     rp: { r: mediaRP('r'), p: mediaRP('p') },
@@ -6256,7 +6256,7 @@ function prepararFichaJugador(p, regs, temporada, evalPreferida = null) { // eva
   const filasTexto = k => regsEval.map(r => String(r.textos?.[k] || '').replace(/\s*\n+\s*/g, ' · ').trim()).filter(Boolean);
   const origenTxt = k => p.fichaTextos?.[textosKey]?.[k] ?? filasTexto(k);
   const cinco = arr => Array.from({ length: 5 }, (_, i) => arr[i] || '');
-  const mediaRP = k => { const v = regsEval.map(r => r.rp?.[k]).filter(x => typeof x === 'number'); if (!v.length) return null; const m = v.reduce((x, y) => x + y, 0) / v.length; return fmtDec(m); };
+  const mediaRP = k => { const v = regsEval.map(r => r.rp?.[k]).filter(x => typeof x === 'number'); if (!v.length) return null; const m = v.reduce((x, y) => x + y, 0) / v.length; return fmtNota(m); };
   return {
     evSel, textosKey, avisoPos: evSel?.aviso || '', extrasPos: evSel ? fichasExtraPos(regsEval, evSel.ev, p, evSel.posKey) : [],
     fPos: evSel?.posKey || p.positionKey, fMedia: evSel?.media || null,

@@ -11,7 +11,7 @@
 // medias numéricas.
 // ================================================
 
-import { safeText, fmtDec } from './utils.js';
+import { safeText, fmtDec, fmtNota } from './utils.js';
 import { fitFichaToFrame, menuColorForzado } from './ficha-detalle.js';
 
 const STATUS_HEX = { green: '#22c55e', yellow: '#eab308', red: '#ef4444' };
@@ -165,7 +165,7 @@ function buildStatusBars(bars) {
   return `
     <div class="p1-status-bars">
       ${bars.map(b => {
-        const nota = typeof b.value === 'number' ? fmtDec(b.value) : '';
+        const nota = typeof b.value === 'number' ? fmtNota(b.value) : '';
         return `<div class="p1-status-bar" style="background:${b.hex || barColorHex(b.color)}"><span class="p1-sb-label">${safeText(b.label)}</span><span class="p1-sb-nota">${nota}</span></div>`;
       }).join('')}
     </div>
