@@ -87,6 +87,12 @@ export function scoreColor(value, thresholds) {
   return 'red';
 }
 
+/** Nota/media de valoración: 1 decimal como mucho (4,3 · 3). Coma decimal. */
+export function fmtNota(v) {
+  if (v == null || v === '' || Number.isNaN(Number(v))) return null;
+  return String(Math.round((Number(v) + Number.EPSILON) * 10) / 10).replace('.', ',');
+}
+
 /** Nota/media para mostrar: como mucho 2 decimales (redondeado); si tiene 1 o ninguno, se deja así. Coma decimal. */
 export function fmtDec(v) {
   if (v == null || v === '' || Number.isNaN(Number(v))) return null;

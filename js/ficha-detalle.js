@@ -9,7 +9,7 @@
 // bloque — en blanco cuando aún no hay dato.
 // ================================================
 
-import { safeText, fmtDec } from './utils.js';
+import { safeText, fmtDec, fmtNota } from './utils.js';
 
 // Color de la banda (Configuración → Rango de colores). Propio de este módulo para no depender de la versión de utils.js desplegada.
 const BANDAS_DEF = [{ color: '#22c55e', min: 4 }, { color: '#eab308', min: 3 }, { color: '#ef4444', min: 0 }];
@@ -196,8 +196,8 @@ function centerFichaCircle(root) {
 function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref, manualVals }) {
   const avg = blockAvg({ rp, items });
   const avgColor = avg != null ? (scoreColor(avg, bands) || '#ffffff') : null;
-  const avgHTML = avg != null ? `<span class="ficha-q-media" style="color:${avgColor};font-weight:800;">${formatNum(avg)}</span>` : '';
-  const refHTML = (ref != null && !Number.isNaN(ref)) ? ` <span class="ficha-q-sep">/</span><span class="ficha-q-media ficha-q-ref" style="color:${scoreColor(ref, bands) || '#ffffff'};">${formatNum(ref)}*</span>` : '';
+  const avgHTML = avg != null ? `<span class="ficha-q-media" style="color:${avgColor};font-weight:800;">${formatNota(avg)}</span>` : '';
+  const refHTML = (ref != null && !Number.isNaN(ref)) ? ` <span class="ficha-q-sep">/</span><span class="ficha-q-media ficha-q-ref" style="color:${scoreColor(ref, bands) || '#ffffff'};">${formatNota(ref)}*</span>` : '';
   // Celda de la media de las notas manuales (se rellena sola al escribir en las celdas "M"; ver wireNotasManuales).
   // Recuadro con la M dentro: media de las notas manuales (se rellena sola al escribir en las celdas "M") y, si hay, la comparativa.
   const manualAvgHTML = '<span class="ficha-q-manual" title="Media de las notas manuales (M). Clic: rellena los huecos M vacíos con la media de cada ítem (no toca las que pusiste a mano). Doble clic: borra las M del bloque" style="cursor:pointer;"><span class="ficha-q-manual-m">M</span><span class="ficha-q-manual-v"></span><span class="ficha-q-manual-ref"></span></span>';
@@ -211,12 +211,12 @@ function buildRatedBlock({ title, rp, items, side, bands, blockKey, pos, ref, ma
 
   const listHTML = items.map(item => {
     const color = scoreColor(item.value, bands); // hex de la banda, o null si no hay dato
-    const valueText = item.value == null ? '-' : formatNum(item.value);
+    const valueText = item.value == null ? '-' : formatNota(item.value);
     const style = `style="color:${color || 'rgba(255,255,255,0.5)'}"`;
     // Celda junto a la nota automática, para anotar a mano durante la revisión. Se guarda por jugador y evaluación (ver wireNotasManuales) y sale en el PDF.
     const mkey = `${blockKey}|${item.label}`;
     const mv = manualVals?.[mkey];
-    const manual = `<input class="gps-input ficha-manual" type="text" inputmode="decimal" data-mk="${safeText(mkey)}" data-auto="${item.value != null ? item.value : ''}" value="${mv != null ? formatNum(mv) : ''}" aria-label="Nota manual" />`;
+    const manual = `<input class="gps-input ficha-manual" type="text" inputmode="decimal" data-mk="${safeText(mkey)}" data-auto="${item.value != null ? item.value : ''}" value="${mv != null ? formatNota(mv) : ''}" aria-label="Nota manual" />`;
     // Orden visual en las dos listas: [celda manual] [nota automática] [nombre del ítem].
     return side === 'left'
       ? `<li>${manual}<span class="ficha-score" ${style}>${valueText}</span><span class="ficha-item-label">${safeText(item.label)}</span></li>`
@@ -389,6 +389,10 @@ export function buildFichaHeader(logoPath, pageLabel, refLabel) {
 
 // ── FORMATEO ──────────────────────────────────────
 
+function formatNota(n) { // valoraciones: 1 decimal
+  if (n == null) return '-';
+  return fmtNota(n) ?? '-';
+}
 function formatNum(n) {
   if (n == null) return '-';
   return fmtDec(n) ?? '-'; // 2 decimales como mucho (2,67 · 2,5 · 3)
@@ -553,10 +557,10 @@ export function wireNotasManuales(container, bands, onManual) {
     if (!vals.length) { segM(quad, ''); celda.textContent = ''; celda.style.color = ''; if (refEl) refEl.innerHTML = ''; return; }
     const media = vals.reduce((a, b) => a + b, 0) / vals.length;
     segM(quad, scoreColor(media, bands) || '');
-    celda.textContent = formatNum(media);
+    celda.textContent = formatNota(media);
     celda.style.color = scoreColor(media, bands) || '#ffffff';
     const ref = parseFloat(quad.dataset.ref);
-    if (refEl) refEl.innerHTML = Number.isNaN(ref) ? '' : ` <span class="ficha-q-sep">/</span><span class="ficha-q-media ficha-q-ref" style="color:${scoreColor(ref, bands) || '#ffffff'};">${formatNum(ref)}*</span>`;
+    if (refEl) refEl.innerHTML = Number.isNaN(ref) ? '' : ` <span class="ficha-q-sep">/</span><span class="ficha-q-media ficha-q-ref" style="color:${scoreColor(ref, bands) || '#ffffff'};">${formatNota(ref)}*</span>`;
   };
   container.querySelectorAll('.ficha-manual').forEach(pintar);
   container.querySelectorAll('.ficha-quadrant').forEach(recalcular);
@@ -596,7 +600,7 @@ export function wireNotasManuales(container, bands, onManual) {
       if (i.disabled || i.value.trim() || i.dataset.auto === '') return;
       const v = Number(i.dataset.auto);
       if (Number.isNaN(v)) return;
-      i.value = formatNum(Math.round((v + Number.EPSILON) * 100) / 100); pintar(i); n++;
+      i.value = formatNota(v); pintar(i); n++;
     });
     recalcular(quad);
     const primero = quad.querySelector('.ficha-manual');
@@ -606,7 +610,7 @@ export function wireNotasManuales(container, bands, onManual) {
     const inp = e.target.closest?.('.ficha-manual');
     if (!inp) return;
     const v = parseEsNumber(inp.value);
-    inp.value = v != null ? formatNum(v) : '';
+    inp.value = v != null ? formatNota(v) : '';
     pintar(inp);
     const quad = inp.closest('.ficha-quadrant');
     if (quad) recalcular(quad);
