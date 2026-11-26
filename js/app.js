@@ -5845,6 +5845,10 @@ async function proponerDescripcion(btn, descEl, p, evSel, aspectosTxt, btnGuarda
     equipo: TEAMS.find(t => t.key === p.teamKey)?.label || '',
     evaluacion: evSel?.ev ? `${evSel.ev.temporada} · ${evSel.ev.nombre}` : '',
     notas, rp: aspectosTxt?.rp || null,
+    // Los 3 perfiles de la Ficha 1 (con su media): la descripción empieza por ellos.
+    perfiles: (buildFicha1RealData(fPos, evSel?.media || null, p, aspectosTxt, evSel?.eid).statusBars || []).slice(0, 3)
+      .map(b => ({ perfil: b.label, nota: typeof b.value === 'number' ? Math.round(b.value * 100) / 100 : null,
+        nivel: b.color === 'green' ? 'alto (potenciar)' : b.color === 'yellow' ? 'medio (desarrollar)' : b.color === 'red' ? 'bajo (mejorar)' : 'sin dato' })),
     comentarios: {
       ofensivos_potenciar: limpia(aspectosTxt?.ofensivos?.potenciar), ofensivos_mejorar: limpia(aspectosTxt?.ofensivos?.mejorar),
       defensivos_potenciar: limpia(aspectosTxt?.defensivos?.potenciar), defensivos_mejorar: limpia(aspectosTxt?.defensivos?.mejorar),

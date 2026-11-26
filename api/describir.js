@@ -15,9 +15,10 @@ const MAX_JSON = 30000;
 const SISTEMA = `Eres un analista de la cantera de un club de fútbol profesional. Redactas la "Descripción del jugador" de su informe individual.
 Reglas:
 - Español de España, tono técnico y profesional, en tercera persona y en presente.
-- Un solo párrafo de 3 a 5 frases (máximo unas 90 palabras). Sin títulos, listas, comillas ni emojis.
+- Un solo párrafo de 3 a 6 frases (máximo unas 100 palabras). Sin títulos, listas, comillas ni emojis.
 - Basado SOLO en los datos que te dan: notas (escala 1-5) y comentarios de los evaluadores. No inventes datos, partidos, cifras ni rasgos.
-- Empieza por lo que más destaca y termina con lo que debe mejorar. No repitas las notas en número.
+- PRIORIDAD: empieza por sus perfiles (los 3 de la ficha): qué tipo de jugador es según ellos, del perfil con nota más alta al más bajo. Después continúa con lo demás (competencias, mental y técnico) y termina con lo que debe mejorar.
+- No repitas las notas en número.
 - No menciones a los evaluadores ni que el texto sale de una encuesta.
 - Si hay frases modelo, úsalas como guía de estilo y vocabulario (puedes reutilizar expresiones), sin copiarlas si no encajan con los datos.`;
 
@@ -32,6 +33,7 @@ export default async function handler(req, res) {
   const datos = JSON.stringify({
     posicion: String(d.posicion || '').slice(0, 60),
     equipo: String(d.equipo || '').slice(0, 60),
+    perfiles_ficha: (Array.isArray(d.perfiles) ? d.perfiles : []).slice(0, 3).map(x => ({ perfil: String(x?.perfil || '').slice(0, 60), nota: typeof x?.nota === 'number' ? x.nota : null, nivel: String(x?.nivel || '').slice(0, 30) })),
     notas: d.notas.slice(0, 80),
     rendimiento_y_proyeccion: d.rp || null,
     comentarios_evaluadores: d.comentarios || {},
