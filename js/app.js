@@ -2249,6 +2249,34 @@ function buildPerfilCompetenciasHTML() {
   `;
 }
 
+// Ac.Max. (aceleración máxima, m/s², unos 3-7) y N° Ac Max. (nº de aceleraciones >3, decenas) se cargaron cruzados.
+// Si en una evaluación Ac.Max. es grande (>10) y N° Ac Max. pequeño (<10), se intercambian media y máxima. Solo toca esos casos.
+async function corregirAcMaxCruzados() {
+  if (isFirebaseUnconfigured() || !puedeEditar('jugadores.lista')) return;
+  const A = slugify('Ac.Max.'), B = slugify('N° Ac Max.');
+  let n = 0;
+  for (const p of state.players) {
+    for (const eid of Object.keys(p.condicionalPorEval || {})) {
+      const m = p.condicionalPorEval[eid] || {};
+      const a = Number(m[A]), b = Number(m[B]);
+      if (!(a > 10 && b > 0 && b < 10)) continue;
+      try {
+        for (const campo of ['condicionalPorEval', 'condicionalMaxPorEval']) {
+          const mm = { ...(p[campo]?.[eid] || {}) };
+          if (!(A in mm) && !(B in mm)) continue;
+          const va = mm[A], vb = mm[B];
+          if (vb === undefined) delete mm[A]; else mm[A] = vb;
+          if (va === undefined) delete mm[B]; else mm[B] = va;
+          await updateMapEntry('jugadores', p.id, campo, eid, mm);
+          p[campo] = { ...(p[campo] || {}), [eid]: mm };
+        }
+        n++;
+      } catch (err) { console.error('[Ac.Max cruzado]', p.id, err); return; }
+    }
+  }
+  if (n) { setState({ players: [...state.players] }); showSuccess(`Corregidos Ac.Max. y N° Ac Max. (estaban cruzados) en ${n} fichas.`, 8000); }
+}
+
 // "D.A Int." → "D.A Int. (Dist >21 (m))" con el nombre largo de Configuración › Datos condicionales.
 const condTieneMax = item => !(state.condicionalSinMax || ['V.MAX.']).includes(item); // V.MAX.: un solo valor
 const etiquetaCond = item => (state.condicionalDesc?.[item] ? `${item} (${state.condicionalDesc[item]})` : item);
@@ -7421,6 +7449,7 @@ async function arrancarApp(user, visibles) {
     setState({ condicionalDesc: { ...state.condicionalDesc, 'Ac.Max.': 'Acc Máx (m/s2)', 'N° Ac Max.': 'Acc >3' } });
   }
   await loadPlayersFromFirestore(); // trae la lista de jugadores
+  corregirAcMaxCruzados(); // sin esperar: arreglo de datos cargados cruzados
 
   renderFooter();
   renderHeader();
