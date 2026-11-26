@@ -12,7 +12,7 @@
 // ================================================
 
 import { safeText, fmtDec } from './utils.js';
-import { fitFichaToFrame } from './ficha-detalle.js';
+import { fitFichaToFrame, menuColorForzado } from './ficha-detalle.js';
 
 const STATUS_HEX = { green: '#22c55e', yellow: '#eab308', red: '#ef4444' };
 
@@ -489,6 +489,17 @@ export function renderFichaPagina1(container, data, logoPath, colors) {
   `;
 
   fitFichaToFrame(container);
+  // Clic en un cuarto del círculo: forzar su color (el mismo ajuste que en la Ficha 2; se ve en todas partes).
+  if (typeof data.onColorForzado === 'function') {
+    const svg = container.querySelector('.p1-central-svg');
+    svg?.addEventListener('click', e => {
+      const el = e.target.closest?.('[data-seg],[data-seg-lbl]');
+      const key = el?.dataset.seg || el?.dataset.segLbl;
+      if (!key) return;
+      menuColorForzado(e.clientX, e.clientY, key, data.bands, data.circleColorsF?.[key] || '', hex => data.onColorForzado(key, hex));
+    });
+    svg?.querySelectorAll('[data-seg]').forEach(p => { p.style.cursor = 'pointer'; });
+  }
   window.addEventListener('resize', () => fitFichaToFrame(container));
   initPitchDragDrop(container, data, positionKey);
   initFrasesPicker(container);
