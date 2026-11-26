@@ -168,6 +168,8 @@ const _state = {
   condicionalTolerance: 0.2,
   // Nombre largo de cada ítem condicional (como viene en el Excel del preparador). Sale entre paréntesis en las tablas
   // de la app y sirve para reconocer sus columnas al importar ("Dist >21 (m) - Media" / "- Máx"). Editable en Datos condicionales.
+  // Ítems condicionales con un solo valor (sin máxima).
+  condicionalSinMax: ['V.MAX.'],
   condicionalDesc: {
     'V.MAX.': 'Vmax Referencia (km/h)', 'D.Total.': 'Dist Total (m)', 'D.A Int.': 'Dist >21 (m)', 'D.Sprint.': 'Dist >24 (m)',
     'Ac.Max.': 'Acc >3', 'N°Sprint.': 'Nº Acciones >24', 'N° Ac Max.': 'Acc Máx (m/s2)', 'M/min.': 'm/min',
@@ -192,7 +194,7 @@ export const state = _state;
 // jugadores NO va aquí — colección propia 'jugadores' (ver loadPlayersFromFirestore).
 const CONFIG_COLLECTION = 'config';
 const CONFIG_DOC_ID = 'general';
-const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'fichaEspejoReglas', 'columnasEncuesta', 'condicionalTolerance', 'fichaGridOrder', 'flujoEvaluaciones', 'frasesModelo', 'evaluadores', 'condicionalDesc'];
+const CONFIG_KEYS = ['positions', 'criteriaSchemas', 'aspectosComunes', 'scoreBands', 'fichaColors', 'fichaColorsDefault', 'seasons', 'condicionalRefs', 'fichaEspejoReglas', 'columnasEncuesta', 'condicionalTolerance', 'fichaGridOrder', 'flujoEvaluaciones', 'frasesModelo', 'evaluadores', 'condicionalDesc', 'condicionalSinMax'];
 
 let _persistTimer = null;
 // Solo se guarda la configuración si la carga inicial terminó bien: si falló, el estado en memoria son los valores
