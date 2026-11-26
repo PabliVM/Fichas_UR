@@ -2247,6 +2247,7 @@ function buildPerfilCompetenciasHTML() {
 }
 
 // "D.A Int." → "D.A Int. (Dist >21 (m))" con el nombre largo de Configuración › Datos condicionales.
+const condTieneMax = item => !(state.condicionalSinMax || ['V.MAX.']).includes(item); // V.MAX.: un solo valor
 const etiquetaCond = item => (state.condicionalDesc?.[item] ? `${item} (${state.condicionalDesc[item]})` : item);
 
 // Tabla "Datos condicionales": filas = Aspectos → Condicional, columnas = Posiciones × (3, 4).
@@ -2563,7 +2564,7 @@ function buildJugadorFormHTML(player) {
           <tbody>${state.aspectosComunes.condicional.map(item => `
             <tr><td>${safeText(etiquetaCond(item))}</td>
               <td><input class="input" type="text" inputmode="decimal" style="width:90px;" data-jug-cond="${safeText(slugify(item))}" value="" /></td>
-              <td><input class="input" type="text" inputmode="decimal" style="width:90px;" data-jug-condmax="${safeText(slugify(item))}" value="" /></td>
+              <td>${condTieneMax(item) ? `<input class="input" type="text" inputmode="decimal" style="width:90px;" data-jug-condmax="${safeText(slugify(item))}" value="" />` : '<span class="text-muted">—</span>'}</td>
             </tr>`).join('')}</tbody>
         </table></div>` : '<p class="text-xs text-muted">Crea primero una evaluación (Evaluaciones) para poder guardar datos condicionales.</p>'}` : ''}
         <div class="flex gap-8 mt-16">
@@ -2824,7 +2825,7 @@ function renderFichaJugador(container, p) {
   : evCond.length ? `
     <div style="overflow-x:auto;"><table class="table table-compact">
       <thead><tr><th>Evaluación (media / máx)</th>${items.map(i => `<th>${safeText(etiquetaCond(i))}</th>`).join('')}</tr></thead>
-      <tbody>${evCond.map(eid => `<tr><td>${safeText(evLabel(eid))}</td>${items.map(i => `<td>${safeText(porEval[eid]?.[slugify(i)] ?? '—')} / ${safeText(porEvalMax[eid]?.[slugify(i)] ?? '—')}</td>`).join('')}</tr>`).join('')}</tbody>
+      <tbody>${evCond.map(eid => `<tr><td>${safeText(evLabel(eid))}</td>${items.map(i => `<td>${safeText(porEval[eid]?.[slugify(i)] ?? '—')}${condTieneMax(i) ? ` / ${safeText(porEvalMax[eid]?.[slugify(i)] ?? '—')}` : ''}</td>`).join('')}</tr>`).join('')}</tbody>
     </table></div>` : '<p class="text-xs text-muted">Sin datos condicionales. Se añaden en Editar.</p>';
 
   let evalHTML = '<p class="text-xs text-muted">Cargando…</p>';
@@ -3268,8 +3269,8 @@ function columnasPlantillaCondicional() {
     { titulo: 'Jugador', ejemplo: 'Sotres García, Alfredo', nota: '<strong>obligatoria</strong>: "Apellidos, Nombre" o "Nombre Apellidos" (o dos columnas Nombre y Apellidos).' },
     // Cada ítem: su media y, justo al lado, su máxima.
     ...items.flatMap(i => [
-      { titulo: i, ejemplo: '', nota: CONDICIONAL_BASE.some(b => slugify(b) === slugify(i)) ? 'media (en alevines e infantiles: ✔ / ▬ / ✘).' : 'media.' },
-      { titulo: `${i} máx`, ejemplo: '', nota: 'máxima.' },
+      { titulo: i, ejemplo: '', nota: !condTieneMax(i) ? 'valor (uno solo, sin máxima).' : CONDICIONAL_BASE.some(b => slugify(b) === slugify(i)) ? 'media (en alevines e infantiles: ✔ / ▬ / ✘).' : 'media.' },
+      ...(condTieneMax(i) ? [{ titulo: `${i} máx`, ejemplo: '', nota: 'máxima.' }] : []),
     ]),
     // Alevines e infantiles: capacidades con símbolo (las que ya coinciden con un ítem numérico usan esa misma columna).
     ...CONDICIONAL_BASE.filter(b => !items.some(i => slugify(i) === slugify(b)))
@@ -3464,7 +3465,7 @@ async function filasExportar(jugs, q, evalId) {
     const items = state.aspectosComunes.condicional || [];
     items.forEach(i => { // media y máxima juntas
       col(i, j => r2(j.condicionalPorEval?.[evalId]?.[slugify(i)]));
-      col(`${i} máx`, j => r2(j.condicionalMaxPorEval?.[evalId]?.[slugify(i)]));
+      if (condTieneMax(i)) col(`${i} máx`, j => r2(j.condicionalMaxPorEval?.[evalId]?.[slugify(i)]));
     });
     CONDICIONAL_BASE.forEach(b => col(`${b} (✔▬✘)`, j => esEquipoBase(j.teamKey) ? (SIMBOLO_TXT[j.condicionalBasePorEval?.[evalId]?.[slugify(b)]] || '') : ''));
   }
