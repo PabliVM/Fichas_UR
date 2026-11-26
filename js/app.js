@@ -7372,6 +7372,10 @@ async function arrancarApp(user, visibles) {
   });
 
   await loadConfigFromFirestore(); // trae Configuración guardada antes de pintar
+  // Corrección: Ac.Max. y N° Ac Max. estaban cruzados en el nombre largo (Excel del preparador). Si sigue el cruce, se arregla.
+  if (state.condicionalDesc?.['Ac.Max.'] === 'Acc >3' && state.condicionalDesc?.['N° Ac Max.'] === 'Acc Máx (m/s2)') {
+    setState({ condicionalDesc: { ...state.condicionalDesc, 'Ac.Max.': 'Acc Máx (m/s2)', 'N° Ac Max.': 'Acc >3' } });
+  }
   await loadPlayersFromFirestore(); // trae la lista de jugadores
 
   renderFooter();
