@@ -6305,9 +6305,9 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
   const campoN = modo === 'p' ? 'pValue' : 'rValue';
   const notaDe = it => notaNum(it.f1?.player?.[campoN]);
   const bandas = [
-    { lab: '+4', bg: '#7bbf90', ok: v => v != null && v >= 4 },
+    { lab: '>4', bg: '#7bbf90', ok: v => v != null && v >= 4 },
     { lab: '3-4', bg: '#f2e09c', ok: v => v != null && v >= 3 && v < 4 }, // sin nota: fuera de la diapositiva (lista de pendientes)
-    { lab: '-3', bg: '#f0728f', ok: v => v != null && v < 3 },
+    { lab: '<3', bg: '#f0728f', ok: v => v != null && v < 3 },
   ];
   const POR_FILA = 6, ITEM_W = 150, TOP = 165, BOT = 1310, GAP = 16, MITAD = PL_W / 2;
   const datos = bandas.map(b => {
