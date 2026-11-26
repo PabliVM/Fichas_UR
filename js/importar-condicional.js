@@ -24,9 +24,16 @@ export function filasDesdeTexto(texto) {
 
 const MAX_PREF = ['max', 'maxima', 'maximo'];
 
-function columnaDe(titulo, items, base) {
+function columnaDe(titulo, items, base, desc = {}) {
   const n = norm(titulo);
   if (!n) return { tipo: null };
+  // Títulos del Excel del preparador (Configuración › Datos condicionales, texto entre paréntesis):
+  // "Dist Total (m)" / "... - Media" → media; "... - Máx" → máxima.
+  for (const it of items) {
+    const d = norm(desc?.[it]); if (!d) continue;
+    if (n === d || n === `${d} media`) return { tipo: 'media', item: it };
+    if (MAX_PREF.some(m => n === `${d} ${m}`)) return { tipo: 'max', item: it };
+  }
   const item = items.find(i => norm(i) === n);
   const capacidad = base.find(b => norm(b) === n); // misma columna puede valer para los dos (p. ej. Edad madurativa)
   if (item) return { tipo: 'media', item, ...(capacidad ? { base: capacidad } : {}) };
@@ -56,10 +63,10 @@ export function parseSimbolo(txt) {
  * @param {string[]} [base]       capacidades de alevines/infantiles (símbolos)
  * @returns {{ columnas: Array<{titulo, tipo, item, base}>, filas: Array<{nombre, media:{}, max:{}, base:{}, avisosNum:string[], avisosBase:string[]}> }}
  */
-export function leerTablaCondicional(filas2D, items, base = []) {
+export function leerTablaCondicional(filas2D, items, base = [], desc = {}) {
   if (!filas2D.length) throw new Error('No hay datos.');
   const [cab, ...resto] = filas2D;
-  const columnas = cab.map(t => ({ titulo: String(t ?? '').trim(), ...columnaDe(t, items, base) }));
+  const columnas = cab.map(t => ({ titulo: String(t ?? '').trim(), ...columnaDe(t, items, base, desc) }));
   // Sin columna de nombre reconocida: la primera (si no es un ítem) es el jugador.
   if (!columnas.some(c => ['nombre', 'nombreCompleto'].includes(c.tipo))) {
     if (columnas[0] && !columnas[0].item && !columnas[0].base) columnas[0].tipo = 'nombreCompleto';

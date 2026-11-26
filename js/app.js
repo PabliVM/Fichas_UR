@@ -2246,6 +2246,9 @@ function buildPerfilCompetenciasHTML() {
   `;
 }
 
+// "D.A Int." → "D.A Int. (Dist >21 (m))" con el nombre largo de Configuración › Datos condicionales.
+const etiquetaCond = item => (state.condicionalDesc?.[item] ? `${item} (${state.condicionalDesc[item]})` : item);
+
 // Tabla "Datos condicionales": filas = Aspectos → Condicional, columnas = Posiciones × (3, 4).
 // Nada hardcodeado: se genera de state.aspectosComunes.condicional y state.positions.
 function buildCondicionalRefsTableHTML() {
@@ -2272,7 +2275,7 @@ function buildCondicionalRefsTableHTML() {
         <tbody>
           ${items.map(item => `
             <tr>
-              <td class="cond-refs-sticky">${safeText(item)}</td>
+              <td class="cond-refs-sticky">${safeText(item)}<input type="text" data-cond-desc="${safeText(item)}" value="${safeText(state.condicionalDesc?.[item] || '')}" placeholder="(como sale en el Excel)" title="Entre paréntesis en las tablas; y así se reconoce la columna al importar (… - Media / … - Máx)" style="display:block;width:100%;margin-top:3px;font-size:11px;" /></td>
               ${positions.map(p => `
                 <td><input type="text" data-condicional-ref data-pos="${p.key}" data-item="${safeText(item)}" data-col="col3" value="${getVal(p.key, item, 'col3')}" /></td>
                 <td><input type="text" data-condicional-ref data-pos="${p.key}" data-item="${safeText(item)}" data-col="col4" value="${getVal(p.key, item, 'col4')}" /></td>
@@ -2558,7 +2561,7 @@ function buildJugadorFormHTML(player) {
         <div style="overflow-x:auto;"><table class="table table-compact" style="max-width:520px;">
           <thead><tr><th>Ítem condicional</th><th>Media</th><th>Máxima</th></tr></thead>
           <tbody>${state.aspectosComunes.condicional.map(item => `
-            <tr><td>${safeText(item)}</td>
+            <tr><td>${safeText(etiquetaCond(item))}</td>
               <td><input class="input" type="text" inputmode="decimal" style="width:90px;" data-jug-cond="${safeText(slugify(item))}" value="" /></td>
               <td><input class="input" type="text" inputmode="decimal" style="width:90px;" data-jug-condmax="${safeText(slugify(item))}" value="" /></td>
             </tr>`).join('')}</tbody>
@@ -2820,7 +2823,7 @@ function renderFichaJugador(container, p) {
     </table></div>` : '<p class="text-xs text-muted">Sin datos condicionales. Se ponen en Editar o pulsando los símbolos de la Ficha 2.</p>')
   : evCond.length ? `
     <div style="overflow-x:auto;"><table class="table table-compact">
-      <thead><tr><th>Evaluación (media / máx)</th>${items.map(i => `<th>${safeText(i)}</th>`).join('')}</tr></thead>
+      <thead><tr><th>Evaluación (media / máx)</th>${items.map(i => `<th>${safeText(etiquetaCond(i))}</th>`).join('')}</tr></thead>
       <tbody>${evCond.map(eid => `<tr><td>${safeText(evLabel(eid))}</td>${items.map(i => `<td>${safeText(porEval[eid]?.[slugify(i)] ?? '—')} / ${safeText(porEvalMax[eid]?.[slugify(i)] ?? '—')}</td>`).join('')}</tr>`).join('')}</tbody>
     </table></div>` : '<p class="text-xs text-muted">Sin datos condicionales. Se añaden en Editar.</p>';
 
@@ -3750,7 +3753,7 @@ function renderPanelJugadores(container) {
     } catch (_) { /* solo datos condicionales */ }
     try { // condicionales, en la evaluación elegida en el formulario
       const cabCond = cab.map(t => (['nombre', 'apellidos', 'nombreCompleto', null].includes(campoDeCabecera(t)) ? t : ''));
-      const c = leerTablaCondicional([cabCond, vals], state.aspectosComunes.condicional || [], CONDICIONAL_BASE).filas[0];
+      const c = leerTablaCondicional([cabCond, vals], state.aspectosComunes.condicional || [], CONDICIONAL_BASE, state.condicionalDesc).filas[0];
       if (c) {
         Object.entries(c.media).forEach(([k, v]) => poner(`[data-jug-cond="${k}"]`, String(v).replace('.', ',')));
         Object.entries(c.max).forEach(([k, v]) => poner(`[data-jug-condmax="${k}"]`, String(v).replace('.', ',')));
@@ -3928,7 +3931,7 @@ function renderPanelJugadores(container) {
       let condColumnas = [];
       try {
         const cab = (filas2D[0] || []).map(t => (['nombre', 'apellidos', 'nombreCompleto', null].includes(campoDeCabecera(t)) ? t : ''));
-        const cond = leerTablaCondicional([cab, ...filas2D.slice(1)], state.aspectosComunes.condicional || [], CONDICIONAL_BASE);
+        const cond = leerTablaCondicional([cab, ...filas2D.slice(1)], state.aspectosComunes.condicional || [], CONDICIONAL_BASE, state.condicionalDesc);
         condColumnas = cond.columnas.filter(c => c.item || c.base);
         const porFila = new Map(cond.filas.map(c => [c.fila, c]));
         filas.forEach(f => { f.cond = porFila.get(f.fila) || null; });
@@ -4117,7 +4120,7 @@ function renderPanelJugadores(container) {
       if (!file && !texto.trim()) { showError('Elige un archivo o pega la tabla.'); return; }
       const filas2D = file ? await leerFilas(file) : filasDesdeTexto(texto);
       if (!filas2D) return;
-      const { columnas, filas } = leerTablaCondicional(filas2D, state.aspectosComunes.condicional || [], CONDICIONAL_BASE);
+      const { columnas, filas } = leerTablaCondicional(filas2D, state.aspectosComunes.condicional || [], CONDICIONAL_BASE, state.condicionalDesc);
       if (!filas.length) { showError('No hay filas con jugador.'); return; }
       filas.forEach(f => {
         const m = matchJugador(f.nombre, state.players);
@@ -5082,6 +5085,13 @@ function renderPanelConfig(container) {
 
   // Datos condicionales: guarda al salir del campo (change), sin re-renderizar
   // la tabla entera (perdería el foco/scroll en cada tecla).
+  container.querySelectorAll('[data-cond-desc]').forEach(inp => inp.addEventListener('change', () => {
+    const d = { ...(state.condicionalDesc || {}) };
+    const v = inp.value.trim();
+    if (v) d[inp.dataset.condDesc] = v; else delete d[inp.dataset.condDesc];
+    setState({ condicionalDesc: d });
+    showSuccess('Guardado.');
+  }));
   container.querySelectorAll('[data-condicional-ref]').forEach(input => {
     input.addEventListener('change', () => {
       const pos = input.dataset.pos;
