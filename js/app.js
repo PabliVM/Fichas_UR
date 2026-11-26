@@ -2654,7 +2654,11 @@ function jugadorPasaFiltros(p) {
     const txt = normalizeTxt(`${p.nombre || ''} ${p.apellidos || ''} ${p.nombreDeportivo || ''}`);
     if (!f.q.split(/\s+/).filter(Boolean).every(w => txt.includes(normalizeTxt(w)))) return false;
   }
-  if (f.teamKey && p.teamKey !== f.teamKey) return false;
+  if (f.teamKey === '_sin') { if (TEAMS.some(t => t.key === p.teamKey)) return false; }
+  else if (f.teamKey === '_fuera') { // en ninguna plantilla de la temporada activa (Equipos)
+    if (!plantillasCache || plantillasCache.some(d => d.temporada === state.season && (d.jugadorIds || []).includes(p.id))) return false;
+  }
+  else if (f.teamKey && p.teamKey !== f.teamKey) return false;
   if (f.positionKey && p.positionKey !== f.positionKey) return false;
   if (f.year && String(calcAgeAndYear(p.birthDate).year) !== String(f.year)) return false;
   if (f.foot && p.foot !== f.foot) return false;
@@ -2672,7 +2676,7 @@ function buildJugadoresFiltrosHTML() {
     <div class="card mb-16 rm-sticky"><div class="card-body" style="padding-top:12px;padding-bottom:12px;">
       <div class="flex gap-8" style="flex-wrap:wrap;align-items:center;">
         <input class="input" type="text" id="jug-f-q" value="${safeText(jugFiltros.q)}" placeholder="🔎 Buscar por nombre o apellidos" aria-label="Buscar por nombre o apellidos" style="flex:1 1 240px;min-width:200px;" />
-        ${sel('jug-f-team', 'Equipo', TEAMS.map(t => [t.key, t.label]), jugFiltros.teamKey)}
+        ${sel('jug-f-team', 'Equipo', [...TEAMS.map(t => [t.key, t.label]), ['_sin', '— Sin equipo asignado'], ['_fuera', `— Fuera de las plantillas ${state.season}`]], jugFiltros.teamKey)}
         ${sel('jug-f-pos', 'Posición', state.positions.map(p => [p.key, p.label]), jugFiltros.positionKey)}
         <details ${masActivos ? 'open' : ''} style="position:relative;">
           <summary class="btn btn-sm" style="list-style:none;cursor:pointer;">Más filtros${masActivos ? ` (${masActivos})` : ''} ▾</summary>
@@ -3635,6 +3639,8 @@ function renderPanelJugadores(container) {
     }
   };
   container.querySelector('#jug-f-q')?.addEventListener('input', e => { jugFiltros.q = e.target.value; refiltrar(true); });
+  container.querySelector('#jug-f-team')?.addEventListener('change', async e => { if (e.target.value === '_fuera') { await ensurePlantillas(); refiltrar(false); } });
+  if (jugFiltros.teamKey === '_fuera' && !plantillasCache) ensurePlantillas().then(() => { if (container.isConnected) refiltrar(false); }).catch(() => {});
   [['#jug-f-team', 'teamKey'], ['#jug-f-pos', 'positionKey'], ['#jug-f-year', 'year'], ['#jug-f-foot', 'foot'], ['#jug-f-resi', 'resi']].forEach(([sel, key]) => {
     container.querySelector(sel)?.addEventListener('change', e => { jugFiltros[key] = e.target.value; refiltrar(false); });
   });
