@@ -7019,7 +7019,8 @@ function setupEvents() {
   if (!document.getElementById('rm-nombres-css')) {
     const st = document.createElement('style'); st.id = 'rm-nombres-css';
     // Nombres de jugador: se pueden pulsar, pero sin subrayado.
-    st.textContent = `table td input[type=number]{text-align:center;}
+    st.textContent = `details.jug-mas > .card{z-index:120 !important;} /* menús (+ Añadir, ⋯) por encima de la fila de títulos fija */
+      table td input[type=number]{text-align:center;}
       [data-ir-ficha],[data-reg-ficha],[data-pl-ir],a[data-jug-ficha]{text-decoration:none !important;border-bottom:none !important;cursor:pointer;}
       [data-ir-ficha]:hover,[data-reg-ficha]:hover,[data-pl-ir]:hover,a[data-jug-ficha]:hover{color:var(--blue-600,#1d4ed8) !important;}`;
     document.head.appendChild(st);
