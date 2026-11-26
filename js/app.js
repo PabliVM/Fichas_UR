@@ -2275,7 +2275,7 @@ function buildCondicionalRefsTableHTML() {
         <tbody>
           ${items.map(item => `
             <tr>
-              <td class="cond-refs-sticky">${safeText(item)}<input type="text" data-cond-desc="${safeText(item)}" value="${safeText(state.condicionalDesc?.[item] || '')}" placeholder="(como sale en el Excel)" title="Entre paréntesis en las tablas; y así se reconoce la columna al importar (… - Media / … - Máx)" style="display:block;width:100%;margin-top:3px;font-size:11px;" /></td>
+              <td class="cond-refs-sticky" style="text-align:center;font-weight:800;">${safeText(item)}<input type="text" data-cond-desc="${safeText(item)}" value="${safeText(state.condicionalDesc?.[item] || '')}" placeholder="" title="Entre paréntesis en las tablas; y así se reconoce la columna al importar (… - Media / … - Máx)" style="display:block;width:100%;margin-top:3px;font-size:11px;" /></td>
               ${positions.map(p => `
                 <td><input type="text" data-condicional-ref data-pos="${p.key}" data-item="${safeText(item)}" data-col="col3" value="${getVal(p.key, item, 'col3')}" /></td>
                 <td><input type="text" data-condicional-ref data-pos="${p.key}" data-item="${safeText(item)}" data-col="col4" value="${getVal(p.key, item, 'col4')}" /></td>
