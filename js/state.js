@@ -172,7 +172,7 @@ const _state = {
   condicionalSinMax: ['V.MAX.'],
   condicionalDesc: {
     'V.MAX.': 'Vmax Referencia (km/h)', 'D.Total.': 'Dist Total (m)', 'D.A Int.': 'Dist >21 (m)', 'D.Sprint.': 'Dist >24 (m)',
-    'Ac.Max.': 'Acc >3', 'N°Sprint.': 'Nº Acciones >24', 'N° Ac Max.': 'Acc Máx (m/s2)', 'M/min.': 'm/min',
+    'Ac.Max.': 'Acc Máx (m/s2)', 'N°Sprint.': 'Nº Acciones >24', 'N° Ac Max.': 'Acc >3', 'M/min.': 'm/min',
   },
   // Banco de frases modelo para "Descripción del jugador" — editable en
   // Configuración → Ayuda → Frases modelo. El técnico las marca en la
