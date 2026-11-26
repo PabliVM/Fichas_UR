@@ -2656,7 +2656,7 @@ function jugadorPasaFiltros(p) {
   }
   if (f.teamKey === '_sin') { if (TEAMS.some(t => t.key === p.teamKey)) return false; }
   else if (f.teamKey === '_fuera') { // en ninguna plantilla de la temporada activa (Equipos)
-    if (!plantillasCache || plantillasCache.some(d => d.temporada === state.season && (d.jugadorIds || []).includes(p.id))) return false;
+    if (!plantillasCache || equiposEnPlantilla(p.id).length) return false;
   }
   else if (f.teamKey && p.teamKey !== f.teamKey) return false;
   if (f.positionKey && p.positionKey !== f.positionKey) return false;
@@ -3493,16 +3493,96 @@ async function filasExportar(jugs, q, evalId) {
   return [cab, ...jugs.map(j => celdas.map(f => f(j)))];
 }
 
+// Equipos en cuya plantilla (temporada activa) está el jugador. Por id del documento (temporada__equipo).
+const equiposEnPlantilla = jid => TEAMS.map(t => t.key).filter(tk => (plantillasCache || []).find(d => d.id === plantillaDocId(state.season, tk))?.jugadorIds?.includes(jid));
+
 // Arreglos para jugadores sin equipo: el equipo de la plantilla en la que están (si es una sola) y nombre/apellidos juntos.
 function arreglosSinEquipo(jugs) {
   const equipo = [], nombre = [];
   jugs.forEach(p => {
-    const tks = [...new Set((plantillasCache || []).filter(d => d.temporada === state.season && d.teamKey && TEAMS.some(t => t.key === d.teamKey) && (d.jugadorIds || []).includes(p.id)).map(d => d.teamKey))];
+    const tks = equiposEnPlantilla(p.id);
     if (tks.length === 1) equipo.push({ p, teamKey: tks[0] });
     const partes = String(p.nombre || '').trim().split(/\s+/);
     if (!String(p.apellidos || '').trim() && partes.length > 1) nombre.push({ p, nombre: partes[0], apellidos: partes.slice(1).join(' ') });
   });
   return { equipo, nombre };
+}
+
+// ── Unir dos fichas del mismo jugador (duplicado → principal) ──
+// Se pasan al principal: encuestas, sitio en plantillas, datos que no tenga, datos por evaluación que no tenga y alias.
+// Antes se descarga una copia de seguridad de los dos. Luego se borra el duplicado.
+const MAPAS_JUGADOR = ['condicionalPorEval', 'condicionalMaxPorEval', 'condicionalBasePorEval', 'fichaNotasManuales', 'fichaTextos', 'fichaCamisetas', 'fichaColoresForzados', 'fichaPosPorEval'];
+const CAMPOS_SIMPLES = ['apellidos', 'nombreDeportivo', 'birthDate', 'foot', 'residencia', 'maturationalAge', 'teamKey', 'positionKey', 'weight', 'height', 'complexion', 'aniosClub', 'aniosClubTemporada', 'fotoUrl'];
+function abrirUnirJugador(dupId, alTerminar) {
+  const d = state.players.find(x => x.id === dupId); if (!d) return;
+  const palabras = j => new Set(normalizeTxt(`${j.nombre || ''} ${j.apellidos || ''}`).split(/\s+/).filter(w => w.length > 2));
+  const pd = palabras(d);
+  const parecido = j => [...palabras(j)].filter(w => pd.has(w)).length;
+  const otros = state.players.filter(x => x.id !== dupId);
+  const parecidos = otros.map(j => ({ j, n: parecido(j) })).filter(x => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 8).map(x => x.j);
+  const resto = otros.filter(j => !parecidos.includes(j)).sort(ordenJugadores);
+  const etiqueta = j => `${nombreCompleto(j)}${j.teamKey ? ` · ${TEAMS.find(t => t.key === j.teamKey)?.label || ''}` : ''}`;
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.45);display:flex;align-items:flex-start;justify-content:center;padding:8vh 16px;';
+  ov.innerHTML = `<div class="card" style="margin:0;width:100%;max-width:560px;">
+    <div class="card-title">Unir fichas del mismo jugador</div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
+      <div>Ficha repetida: <b>${safeText(etiqueta(d))}</b></div>
+      <label class="label" for="unir-destino">Es el mismo que… (esta es la ficha que se queda)</label>
+      <select class="select" id="unir-destino"><option value="">Elige el jugador…</option>
+        ${parecidos.length ? `<optgroup label="Parecidos">${parecidos.map(j => `<option value="${j.id}">${safeText(etiqueta(j))}</option>`).join('')}</optgroup>` : ''}
+        <optgroup label="Todos">${resto.map(j => `<option value="${j.id}">${safeText(etiqueta(j))}</option>`).join('')}</optgroup></select>
+      <p class="text-xs text-muted" style="margin:0;">Se pasan a la ficha elegida: sus encuestas, su sitio en las plantillas, los datos que a la elegida le falten (fecha, peso, foto…), lo guardado por evaluación que no tenga (condicionales, textos, notas M, camisetas…) y su nombre como alias. Después se borra la repetida. Antes se descarga una copia de seguridad.</p>
+      <div class="flex gap-8" style="justify-content:flex-end;"><button class="btn btn-ghost" data-unir-cerrar>Cancelar</button><button class="btn btn-primary" id="unir-ok" disabled>Unir</button></div>
+    </div></div>`;
+  document.body.appendChild(ov);
+  const cerrar = () => ov.remove();
+  ov.querySelector('[data-unir-cerrar]').addEventListener('click', cerrar);
+  ov.addEventListener('click', e => { if (e.target === ov) cerrar(); });
+  const sel = ov.querySelector('#unir-destino'), ok = ov.querySelector('#unir-ok');
+  sel.addEventListener('change', () => { ok.disabled = !sel.value; });
+  ok.addEventListener('click', async () => {
+    const pId = sel.value, p = state.players.find(x => x.id === pId); if (!p) return;
+    if (!confirm(`¿Unir «${nombreCompleto(d)}» en «${nombreCompleto(p)}»? La ficha «${nombreCompleto(d)}» se borrará.`)) return;
+    ok.disabled = true; ok.textContent = 'Uniendo…';
+    try { await unirJugadores(d, p); showSuccess(`Unidos: queda «${nombreCompleto(p)}».`); cerrar(); alTerminar?.(); }
+    catch (err) { console.error('[Unir jugadores]', err); showError('No se pudo unir: ' + (err.message || err)); ok.disabled = false; ok.textContent = 'Unir'; }
+  });
+}
+
+async function unirJugadores(d, p) {
+  // 1. Copia de seguridad de las dos fichas y de las encuestas del repetido
+  const regsD = isFirebaseUnconfigured() ? [] : await queryRegistros({ jugadorId: d.id });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({ tipo: 'antes-de-unir-jugadores', creada: new Date().toISOString(), repetido: d, principal: p, registrosRepetido: regsD })], { type: 'application/json' }));
+  a.download = `copia-antes-de-unir-${slugify(nombreCompleto(d))}-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  // 2. Encuestas → al principal
+  for (const r of regsD) {
+    await actualizarRegistro(r.id, { jugadorId: p.id, rowKey: buildRowKey({ evaluacionId: r.evaluacionId, jugadorId: p.id, jugadorNombreArchivo: r.jugadorNombreArchivo, evaluador: r.evaluador }) });
+  }
+  // 3. Plantillas: donde estaba el repetido, entra el principal
+  if (!isFirebaseUnconfigured()) {
+    for (const pl of (await readCollection('plantillas')).filter(x => (x.jugadorIds || []).includes(d.id))) {
+      await updateDocument('plantillas', pl.id, { jugadorIds: arrayUnion(p.id) });
+    }
+  }
+  plantillasCache = null;
+  // 4. Datos: lo que al principal le falte; mapas por evaluación: las evaluaciones que no tenga; alias
+  const vacio = v => v == null || v === '';
+  const patch = {};
+  CAMPOS_SIMPLES.forEach(k => { if (vacio(p[k]) && !vacio(d[k])) patch[k] = d[k]; });
+  MAPAS_JUGADOR.forEach(k => {
+    const extra = Object.fromEntries(Object.entries(d[k] || {}).filter(([eid]) => !(p[k] || {})[eid]));
+    if (Object.keys(extra).length) patch[k] = { ...(p[k] || {}), ...extra };
+  });
+  const alias = [...new Set([...(p.aliases || []), ...(d.aliases || []), `${d.nombre || ''} ${d.apellidos || ''}`.trim()].filter(Boolean))];
+  patch.aliases = alias;
+  if (!isFirebaseUnconfigured()) await updateDocument('jugadores', p.id, patch);
+  // 5. Borrar el repetido (sus encuestas ya no son suyas)
+  if (!isFirebaseUnconfigured()) await borrarJugadorCompleto(d.id);
+  setState({ players: state.players.filter(x => x.id !== d.id).map(x => x.id === p.id ? { ...x, ...patch } : x) });
+  delete jugFichaRegs[p.id]; delete jugFichaRegs[d.id];
 }
 
 function jugadoresListado() {
@@ -3579,6 +3659,7 @@ function renderPanelJugadores(container) {
               <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;" data-jug-edit="${p.id}">Editar</button>
               <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;" data-jug-hist="${p.id}">${jugadorHistoricoOpenId === p.id ? 'Ocultar histórico' : 'Histórico'}</button>
               <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;" data-jug-foto="${p.id}">Cambiar foto</button>
+              ${puedeEditar('jugadores.lista') ? `<button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;" data-jug-unir="${p.id}" title="Es el mismo chico que otra ficha: se juntan en una">Unir con otro jugador…</button>` : ''}
               <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;text-align:left;color:#b91c1c;" data-jug-del="${p.id}">Borrar</button>
             </div>
           </details>
@@ -3609,6 +3690,13 @@ function renderPanelJugadores(container) {
           <button class="btn" id="jug-exportar" title="Elige qué jugadores y qué datos">⬇ Exportar a Excel</button>
           ${puedeEditar('jugadores.lista') ? `<button class="btn ${jugEdicion ? 'btn-primary' : ''}" id="jug-edicion" title="Cambiar los datos de todos los jugadores directamente en la tabla (se guarda al salir de cada casilla)">${jugEdicion ? '👁 Solo ver' : '✎ Editar'}</button>` : ''}
         </div>`}
+        ${(() => { // Filtro "Fuera de las plantillas": los que tienen equipo en su ficha → meterlos en la plantilla de ese equipo
+          if (jugFiltros.teamKey !== '_fuera' || !puedeEditar('jugadores.lista')) return '';
+          const n = jugadoresFiltrados.filter(p => TEAMS.some(t => t.key === p.teamKey)).length;
+          return !n ? '' : `<div class="flex gap-8 mb-8" style="align-items:center;flex-wrap:wrap;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:10px;padding:8px 12px;">
+            <span style="flex:1 1 300px;">🧩 <b>${n}</b> tienen equipo en su ficha pero no están en la plantilla de ese equipo en Equipos (${state.season}).</span>
+            <button class="btn btn-sm btn-primary" id="jug-fix-plantilla">Añadirlos a la plantilla de su equipo</button></div>`;
+        })()}
         ${(() => { // Filtro "Sin equipo": arreglos rápidos (equipo de su plantilla; nombre y apellidos juntos)
           if (jugFiltros.teamKey !== '_sin' || !puedeEditar('jugadores.lista')) return '';
           const conPl = arreglosSinEquipo(jugadoresFiltrados);
@@ -3872,6 +3960,13 @@ function renderPanelJugadores(container) {
 
   container.querySelector('#jug-exportar')?.addEventListener('click', () => abrirExportarExcel());
   if (jugFiltros.teamKey === '_sin' && !plantillasCache) ensurePlantillas().then(() => { if (container.isConnected) renderPanelJugadores(container); }).catch(() => {});
+  container.querySelector('#jug-fix-plantilla')?.addEventListener('click', async e => {
+    const lista = jugadoresListado().filter(p => TEAMS.some(t => t.key === p.teamKey));
+    if (!confirm(`¿Añadir ${lista.length} jugadores a la plantilla ${state.season} de su equipo?`)) return;
+    e.currentTarget.disabled = true;
+    let n = 0; for (const p of lista) { try { await añadirAPlantilla(p.id, p.teamKey, state.season); n++; } catch (err) { console.error(err); } }
+    showSuccess(`${n} jugadores añadidos a su plantilla.`); renderPanelJugadores(container);
+  });
   container.querySelector('#jug-fix-equipo')?.addEventListener('click', async e => {
     const lista = arreglosSinEquipo(jugadoresListado()).equipo;
     if (!confirm(`¿Poner a ${lista.length} jugadores el equipo de su plantilla?\n\n${lista.map(x => `${nombreCompleto(x.p)} → ${TEAMS.find(t => t.key === x.teamKey)?.label}`).join('\n')}`)) return;
@@ -4271,6 +4366,7 @@ function renderPanelJugadores(container) {
       }
     });
   });
+  container.querySelectorAll('[data-jug-unir]').forEach(btn => btn.addEventListener('click', () => abrirUnirJugador(btn.dataset.jugUnir, () => renderPanelJugadores(container))));
   container.querySelectorAll('[data-jug-del]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.jugDel;
