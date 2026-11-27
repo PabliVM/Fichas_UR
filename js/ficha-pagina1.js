@@ -259,9 +259,14 @@ function buildCompetencias(title, items) {
   `;
 }
 
+// Potenciar / Mejorar: todo en minúsculas salvo la primera letra y la que va tras . ! ? (aunque venga en MAYÚSCULAS).
+function aOracion(txt) {
+  return String(txt ?? '').toLocaleLowerCase('es').replace(/(^\s*[¿¡]?|[.!?]\s+[¿¡]?)(\p{L})/gu, (m, a, l) => a + l.toLocaleUpperCase('es'));
+}
+
 function buildAspectos(title, data) {
   const col = (arr, key) => arr.map(txt =>
-    `<li contenteditable="true" data-aspecto="${key}">${safeText(txt)}</li>`
+    `<li contenteditable="true" data-aspecto="${key}">${safeText(aOracion(txt))}</li>`
   ).join('');
   return `
     <section class="p1-section">
