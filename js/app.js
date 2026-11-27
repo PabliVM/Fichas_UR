@@ -3723,7 +3723,7 @@ function renderPanelJugadores(container) {
     ${condImport && !jugadorFormId ? buildCondImportHTML() : ''}
     ${soloForm ? '' : buildJugadoresFiltrosHTML()}
     <div class="card" ${soloForm ? 'style="display:none;"' : ''}>
-      <div class="card-title">Jugadores (${jugadoresFiltrados.length}${jugadoresFiltrados.length !== state.players.length ? ` de ${state.players.length}` : ''})</div>
+      <div class="card-title">Jugadores (${jugadoresFiltrados.length}${(() => { const ocultos = jugFiltros.teamKey && equipoOculto(jugFiltros.teamKey) ? 0 : state.players.filter(p => equipoOculto(p.teamKey)).length, total = state.players.length - ocultos; return (jugadoresFiltrados.length !== total ? ` de ${total}` : '') + ')' + (ocultos ? `<span class="text-xs text-muted" style="font-weight:400;"> · no cuenta ${ocultos} de ${[...new Set(state.players.filter(p => equipoOculto(p.teamKey)).map(p => TEAMS.find(t => t.key === p.teamKey)?.label))].join(', ')} (oculto en Configuración › Equipos visibles)</span>` : ''); })()}</div>
       <div class="card-body">
         ${jugadorFormId ? '' : `<div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
           <details class="jug-mas" style="position:relative;">
