@@ -6914,7 +6914,7 @@ async function renderPlantillaPresentacion(container) {
         <b>Campograma</b>
         <select class="select" id="pl-campo-sel" style="max-width:260px;"><option value="">Añadir jugador al campo…</option>${libres.map(j => `<option value="${j.id}">${safeText(nombreCompleto(j))}</option>`).join('')}</select>
         <button class="btn btn-sm btn-primary" id="pl-campo-add">Añadir</button>
-        <span class="text-xs text-muted">Arrastra para mover · doble clic para quitar del campo.</span>
+        <span class="text-xs text-muted">Arrastra para mover (se alinea con los demás; Alt = libre) · doble clic para quitar del campo.</span>
       </div>
       ${plSlide(`<img src="./campo1.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;" />
         ${plCrest('right:30px;top:24px;width:110px;height:110px;')}
@@ -6949,11 +6949,29 @@ async function renderPlantillaPresentacion(container) {
       const rc = sl.getBoundingClientRect();
       const x = Math.min(100, Math.max(0, ((e.clientX - drag.dx - rc.left) / rc.width) * 100));
       const y = Math.min(100, Math.max(0, ((e.clientY - drag.dy - rc.top) / rc.height) * 100));
-      drag.x = x; drag.y = y; drag.moved = true;
-      drag.card.style.left = `${x / 100 * PL_W}px`; drag.card.style.top = `${y / 100 * PL_H}px`;
+      // Guías tipo Canva/PowerPoint: se alinea (imán) con el centro del campo y con los otros jugadores. Alt = mover libre.
+      let px = x / 100 * PL_W, py = y / 100 * PL_H, gx = null, gy = null;
+      if (!e.altKey) {
+        const TH = 14, otros = Object.entries(pos).filter(([id]) => id !== drag.id).map(([, v]) => v);
+        const candX = [PL_W / 2, ...otros.map(v => v.x / 100 * PL_W)], candY = [PL_H / 2, ...otros.map(v => v.y / 100 * PL_H)];
+        const cerca = (v, c) => c.reduce((b, k) => (Math.abs(k - v) < TH && (b == null || Math.abs(k - v) < Math.abs(b - v)) ? k : b), null);
+        gx = cerca(px, candX); gy = cerca(py, candY);
+        if (gx != null) px = gx; if (gy != null) py = gy;
+      }
+      const guia = (cls, on, css) => {
+        let g = sl.querySelector('.' + cls);
+        if (!on) { g?.remove(); return; }
+        if (!g) { g = document.createElement('div'); g.className = `${cls} pl-guia`; sl.appendChild(g); }
+        g.style.cssText = `position:absolute;z-index:50;pointer-events:none;background:#ff2d95;${css}`;
+      };
+      guia('pl-guia-v', gx != null, `left:${gx - 1.5}px;top:0;width:3px;height:100%;`);
+      guia('pl-guia-h', gy != null, `top:${gy - 1.5}px;left:0;height:3px;width:100%;`);
+      drag.x = px / PL_W * 100; drag.y = py / PL_H * 100; drag.moved = true;
+      drag.card.style.left = `${px}px`; drag.card.style.top = `${py}px`;
     });
     const fin = async () => {
       if (!drag) return;
+      sl.querySelectorAll('.pl-guia').forEach(g => g.remove());
       const d = drag; drag = null; d.card.style.cursor = 'grab';
       if (d.moved) { pos[d.id] = { x: d.x, y: d.y }; await guardarCampo({ ...pos }); }
     };
