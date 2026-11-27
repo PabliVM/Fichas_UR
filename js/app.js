@@ -6914,6 +6914,7 @@ async function renderPlantillaPresentacion(container) {
         <b>Campograma</b>
         <select class="select" id="pl-campo-sel" style="max-width:260px;"><option value="">Añadir jugador al campo…</option>${libres.map(j => `<option value="${j.id}">${safeText(nombreCompleto(j))}</option>`).join('')}</select>
         <button class="btn btn-sm btn-primary" id="pl-campo-add">Añadir</button>
+        ${libres.length ? `<button class="btn btn-sm" id="pl-campo-todos">Añadir todos (${libres.length})</button>` : ''}
         <span class="text-xs text-muted">Arrastra para mover (se alinea con los demás; Alt = libre) · doble clic para quitar del campo.</span>
       </div>
       ${plSlide(`<img src="./campo1.jpg" alt="" onerror="this.style.display='none'" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;" />
@@ -6935,6 +6936,14 @@ async function renderPlantillaPresentacion(container) {
       const id = campoHost.querySelector('#pl-campo-sel').value; if (!id) return;
       const n = Object.keys(pos).length;
       await guardarCampo({ ...pos, [id]: { x: 10 + (n % 5) * 17, y: 14 + Math.floor(n / 5) * 16 } });
+      dibujarCampo();
+    });
+    // Todos los que faltan, en filas de 5 (luego se colocan a mano).
+    campoHost.querySelector('#pl-campo-todos')?.addEventListener('click', async () => {
+      const nuevo = { ...pos };
+      let n = Object.keys(nuevo).length;
+      libres.forEach(j => { nuevo[j.id] = { x: 10 + (n % 5) * 17, y: Math.min(92, 14 + Math.floor(n / 5) * 16) }; n++; });
+      await guardarCampo(nuevo);
       dibujarCampo();
     });
     let drag = null;
