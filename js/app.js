@@ -6666,7 +6666,7 @@ function plLeyendaCirculo(order) {
   const BW = 84, BH = 16;
   const barra = t => `<div style="width:${BW}px;height:${BH}px;box-sizing:border-box;margin-bottom:3px;background:#ffffff;color:#111;border:1.5px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font:800 9.5px system-ui,sans-serif;text-transform:uppercase;">${t}</div>`;
   const ancho = R * 2 + 10 + BW;
-  return `<div style="position:absolute;right:18px;bottom:12px;width:${ancho}px;height:${24 + R * 2}px;">
+  return `<div style="position:absolute;left:30px;bottom:12px;width:${ancho}px;height:${24 + R * 2}px;">
     ${aro}${circ('R', R - Math.round(101 * k))}${circ('P', R + Math.round(43 * k))}
     <div style="position:absolute;left:${R * 2 + 10}px;top:${24 + R - Math.round((BH * 3 + 6) / 2)}px;">${barra('Perfil 1')}${barra('Perfil 2')}${barra('Perfil 3')}</div>
   </div>`;
