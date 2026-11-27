@@ -146,6 +146,9 @@ function buildFacts(player) {
   return `<ul class="p1-facts">${rows.map(r => `<li>${r}</li>`).join('')}</ul>`;
 }
 
+// Clic en el recuadro R / P → cambiar la nota (lo gestiona app.js con data-rp-edit).
+const rpEdit = (pl, k) => pl.rpRef ? ` data-rp-edit="${k}" data-rp-ref="${safeText(pl.rpRef)}" data-rp-auto="${safeText(String(pl[k === 'r' ? 'rValueAuto' : 'pValueAuto'] ?? ''))}" title="Clic para cambiar la nota" style="cursor:pointer;"` : '';
+
 function buildRpBadges(player) {
   return `
     <div class="p1-rp-group">
@@ -154,8 +157,8 @@ function buildRpBadges(player) {
         <div class="p1-rp-badge p1-rp-badge-p">P</div>
       </div>
       <div class="p1-rp-row">
-        <div class="p1-rp-box p1-rp-box-r">${player.rValue ?? '-'}</div>
-        <div class="p1-rp-box p1-rp-box-p">${player.pValue ?? '-'}</div>
+        <div class="p1-rp-box p1-rp-box-r"${rpEdit(player, 'r')}>${player.rValue ?? '-'}</div>
+        <div class="p1-rp-box p1-rp-box-p"${rpEdit(player, 'p')}>${player.pValue ?? '-'}</div>
       </div>
     </div>
   `;
