@@ -373,8 +373,12 @@ function buildFicha1RealData(positionKey, media, jugador, aspectos, evalId) {
       weight: jugador?.weight ?? null,
       foot: jugador?.foot || '',
       heightOk: null,
-      rValue: aspectos?.rp?.r ?? null,
-      pValue: aspectos?.rp?.p ?? null,
+      // R / P: la nota puesta a mano (rpManualPorEval) manda sobre la media de las encuestas.
+      rValueAuto: aspectos?.rp?.r ?? null,
+      pValueAuto: aspectos?.rp?.p ?? null,
+      rValue: jugador?.rpManualPorEval?.[evalId || 'sin-evaluacion']?.r != null ? fmtNota(jugador.rpManualPorEval[evalId || 'sin-evaluacion'].r) : (aspectos?.rp?.r ?? null),
+      pValue: jugador?.rpManualPorEval?.[evalId || 'sin-evaluacion']?.p != null ? fmtNota(jugador.rpManualPorEval[evalId || 'sin-evaluacion'].p) : (aspectos?.rp?.p ?? null),
+      rpRef: jugador?.id ? `${jugador.id}|${evalId || 'sin-evaluacion'}` : '',
     },
     statusBars: statusBars.length ? statusBars : FICHA1_DEMO_DATA.statusBars,
     personalidad: {
@@ -6611,7 +6615,7 @@ function plCardJugador(j, f1, x, y, escala) {
   const resiCol = PL_RESI[residenciaDe(j)] || PL_RESI[RESI_DEFECTO]; // el nombre, con el color de su residencia (como en el mapa de nivel)
   return `<div class="pl-card" data-jid="${j.id}" style="position:absolute;left:${x / 100 * PL_W}px;top:${y / 100 * PL_H}px;width:0;height:0;cursor:grab;touch-action:none;" title="Arrastra para mover · doble clic para quitar">
     ${svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}">${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>${foto}</svg>`, R * 2, R * 2, `position:absolute;left:${-R}px;top:${-R}px;pointer-events:none;`).replace('<img ', '<img class="pl-donut" ')}
-    ${circ(nota(f1.player?.rValue), -k(84 + 17))}${circ(nota(f1.player?.pValue), k(84 - 41))}
+    ${circ(nota(f1.player?.rValue), -k(84 + 17)).replace('<div ', rpAttrs(f1.player, 'r'))}${circ(nota(f1.player?.pValue), k(84 - 41)).replace('<div ', rpAttrs(f1.player, 'p'))}
     <div style="position:absolute;left:${-k(90)}px;width:${k(180)}px;top:${R + k(6)}px;text-align:center;"><span style="display:inline-block;background:${resiCol.bg};color:${resiCol.fg};font-family:system-ui,sans-serif;font-weight:800;font-size:${k(20)}px;padding:${k(3)}px ${k(16)}px;border-radius:20px;white-space:nowrap;">${safeText(apellido)}</span></div>
     <div style="position:absolute;left:${R + k(28)}px;top:${-k(46)}px;">${barras}</div>
   </div>`;
@@ -6662,7 +6666,7 @@ function plLeyendaCirculo(order) {
   const BW = 84, BH = 16;
   const barra = t => `<div style="width:${BW}px;height:${BH}px;box-sizing:border-box;margin-bottom:3px;background:#ffffff;color:#111;border:1.5px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font:800 9.5px system-ui,sans-serif;text-transform:uppercase;">${t}</div>`;
   const ancho = R * 2 + 10 + BW;
-  return `<div style="position:absolute;left:30px;bottom:12px;width:${ancho}px;height:${24 + R * 2}px;">
+  return `<div style="position:absolute;right:18px;bottom:12px;width:${ancho}px;height:${24 + R * 2}px;">
     ${aro}${circ('R', R - Math.round(101 * k))}${circ('P', R + Math.round(43 * k))}
     <div style="position:absolute;left:${R * 2 + 10}px;top:${24 + R - Math.round((BH * 3 + 6) / 2)}px;">${barra('Perfil 1')}${barra('Perfil 2')}${barra('Perfil 3')}</div>
   </div>`;
@@ -6714,7 +6718,7 @@ function plMapaNivel(tLabel, temporada, items, modo = 'r') {
       const ap = rotuloCorto(it.j);
       return `<div style="position:absolute;left:${cx - ITEM_W / 2}px;top:${top}px;width:${ITEM_W}px;height:${D + 44}px;">
         ${foto}
-        <div style="position:absolute;left:${(ITEM_W + D) / 2 - dN * 0.55}px;top:${-dN * 0.25}px;width:${dN}px;height:${dN}px;border-radius:50%;background:${bgN};color:${fgN};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${Math.max(12, Math.min(26, Math.round((dN - 6) / (txtNota.length > 1 ? txtNota.length * 0.58 : 1.4))))}px;line-height:1;letter-spacing:-0.5px;font-family:system-ui,sans-serif;">${safeText(txtNota)}</div>
+        <div ${rpAttrs(pl, modo === 'p' ? 'p' : 'r').slice(5)}style="position:absolute;left:${(ITEM_W + D) / 2 - dN * 0.55}px;top:${-dN * 0.25}px;width:${dN}px;height:${dN}px;border-radius:50%;background:${bgN};color:${fgN};border:3px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${Math.max(12, Math.min(26, Math.round((dN - 6) / (txtNota.length > 1 ? txtNota.length * 0.58 : 1.4))))}px;line-height:1;letter-spacing:-0.5px;font-family:system-ui,sans-serif;">${safeText(txtNota)}</div>
         <div style="position:absolute;left:50%;top:${D + 8}px;transform:translateX(-50%);max-width:${ITEM_W + 6}px;cursor:pointer;background:${cf.bg};color:${cf.fg};font-family:system-ui,sans-serif;font-weight:800;font-size:${ap.length > 18 ? 13 : ap.length > 13 ? 15 : 17}px;padding:3px 12px;border-radius:14px;width:max-content;text-align:center;line-height:1.15;box-sizing:border-box;" data-ir-ficha="${it.j.id}" title="${safeText(ap)} · abrir su ficha">${safeText(ap)}</div></div>`;
     }).join('');
     return { band: `<div style="position:absolute;left:20px;top:${y0}px;width:${PL_W - 40}px;height:${h}px;background:${d.b.bg};border-radius:70px;"></div>`, cont: `${lado(d.izq, 40, MITAD - 10)}${lado(d.der, MITAD + 10, PL_W - 40)}
@@ -6981,7 +6985,7 @@ async function renderPlantillaPresentacion(container) {
     sl.addEventListener('pointerdown', e => {
       const card = e.target.closest?.('.pl-card'); if (!card) return;
       const d = card.querySelector('.pl-donut').getBoundingClientRect();
-      drag = { card, dx: e.clientX - (d.left + d.width / 2), dy: e.clientY - (d.top + d.height / 2), moved: false, id: card.dataset.jid };
+      drag = { card, dx: e.clientX - (d.left + d.width / 2), dy: e.clientY - (d.top + d.height / 2), moved: false, id: card.dataset.jid, rpEl: e.target.closest?.('[data-rp-edit]') || null };
       card.setPointerCapture?.(e.pointerId); card.style.cursor = 'grabbing'; e.preventDefault();
     });
     sl.addEventListener('pointermove', e => {
@@ -7013,7 +7017,8 @@ async function renderPlantillaPresentacion(container) {
       if (!drag) return;
       sl.querySelectorAll('.pl-guia').forEach(g => g.remove());
       const d = drag; drag = null; d.card.style.cursor = 'grab';
-      if (d.moved) { pos[d.id] = { x: d.x, y: d.y }; await guardarCampo({ ...pos }); }
+      if (!d.moved && d.rpEl) { editarNotaRP(d.rpEl); return; } // clic (sin mover) en R o P: cambiar la nota
+      if (d.moved) { rpUltimoArrastre = Date.now(); pos[d.id] = { x: d.x, y: d.y }; await guardarCampo({ ...pos }); }
     };
     sl.addEventListener('pointerup', fin); sl.addEventListener('pointercancel', fin);
     sl.addEventListener('dblclick', async e => {
@@ -7107,6 +7112,21 @@ async function renderPlantillaPresentacion(container) {
     }
   };
   document.addEventListener('rm:color-forzado', alForzar);
+  const alCambiarRP = async e => {
+    if (!container.isConnected || !lista.isConnected) { document.removeEventListener('rm:rp-cambiado', alCambiarRP); return; }
+    const { jugId, k, valor } = e.detail || {};
+    const f1 = f1Map[jugId]; if (!f1) return;
+    f1.player = { ...f1.player, [k === 'r' ? 'rValue' : 'pValue']: valor };
+    dibujarCampo(); dibujarMapa();
+    for (const [titulo, js] of Object.entries(sepJugadores)) {
+      if (!js.some(j => j.id === jugId)) continue;
+      const viejo = lista.querySelector(`[data-pl-obs="${CSS.escape(`sep.${titulo}`)}"]`); if (!viejo) continue;
+      viejo.insertAdjacentHTML('afterend', plSeparadorPosicion(c, titulo, js, f1Map));
+      const nuevo = viejo.nextElementSibling; nuevo.dataset.plObs = `sep.${titulo}`; viejo.remove();
+      await aplicarSinFondo(lista); ajustarSlides(lista);
+    }
+  };
+  document.addEventListener('rm:rp-cambiado', alCambiarRP);
   const posDe = x => x.dup ? x.prep.fPos : (state.positions.some(pos => pos.key === x.j.positionKey) ? x.j.positionKey : x.prep.fPos);
   // "Las dos": el jugador sale también en el grupo de la otra posición, con su ficha de esa posición.
   const dups = preps.flatMap(x => (x.prep.extrasPos || []).map(e => ({ j: x.j, dup: true, prep: { ...x.prep, fPos: e.fPos, fMedia: e.fMedia } })));
@@ -7312,9 +7332,51 @@ function renderMain() {
   });
 }
 
+// ── NOTA R / P A MANO ─────────────────────────────
+// Clic en cualquier círculo R o P (Ficha 1, campograma, portadas, mapa de nivel) → se cambia la nota de ese jugador y evaluación.
+// jugadores/{id}.rpManualPorEval[evaluación] = { r, p }. Vacío = vuelve a la media de las encuestas.
+function rpAttrs(pl, k) {
+  if (!pl?.rpRef) return '<div ';
+  return `<div data-rp-edit="${k}" data-rp-ref="${safeText(pl.rpRef)}" data-rp-auto="${safeText(String(pl[k === 'r' ? 'rValueAuto' : 'pValueAuto'] ?? ''))}" title="Clic para cambiar la nota de ${k === 'r' ? 'Rendimiento' : 'Proyección'}" `;
+}
+let rpUltimoArrastre = 0; // tras arrastrar una tarjeta del campograma no se abre el cambio de nota
+async function editarNotaRP(el) {
+  if (!puedeEditar('jugadores.fichas') && !puedeEditar('plantillas.pres')) { showError('No tienes permiso para cambiar notas.'); return; }
+  const k = el.dataset.rpEdit, [jid, evKey] = el.dataset.rpRef.split('|');
+  const j = state.players.find(x => x.id === jid); if (!j) return;
+  const nombre = k === 'r' ? 'Rendimiento' : 'Proyección';
+  const actualM = j.rpManualPorEval?.[evKey]?.[k];
+  const auto = el.dataset.rpAuto || '';
+  const txt = prompt(`${nombre} de ${nombreCompleto(j)} (0-5).\nDéjalo vacío para usar la media de las encuestas${auto ? ` (${auto})` : ''}.`, actualM != null ? fmtNota(actualM) : '');
+  if (txt === null) return;
+  const t = txt.trim().replace(',', '.');
+  const v = t === '' ? null : Number(t);
+  if (v != null && (Number.isNaN(v) || v < 0 || v > 5)) { showError('Pon un número de 0 a 5.'); return; }
+  const mapa = { ...(j.rpManualPorEval?.[evKey] || {}) };
+  if (v == null) delete mapa[k]; else mapa[k] = Math.round(v * 100) / 100;
+  const hay = Object.keys(mapa).length > 0;
+  const todo = { ...(j.rpManualPorEval || {}) };
+  if (hay) todo[evKey] = mapa; else delete todo[evKey];
+  j.rpManualPorEval = todo;
+  const mostrado = v != null ? fmtNota(v) : (auto || null);
+  // Ficha 1 en pantalla: el recuadro cambia al momento.
+  document.querySelectorAll(`.p1-rp-box[data-rp-edit="${k}"][data-rp-ref="${CSS.escape(el.dataset.rpRef)}"]`).forEach(b => { b.textContent = mostrado ?? '-'; });
+  document.dispatchEvent(new CustomEvent('rm:rp-cambiado', { detail: { jugId: jid, evKey, k, valor: mostrado } }));
+  try { await updateMapEntry('jugadores', jid, 'rpManualPorEval', evKey, hay ? mapa : null); showSuccess(v != null ? `${nombre}: ${fmtNota(v)}` : `${nombre}: vuelve a la media de las encuestas.`); }
+  catch (err) { console.error(err); showError('No se pudo guardar la nota.'); }
+}
+
 // ── EVENTOS GLOBALES ─────────────────────────────
 
 function setupEvents() {
+  // Nota R / P a mano (antes que el enlace a la ficha: el círculo del mapa de nivel está dentro de uno).
+  document.addEventListener('click', e => {
+    const el = e.target.closest?.('[data-rp-edit]');
+    if (!el || document.fullscreenElement || Date.now() - rpUltimoArrastre < 400) return;
+    if (el.closest('.pl-slide .pl-card[style*="grab"]')) return; // campograma: lo gestiona el arrastre (pointerup)
+    e.preventDefault(); e.stopPropagation();
+    editarNotaRP(el);
+  }, true);
   // Cualquier nombre de jugador marcado con data-ir-ficha lleva a su ficha (y «Volver» trae de vuelta).
   document.addEventListener('click', e => {
     const el = e.target.closest?.('[data-ir-ficha]');
