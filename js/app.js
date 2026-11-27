@@ -1282,6 +1282,7 @@ function renderRegistroSub(container) {
     }
     const ev = regEvaluaciones.find(e => e.id === regEvalSel);
     const r = regImport.resultado;
+    if (!(await copiaAntesDeImportar('evaluaciones'))) return;
     regImport.busy = true;
     renderRegistroSub(container);
     let creados = 0;
@@ -1956,6 +1957,44 @@ function renderPendientes(wrap) {
     const p = state.players.find(x => x.id === btn.dataset.pendFicha);
     if (p && !p.fotoUrl) { jugFichaId = null; jugadorFormId = p.id; switchTab('jugadores'); } else irAFicha(btn.dataset.pendFicha);
   }));
+}
+
+// Copia de seguridad (JSON) descargada al ordenador. `historico`: también el histórico de cada jugador (lento).
+async function descargarCopiaSeguridad({ historico = false, motivo = '', estado = () => {} } = {}) {
+  const copia = { version: 1, creada: new Date().toISOString(), motivo, colecciones: {} };
+  for (const nombre of ['jugadores', 'plantillas', 'evaluaciones', 'registros']) {
+    estado(`Leyendo ${nombre}…`);
+    copia.colecciones[nombre] = await readCollection(nombre);
+  }
+  estado('Leyendo configuración…');
+  copia.config = await readDocument('config', 'general');
+  if (historico) {
+    let i = 0;
+    for (const j of copia.colecciones.jugadores) {
+      estado(`Leyendo histórico ${++i}/${copia.colecciones.jugadores.length}…`);
+      try { j._historico = await readSubCollection('jugadores', j.id, 'historico'); } catch { j._historico = []; }
+    }
+  }
+  const blob = new Blob([JSON.stringify(copia)], { type: 'application/json' });
+  const a = document.createElement('a');
+  const ahora = new Date(), hh = `${String(ahora.getHours()).padStart(2, '0')}${String(ahora.getMinutes()).padStart(2, '0')}`;
+  a.href = URL.createObjectURL(blob);
+  a.download = `rm-perfiles-copia-${ahora.toISOString().slice(0, 10)}-${hh}${motivo ? '-antes-' + motivo : ''}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  return copia;
+}
+// Antes de importar: se descarga sola una copia. Si falla, se pregunta si seguir. → false = no importar.
+async function copiaAntesDeImportar(motivo) {
+  if (isFirebaseUnconfigured()) return true;
+  try {
+    await descargarCopiaSeguridad({ motivo });
+    showSuccess('Copia de seguridad descargada (por si hay que volver atrás). Importando…');
+    return true;
+  } catch (err) {
+    console.error('[Copia antes de importar]', err);
+    return confirm('No se pudo descargar la copia de seguridad antes de importar. ¿Importar igualmente?');
+  }
 }
 
 // Equipos ocultos (Configuración › Equipos visibles): no salen en listas ni selectores. `incluir`: el que ya tiene puesto, para no perderlo.
@@ -4235,6 +4274,7 @@ function renderPanelJugadores(container) {
     const aCrear = jugImport.filas.filter(f => f.crear);
     if (!aCrear.length) return;
     btn.disabled = true;
+    if (!(await copiaAntesDeImportar('jugadores'))) { btn.disabled = false; return; }
     let ok = 0;
     const fallos = [];
     let completadas = 0;
@@ -4290,6 +4330,7 @@ function renderPanelJugadores(container) {
     if (!afectados.length) { showError('Ningún jugador tiene datos condicionales en esa evaluación.'); return; }
     const nombreEv = id => { const ev = (regEvaluaciones || []).find(x => x.id === id); return ev ? `${ev.temporada} · ${ev.nombre}` : id; };
     if (!confirm(`¿Mover los datos condicionales de ${afectados.length} jugador(es) de "${nombreEv(de)}" a "${nombreEv(a)}"?`)) return;
+    if (!(await copiaAntesDeImportar('mover-condicionales'))) return;
     const btn = e.currentTarget; btn.disabled = true;
     let ok = 0; const fallos = [];
     for (const j of afectados) {
@@ -4352,6 +4393,7 @@ function renderPanelJugadores(container) {
       porJugador.set(f.playerId, acc);
     });
     btn.disabled = true;
+    if (!(await copiaAntesDeImportar('condicionales'))) { btn.disabled = false; return; }
     let ok = 0;
     const fallos = [];
     for (const [id, vals] of porJugador) {
@@ -5118,24 +5160,7 @@ function renderPanelConfig(container) {
     if (isFirebaseUnconfigured()) { showError('Firebase sin configurar.'); return; }
     btn.disabled = true;
     try {
-      const copia = { version: 1, creada: new Date().toISOString(), colecciones: {} };
-      for (const nombre of ['jugadores', 'plantillas', 'evaluaciones', 'registros']) {
-        est.textContent = `Leyendo ${nombre}…`;
-        copia.colecciones[nombre] = await readCollection(nombre);
-      }
-      est.textContent = 'Leyendo configuración…';
-      copia.config = await readDocument('config', 'general');
-      let i = 0;
-      for (const j of copia.colecciones.jugadores) {
-        est.textContent = `Leyendo histórico ${++i}/${copia.colecciones.jugadores.length}…`;
-        try { j._historico = await readSubCollection('jugadores', j.id, 'historico'); } catch { j._historico = []; }
-      }
-      const blob = new Blob([JSON.stringify(copia)], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `rm-perfiles-copia-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      const copia = await descargarCopiaSeguridad({ historico: true, estado: t => { est.textContent = t; } });
       est.textContent = `Listo: ${copia.colecciones.jugadores.length} jugadores, ${copia.colecciones.plantillas.length} plantillas, ${copia.colecciones.evaluaciones.length} evaluaciones, ${copia.colecciones.registros.length} registros.`;
     } catch (err) {
       console.error('[Copia]', err); est.textContent = ''; showError('No se pudo crear la copia: ' + (err?.message || err));
