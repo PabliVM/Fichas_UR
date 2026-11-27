@@ -6641,7 +6641,7 @@ function plResumenPosicion(titulo, temporada, teamLabel, items, f1Map) {
 
 // Leyenda: mismo donut que el de cada jugador, sin foto y en blanco, con el nombre de cada bloque en su cuarto (texto curvo).
 function plLeyendaCirculo(order) {
-  const R = 88, r = 44, cx = R, cy = R, mid = (R + r) / 2;   // tamaño real: sin viewBox escalado (el PDF lo pinta bien)
+  const R = 60, r = 30, cx = R, cy = R, mid = (R + r) / 2;   // tamaño real (pequeña, esquina inferior izquierda): sin viewBox escalado (el PDF lo pinta bien)
   const nombres = { mental: 'MENTAL', tecnico: 'TÉCNICO', tactico: 'TÁCTICO', condicional: 'CONDICIONAL' };
   const pol = (rad, deg) => { const a = (deg - 90) * Math.PI / 180; return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)]; };
   const u = ++plUid;
@@ -6651,20 +6651,20 @@ function plLeyendaCirculo(order) {
     const abajo = pos === 'br' || pos === 'bl';
     const [px1, py1] = pol(mid, abajo ? b : a), [px2, py2] = pol(mid, abajo ? a : b);
     defs.push(`<path id="plleg${u}${pos}" d="M${px1},${py1} A${mid},${mid} 0 0 ${abajo ? 0 : 1} ${px2},${py2}" fill="none"/>`);
-    textos.push(`<text font-size="12.5" font-weight="800" fill="#111" font-family="system-ui,sans-serif"><textPath xlink:href="#plleg${u}${pos}" href="#plleg${u}${pos}" startOffset="50%" text-anchor="middle">${nombres[order[pos]] || ''}</textPath></text>`);
+    textos.push(`<text font-size="9.5" font-weight="800" fill="#111" font-family="system-ui,sans-serif"><textPath xlink:href="#plleg${u}${pos}" href="#plleg${u}${pos}" startOffset="50%" text-anchor="middle">${nombres[order[pos]] || ''}</textPath></text>`);
     return `<path d="M${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2} L${x3},${y3} A${r},${r} 0 0 0 ${x4},${y4} Z" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>`;
   }).join('');
-  const aro = svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}"><defs>${defs.join('')}</defs>${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#94a3b8" stroke-width="1"/>${textos.join('')}</svg>`, R * 2, R * 2, 'position:absolute;left:0;top:34px;'); // centro hueco: se ve el campo (como el hueco de la foto)
+  const aro = svgComoImg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}"><defs>${defs.join('')}</defs>${quarters}<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#94a3b8" stroke-width="1"/>${textos.join('')}</svg>`, R * 2, R * 2, 'position:absolute;left:0;top:24px;'); // centro hueco: se ve el campo (como el hueco de la foto)
   // Igual que la tarjeta de cada jugador: círculos R y P arriba y los 3 perfiles a la derecha.
-  const k = R / 84, D = Math.round(58 * k), arriba = 34 + R - Math.round(101 * k);
-  const circ = (t, left) => `<div style="position:absolute;left:${left}px;top:${arriba}px;width:${D}px;height:${D}px;border-radius:50%;background:#ffffff;color:#0b2a6b;border:3px solid #0b2a6b;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:900 28px system-ui,sans-serif;">${t}</div>`;
+  const k = R / 84, D = Math.round(58 * k), arriba = 24 + R - Math.round(101 * k);
+  const circ = (t, left) => `<div style="position:absolute;left:${left}px;top:${arriba}px;width:${D}px;height:${D}px;border-radius:50%;background:#ffffff;color:#0b2a6b;border:2px solid #0b2a6b;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:900 20px system-ui,sans-serif;">${t}</div>`;
   // Perfiles: misma letra que MENTAL/TÉCNICO… del aro (12,5 px, negrita 800, mayúsculas) y rectángulos pequeños.
-  const BW = 120, BH = 22;
-  const barra = t => `<div style="width:${BW}px;height:${BH}px;box-sizing:border-box;margin-bottom:4px;background:#ffffff;color:#111;border:2px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font:800 12.5px system-ui,sans-serif;text-transform:uppercase;">${t}</div>`;
-  const ancho = R * 2 + 14 + BW;
-  return `<div style="position:absolute;right:18px;bottom:14px;width:${ancho}px;height:${34 + R * 2}px;">
+  const BW = 84, BH = 16;
+  const barra = t => `<div style="width:${BW}px;height:${BH}px;box-sizing:border-box;margin-bottom:3px;background:#ffffff;color:#111;border:1.5px solid #0b2a6b;display:flex;align-items:center;justify-content:center;font:800 9.5px system-ui,sans-serif;text-transform:uppercase;">${t}</div>`;
+  const ancho = R * 2 + 10 + BW;
+  return `<div style="position:absolute;left:30px;bottom:12px;width:${ancho}px;height:${24 + R * 2}px;">
     ${aro}${circ('R', R - Math.round(101 * k))}${circ('P', R + Math.round(43 * k))}
-    <div style="position:absolute;left:${R * 2 + 14}px;top:${34 + R - Math.round((BH * 3 + 8) / 2)}px;">${barra('Perfil 1')}${barra('Perfil 2')}${barra('Perfil 3')}</div>
+    <div style="position:absolute;left:${R * 2 + 10}px;top:${24 + R - Math.round((BH * 3 + 6) / 2)}px;">${barra('Perfil 1')}${barra('Perfil 2')}${barra('Perfil 3')}</div>
   </div>`;
 }
 
