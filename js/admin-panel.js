@@ -118,8 +118,8 @@ async function renderUsuarios(container) {
       <div class="adm-cab">
         <div class="adm-avatar adm-avatar-xl">${safeText(ini(u))}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:19px;font-weight:800;">${safeText(nombreDe(u))}</div>
-          <div class="text-sm text-muted">${id}</div>
+          <input class="input" type="text" data-u="${id}" data-nombre value="${safeText(u.nombre || '')}" placeholder="${safeText(nombreDe(u))}" title="Nombre (se guarda con «Guardar cambios»)" style="font-size:17px;font-weight:800;max-width:340px;padding:4px 8px;" />
+          <div class="text-sm text-muted" style="margin-top:4px;">${id} <button type="button" class="btn btn-ghost btn-sm" data-cambiar-email="${id}" title="Cambiar el email con el que entra" style="padding:2px 6px;">✎ Cambiar email</button></div>
         </div>
         <div class="flex gap-8" style="flex-wrap:wrap;">
           <button class="btn btn-sm" data-reset="${id}" title="Le llega un email para poner o cambiar su contraseña">✉ Email de contraseña</button>
@@ -256,6 +256,7 @@ async function renderUsuarios(container) {
     marcar(s.dataset.u);
   }));
   container.querySelectorAll('[data-activo]').forEach(cb => cb.addEventListener('change', () => marcar(cb.dataset.u)));
+  container.querySelectorAll('[data-nombre]').forEach(i => i.addEventListener('input', () => marcar(i.dataset.u)));
   const elDe = (id, sel) => [...container.querySelectorAll(sel)].filter(x => x.dataset.u === id);
   container.querySelectorAll('[data-red], [data-hor-dia], [data-hor-desde], [data-hor-hasta]').forEach(el => el.addEventListener('change', () => marcar(el.dataset.u)));
   container.querySelectorAll('[data-hor-on]').forEach(cb => cb.addEventListener('change', () => {
@@ -276,6 +277,7 @@ async function renderUsuarios(container) {
         if (permisos[k] === 'oculta' && clavesDe(tab).some(c => permisos[c] !== 'oculta')) permisos[k] = 'ver';
       });
       const tabs = Object.fromEntries(TABS.map(t => [t.key, maxNivel(clavesDe(t.key).map(c => permisos[c]))]));
+      const nombre = (elDe(id, '[data-nombre]')[0]?.value || '').trim();
       const activo = [...container.querySelectorAll('[data-activo]')].find(c => c.dataset.u === id)?.checked !== false;
       const exigeRed = !!elDe(id, '[data-red]')[0]?.checked;
       let horario = null;
@@ -288,8 +290,8 @@ async function renderUsuarios(container) {
         if (!horario.dias.length || horario.desde >= horario.hasta) { fallos.push(`${id} (horario: elige días y una hora de fin posterior a la de inicio)`); continue; }
       }
       try {
-        await saveDocument('usuarios', id, { permisos, tabs, activo, exigeRed, horario }, { merge: true });
-        Object.assign(usuariosCache.find(u => u.id === id), { permisos, tabs, activo, exigeRed, horario });
+        await saveDocument('usuarios', id, { nombre, permisos, tabs, activo, exigeRed, horario }, { merge: true });
+        Object.assign(usuariosCache.find(u => u.id === id), { nombre, permisos, tabs, activo, exigeRed, horario });
       } catch (err) { console.error('[Admin] Guardar:', id, err); fallos.push(id); }
     }
     renderUsuarios(container);
@@ -328,6 +330,30 @@ async function renderUsuarios(container) {
   container.querySelectorAll('[data-reset]').forEach(btn => btn.addEventListener('click', async () => {
     try { await resetPassword(btn.dataset.reset); showSuccess('Email enviado.'); }
     catch (err) { console.error('[Admin] Reset:', err); showError('No se pudo enviar el email.'); }
+  }));
+
+  // Cambiar email: el id del usuario es su email → se copia a uno nuevo, se borra el viejo y se crea su cuenta de login.
+  container.querySelectorAll('[data-cambiar-email]').forEach(btn => btn.addEventListener('click', async () => {
+    const viejo = btn.dataset.cambiarEmail;
+    if (pendientes.has(viejo)) { showError('Guarda antes los cambios de este usuario.'); return; }
+    const nuevo = emailKey(prompt(`Nuevo email para ${viejo}:`, viejo) || '');
+    if (!nuevo || nuevo === viejo) return;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(nuevo)) { showError('Email no válido.'); return; }
+    if (SUPERADMIN_EMAILS.includes(nuevo) || usuariosCache.some(u => u.id === nuevo)) { showError('Ese email ya está en la lista.'); return; }
+    if (!confirm(`¿Cambiar ${viejo} → ${nuevo}?\n\nConserva nombre y permisos. Entrará con el email nuevo: le llegará un email para poner su contraseña y la primera vez volverá a escanear el QR.`)) return;
+    try {
+      const { id: _id, ...resto } = usuariosCache.find(u => u.id === viejo) || {};
+      const data = { ...resto, email: nuevo };
+      await saveDocument('usuarios', nuevo, data);
+      await deleteDocument('usuarios', viejo);
+      usuariosCache = [...usuariosCache.filter(u => u.id !== viejo), { id: nuevo, ...data }];
+      adminSel = nuevo;
+      renderUsuarios(container);
+      const nueva = await crearCuenta(nuevo);
+      if (nueva) await resetPassword(nuevo);
+      if (nueva === null) showSuccess('Email cambiado. Falta crear su cuenta de login: Firebase Console › Authentication › Añadir usuario (con el email nuevo); luego pulsa ✉.', 15000);
+      else showSuccess(nueva ? 'Email cambiado. Se le ha enviado un email para poner su contraseña.' : 'Email cambiado (ya tenía cuenta con ese email).');
+    } catch (err) { console.error('[Admin] Cambiar email:', err); showError('No se pudo cambiar el email: ' + (err.message || err)); }
   }));
 
   container.querySelectorAll('[data-borrar]').forEach(btn => btn.addEventListener('click', async () => {
