@@ -7340,18 +7340,44 @@ function rpAttrs(pl, k) {
   return `<div data-rp-edit="${k}" data-rp-ref="${safeText(pl.rpRef)}" data-rp-auto="${safeText(String(pl[k === 'r' ? 'rValueAuto' : 'pValueAuto'] ?? ''))}" title="Clic para cambiar la nota de ${k === 'r' ? 'Rendimiento' : 'Proyección'}" `;
 }
 let rpUltimoArrastre = 0; // tras arrastrar una tarjeta del campograma no se abre el cambio de nota
-async function editarNotaRP(el) {
+// Menú (como el del color forzado): «Media de las encuestas» o «Este número».
+function editarNotaRP(el) {
   if (!puedeEditar('jugadores.fichas') && !puedeEditar('plantillas.pres')) { showError('No tienes permiso para cambiar notas.'); return; }
   const k = el.dataset.rpEdit, [jid, evKey] = el.dataset.rpRef.split('|');
   const j = state.players.find(x => x.id === jid); if (!j) return;
   const nombre = k === 'r' ? 'Rendimiento' : 'Proyección';
   const actualM = j.rpManualPorEval?.[evKey]?.[k];
   const auto = el.dataset.rpAuto || '';
-  const txt = prompt(`${nombre} de ${nombreCompleto(j)} (0-5).\nDéjalo vacío para usar la media de las encuestas${auto ? ` (${auto})` : ''}.`, actualM != null ? fmtNota(actualM) : '');
-  if (txt === null) return;
-  const t = txt.trim().replace(',', '.');
-  const v = t === '' ? null : Number(t);
-  if (v != null && (Number.isNaN(v) || v < 0 || v > 5)) { showError('Pon un número de 0 a 5.'); return; }
+  document.querySelectorAll('.rm-menu-rp').forEach(m => m.remove());
+  const rc = el.getBoundingClientRect();
+  const m = document.createElement('div');
+  m.className = 'rm-menu-rp';
+  m.style.cssText = `position:fixed;z-index:2000;left:${Math.max(8, Math.min(rc.left, window.innerWidth - 280))}px;top:${Math.max(8, Math.min(rc.bottom + 6, window.innerHeight - 190))}px;background:#fff;color:#111;border:1px solid #cbd5e1;border-radius:10px;padding:10px;box-shadow:0 8px 24px rgba(15,23,42,.25);font:13px system-ui,sans-serif;width:260px;`;
+  const sel = on => on ? 'border:2px solid #111;font-weight:800;' : 'border:1px solid #cbd5e1;';
+  m.innerHTML = `<div style="font-weight:800;margin-bottom:8px;">${nombre} · ${safeText(nombreCompleto(j))}</div>
+    <button type="button" data-rp-media style="width:100%;padding:6px;border-radius:8px;background:#f8fafc;cursor:pointer;margin-bottom:8px;${sel(actualM == null)}">Media de las encuestas (${safeText(auto || 'sin nota')})</button>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input type="text" inputmode="decimal" data-rp-num placeholder="0-5" value="${actualM != null ? fmtNota(actualM) : ''}" style="width:70px;padding:5px 8px;border-radius:8px;text-align:center;font-weight:800;${sel(actualM != null)}" />
+      <button type="button" data-rp-ok style="flex:1;padding:6px;border-radius:8px;border:none;background:#1d4ed8;color:#fff;font-weight:700;cursor:pointer;">Poner este número</button>
+    </div>`;
+  const cerrar = () => { m.remove(); document.removeEventListener('mousedown', fuera, true); };
+  const fuera = ev => { if (!m.contains(ev.target)) cerrar(); };
+  const inp = m.querySelector('[data-rp-num]');
+  const aplicarNum = () => {
+    const t = inp.value.trim().replace(',', '.');
+    const v = Number(t);
+    if (t === '' || Number.isNaN(v) || v < 0 || v > 5) { showError('Pon un número de 0 a 5.'); inp.focus(); return; }
+    cerrar(); guardarNotaRP(j, evKey, k, v, auto, el.dataset.rpRef);
+  };
+  m.querySelector('[data-rp-media]').addEventListener('click', () => { cerrar(); guardarNotaRP(j, evKey, k, null, auto, el.dataset.rpRef); });
+  m.querySelector('[data-rp-ok]').addEventListener('click', aplicarNum);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') aplicarNum(); if (e.key === 'Escape') cerrar(); });
+  document.body.appendChild(m);
+  inp.focus(); inp.select();
+  setTimeout(() => document.addEventListener('mousedown', fuera, true), 0);
+}
+async function guardarNotaRP(j, evKey, k, v, auto, ref) {
+  const jid = j.id, nombre = k === 'r' ? 'Rendimiento' : 'Proyección';
   const mapa = { ...(j.rpManualPorEval?.[evKey] || {}) };
   if (v == null) delete mapa[k]; else mapa[k] = Math.round(v * 100) / 100;
   const hay = Object.keys(mapa).length > 0;
@@ -7360,9 +7386,9 @@ async function editarNotaRP(el) {
   j.rpManualPorEval = todo;
   const mostrado = v != null ? fmtNota(v) : (auto || null);
   // Ficha 1 en pantalla: el recuadro cambia al momento.
-  document.querySelectorAll(`.p1-rp-box[data-rp-edit="${k}"][data-rp-ref="${CSS.escape(el.dataset.rpRef)}"]`).forEach(b => { b.textContent = mostrado ?? '-'; });
+  document.querySelectorAll(`.p1-rp-box[data-rp-edit="${k}"][data-rp-ref="${CSS.escape(ref)}"]`).forEach(b => { b.textContent = mostrado ?? '-'; });
   document.dispatchEvent(new CustomEvent('rm:rp-cambiado', { detail: { jugId: jid, evKey, k, valor: mostrado } }));
-  try { await updateMapEntry('jugadores', jid, 'rpManualPorEval', evKey, hay ? mapa : null); showSuccess(v != null ? `${nombre}: ${fmtNota(v)}` : `${nombre}: vuelve a la media de las encuestas.`); }
+  try { await updateMapEntry('jugadores', jid, 'rpManualPorEval', evKey, hay ? mapa : null); showSuccess(v != null ? `${nombre}: ${fmtNota(v)}` : `${nombre}: media de las encuestas.`); }
   catch (err) { console.error(err); showError('No se pudo guardar la nota.'); }
 }
 
